@@ -1257,6 +1257,8 @@ function defaultState(){
     activityStopwatch: null,
     people: [],
     anniversaryTaskLog: {},
+    shoppingList: [],
+    pantryStock: [],
     foodCategories: FOOD_CATEGORIES,
     currentView: "calendar",
     selectedDate: todayISO,
@@ -1423,6 +1425,8 @@ function loadState(){
         })) : [],
       })) : [],
       anniversaryTaskLog: (parsed.anniversaryTaskLog && typeof parsed.anniversaryTaskLog === "object") ? parsed.anniversaryTaskLog : {},
+      shoppingList: Array.isArray(parsed.shoppingList) ? parsed.shoppingList : [],
+      pantryStock: Array.isArray(parsed.pantryStock) ? parsed.pantryStock : [],
       currentView: ["recipes","meals","notes","documents","medications","workouts","settings"].includes(parsed.currentView) ? parsed.currentView : "calendar",
       selectedDate: todayISO,
       activeListFilter: parsed.activeListFilter || "all",
@@ -1449,7 +1453,466 @@ function saveState(){
   }
 }
 
+// ================= BACKUP / EXPORT / RESTORE =================
+// Everything lives only in this browser's localStorage — no server, no
+// account. This is the safety net: a downloadable snapshot of the whole
+// state, and a way to load one back in, so switching phones or an
+// accidentally-cleared browser doesn't mean losing everything.
+function exportBackup(){
+  try{
+    const payload = { app:"vibe-calendar", exportedAt: new Date().toISOString(), state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vibe-calendar-zaloha-${todayISO}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast("✅ Záloha stažena");
+  }catch(e){
+    showToast("Stažení zálohy se nezdařilo.");
+  }
+}
+async function handleBackupUpload(fileList){
+  if(!fileList || !fileList.length) return;
+  try{
+    const text = await fileList[0].text();
+    const parsed = JSON.parse(text);
+    const restoredState = parsed && parsed.state ? parsed.state : parsed; // accept raw state too
+    if(!restoredState || typeof restoredState !== "object" || !Array.isArray(restoredState.tasks)){
+      showToast("Tenhle soubor nevypadá jako platná záloha appky.");
+      return;
+    }
+    pendingRestoreState = restoredState;
+    openModal("confirmRestore");
+  }catch(e){
+    showToast("Soubor se nepodařilo přečíst — je poškozený nebo to není platná záloha.");
+  }
+}
+let pendingRestoreState = null;
+function confirmRestoreBackup(){
+  if(!pendingRestoreState) return;
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingRestoreState));
+    showToast("✅ Záloha obnovena — appka se teď načte znovu");
+    pendingRestoreState = null;
+    closeModal();
+    setTimeout(() => location.reload(), 800);
+  }catch(e){
+    showToast("Obnovení se nezdařilo.");
+  }
+}
+function confirmRestoreModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:360px;text-align:center">
+        <p style="font-size:40px;margin:0 0 8px">⚠️</p>
+        <p class="text-lg font-semi" style="margin:0 0 8px;color:#334155">Obnovit ze zálohy?</p>
+        <p class="text-sm muted" style="margin:0 0 20px">Tohle <b>přepíše všechna aktuální data</b> v appce zálohou ze souboru. Tuhle akci nejde vzít zpět — pokud si nejsi jistý/á, nejdřív si stáhni zálohu aktuálního stavu.</p>
+        <div class="row gap-2">
+          <button class="btn btn-soft grow" style="justify-content:center" data-action="close-modal">Zrušit</button>
+          <button class="btn btn-primary grow" style="justify-content:center;background:#dc2626" data-action="confirm-restore-backup">Ano, přepsat</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+let globalSearchQuery = "";
+let shoppingDaysAhead = 7;
+let pantryExpanded = false;
+function openGlobalSearch(){
+  globalSearchQuery = "";
+  openModal("globalSearch");
+}
+function globalSearchResults(query){
+  const q = (query||"").trim().toLowerCase();
+  if(q.length < 2) return [];
+  const results = [];
+  const matches = (text) => text && String(text).toLowerCase().includes(q);
+  state.tasks.filter(t=>!t.deletedAt).forEach(t => {
+    if(matches(t.title) || matches(t.content)) results.push({type:"task", icon:"☑️", title:t.title, sub:t.date, id:t.id});
+  });
+  state.recipes.filter(r=>!r.deletedAt).forEach(r => {
+    if(matches(r.title)) results.push({type:"recipe", icon:"🍳", title:r.title, sub:"Recept", id:r.id});
+  });
+  state.meals.filter(m=>!m.deletedAt).forEach(m => {
+    if(matches(m.title)) results.push({type:"meal", icon:"🍽️", title:m.title, sub:m.date, id:m.id});
+  });
+  state.documents.filter(d=>!d.deletedAt).forEach(d => {
+    if(matches(d.title) || matches(d.content)) results.push({type:"document", icon:"📁", title:d.title, sub:"Dokument", id:d.id});
+  });
+  state.workouts.filter(w=>!w.deletedAt).forEach(w => {
+    if(matches(w.title) || matches(w.notes)) results.push({type:"workout", icon:"🏋️", title:w.title, sub:w.date, id:w.id});
+  });
+  state.medications.filter(m=>!m.deletedAt).forEach(m => {
+    if(matches(m.name)) results.push({type:"medication", icon:"💊", title:m.name, sub:m.date, id:m.id});
+  });
+  state.people.forEach(p => {
+    if(matches(p.name)) results.push({type:"person", icon:"🎂", title:p.name, sub:"Rodina a blízcí", id:p.id});
+  });
+  return results.slice(0, 40);
+}
+function openGlobalSearchResult(r){
+  closeModal();
+  if(r.type === "task"){ const t = state.tasks.find(x=>x.id===r.id); if(t){ state.selectedDate=t.date; state.windowStart=toISO(addDays(parseISODate(t.date),-1)); state.currentView="calendar"; saveState(); renderAll(); openTaskQuickView(t.id); } }
+  else if(r.type === "recipe"){ state.currentView="recipes"; saveState(); openRecipeId=r.id; renderAll(); }
+  else if(r.type === "meal"){ const m = state.meals.find(x=>x.id===r.id); if(m){ state.selectedDate=m.date; state.windowStart=toISO(addDays(parseISODate(m.date),-1)); state.currentView="meals"; saveState(); renderAll(); } }
+  else if(r.type === "document"){ state.currentView="documents"; saveState(); renderAll(); openDocumentDetail(r.id); }
+  else if(r.type === "workout"){ const w = state.workouts.find(x=>x.id===r.id); if(w){ state.selectedDate=w.date; state.windowStart=toISO(addDays(parseISODate(w.date),-1)); state.currentView="workouts"; saveState(); renderAll(); openWorkoutDetail(r.id); } }
+  else if(r.type === "medication"){ const m = state.medications.find(x=>x.id===r.id); if(m){ state.selectedDate=m.date; state.currentView="medications"; saveState(); renderAll(); } }
+  else if(r.type === "person"){ state.currentView="settings"; saveState(); renderAll(); expandedPersonId=r.id; renderSettingsView(); }
+}
+function globalSearchResultsHTML(){
+  const results = globalSearchResults(globalSearchQuery);
+  if(globalSearchQuery.trim().length < 2) return `<p class="text-sm muted" style="text-align:center;padding:16px 0">Napiš aspoň 2 znaky…</p>`;
+  if(results.length===0) return `<p class="text-sm muted" style="text-align:center;padding:16px 0">Nic nenalezeno.</p>`;
+  return `
+    <div class="col gap-2">
+      ${results.map(r => `
+        <button class="row gap-3" style="width:100%;text-align:left;background:#f8fafc;border-radius:12px;padding:10px 12px" data-action="open-search-result" data-id="${r.id}" data-sub="${r.type}">
+          <span style="font-size:16px">${r.icon}</span>
+          <div class="grow" style="min-width:0">
+            <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(r.title||"(bez názvu)")}</p>
+            <p class="text-xs muted" style="margin:0">${escapeHTML(r.sub||"")}</p>
+          </div>
+        </button>`).join("")}
+    </div>`;
+}
+function renderGlobalSearchResults(){
+  const el = document.getElementById("globalSearchResultsRoot");
+  if(el) el.innerHTML = globalSearchResultsHTML();
+}
+function globalSearchModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🔍 Hledat v appce</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <input id="globalSearchInput" class="field" style="margin-bottom:12px" placeholder="Hledej úkoly, recepty, dokumenty, tréninky…" value="${escapeAttr(globalSearchQuery)}" autofocus />
+        <div id="globalSearchResultsRoot">${globalSearchResultsHTML()}</div>
+      </div>
+    </div>`;
+}
+
 let state = loadState();
+
+// ================= SHOPPING LIST =================
+function addShoppingListItem(text){
+  if(!text || !text.trim()) return;
+  state.shoppingList = [...state.shoppingList, { id: uid(), text: text.trim(), name: text.trim(), checked:false, source:"manual" }];
+  saveState();
+}
+function toggleShoppingListItem(id){
+  state.shoppingList = state.shoppingList.map(i => i.id===id ? {...i, checked:!i.checked} : i);
+  saveState();
+}
+function removeShoppingListItem(id){
+  state.shoppingList = state.shoppingList.filter(i => i.id !== id);
+  saveState();
+}
+function clearCheckedShoppingItems(){
+  state.shoppingList = state.shoppingList.filter(i => !i.checked);
+  saveState();
+  showToast("Odškrtnuté položky smazány ✓");
+}
+// Pulls ingredients from planned (not-yet-eaten) meals over the next N days —
+// both freely-typed items and recipe-sourced ones — and merges same-named
+// items into one line instead of duplicating them.
+function generateShoppingListFromMeals(daysAhead){
+  const days = daysAhead || 7;
+  const dates = Array.from({length:days}, (_,i) => toISO(addDays(new Date(), i)));
+  const gathered = {}; // name -> {totalGrams, unit, count}
+  dates.forEach(date => {
+    mealsForDate(date).filter(m => !m.eaten).forEach(m => {
+      if(m.items && m.items.length){
+        m.items.forEach(it => {
+          const key = it.text.trim().toLowerCase();
+          if(!gathered[key]) gathered[key] = { name: it.text.trim(), totalGrams:0, unit: it.unit||"g", count:0 };
+          gathered[key].totalGrams += Number(it.grams)||0;
+          gathered[key].count++;
+        });
+      } else if(m.source === "recipe" && m.recipeId){
+        const r = findRecipe(m.recipeId);
+        if(r){
+          (r.sections||[]).forEach(sec => {
+            if(!sec.isIngredients) return;
+            (sec.items||[]).forEach(ing => {
+              const key = ing.text.trim().toLowerCase();
+              if(!gathered[key]) gathered[key] = { name: ing.text.trim(), totalGrams:0, unit:"g", count:0, isRecipeLine:true };
+              gathered[key].count++;
+            });
+          });
+        }
+      }
+    });
+  });
+  const existingNames = new Set(state.shoppingList.filter(i=>!i.checked).map(i => (i.name||i.text).trim().toLowerCase()));
+  const skippedPantry = [];
+  const newItems = Object.values(gathered)
+    .filter(g => {
+      if(existingNames.has(g.name.toLowerCase())) return false;
+      if(isInPantry(g.name)){ skippedPantry.push(g.name); return false; }
+      return true;
+    })
+    .map(g => ({
+      id: uid(),
+      name: g.name,
+      text: g.totalGrams > 0 ? `${g.name} (${Math.round(g.totalGrams)} ${g.unit})` : g.name,
+      checked:false, source:"meal",
+    }));
+  if(!newItems.length){
+    showToast(skippedPantry.length ? `Vše potřebné už máš doma (${skippedPantry.join(", ")}) ✓` : "Žádné nové suroviny k přidání — buď nemáš naplánovaná jídla, nebo už je máš na seznamu.");
+    return;
+  }
+  state.shoppingList = [...state.shoppingList, ...newItems];
+  saveState();
+  showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${skippedPantry.length ? ` (${skippedPantry.length}× přeskočeno, máš doma)` : ''} ✓`);
+}
+// ================= PANTRY / "MÁM DOMA" =================
+// Anything already in the fridge/freezer/garden — the shopping-list generator
+// skips ingredients that match, so it doesn't ask you to buy what you already have.
+function addPantryItem(text){
+  if(!text || !text.trim()) return;
+  state.pantryStock = [...state.pantryStock, { id: uid(), name: text.trim() }];
+  saveState();
+}
+function removePantryItem(id){
+  state.pantryStock = state.pantryStock.filter(i => i.id !== id);
+  saveState();
+}
+// Simple, forgiving substring match either direction — "maso" in the pantry
+// matches a shopping ingredient called "kuřecí maso" and vice versa — good
+// enough for short, plainly-named pantry entries without being fussy about exact wording.
+function isInPantry(ingredientName){
+  const n = ingredientName.trim().toLowerCase();
+  return state.pantryStock.some(p => {
+    const pn = p.name.trim().toLowerCase();
+    return pn.length > 0 && (n.includes(pn) || pn.includes(n));
+  });
+}
+
+// ================= NUTRITION TRENDS / PERIOD EVALUATION =================
+// Aggregates eaten-meal data across a date range and compares it to the
+// person's target (from the same intake-guidance system used elsewhere), so
+// the same numbers stay consistent app-wide instead of drifting between screens.
+function computePeriodNutritionStats(startDate, endDate){
+  const start = parseISODate(startDate), end = parseISODate(endDate);
+  const dayCount = Math.round((end-start)/86400000) + 1;
+  const series = [];
+  let daysWithData = 0;
+  const sums = {calories:0, protein:0, fat:0, carbs:0};
+  for(let i=0;i<dayCount;i++){
+    const d = toISO(addDays(start, i));
+    if(d > todayISO) break; // don't project into the future
+    const meals = mealsForDate(d).filter(m=>m.eaten);
+    const dayTotal = meals.reduce((acc,m) => {
+      const n = m.nutrition||{};
+      acc.calories += Number(n.calories)||0; acc.protein += Number(n.protein)||0;
+      acc.fat += Number(n.fat)||0; acc.carbs += Number(n.carbs)||0;
+      return acc;
+    }, {calories:0,protein:0,fat:0,carbs:0});
+    if(meals.length){
+      daysWithData++;
+      sums.calories += dayTotal.calories; sums.protein += dayTotal.protein;
+      sums.fat += dayTotal.fat; sums.carbs += dayTotal.carbs;
+    }
+    series.push({ date:d, ...dayTotal, hasData: meals.length>0 });
+  }
+  const avg = (key) => daysWithData ? Math.round((sums[key]/daysWithData)*10)/10 : 0;
+  return {
+    startDate, endDate, dayCount, daysWithData, series,
+    avgCalories: avg("calories"), avgProtein: avg("protein"), avgFat: avg("fat"), avgCarbs: avg("carbs"),
+    totalCalories: Math.round(sums.calories), totalProtein: Math.round(sums.protein*10)/10,
+  };
+}
+// Instant, free, rule-based feedback comparing the averages to the person's
+// own target range — no AI needed for this baseline, matches the "always
+// something useful immediately" pattern used elsewhere (protein AI analysis,
+// workout calories).
+function generateNutritionInsights(stats){
+  const p = state.userProfile || {};
+  if(stats.daysWithData === 0) return ["Za tohle období nemáš zaznamenané žádné snědené jídlo — appka nemá z čeho vyhodnotit."];
+  const insights = [];
+  insights.push(`Za ${stats.daysWithData} ${stats.daysWithData===1?'den':stats.daysWithData<5?'dny':'dní'} se záznamem sis v průměru snědl/a ${displayEnergy(stats.avgCalories)}/den, ${stats.avgProtein} g bílkovin, ${stats.avgCarbs} g sacharidů a ${stats.avgFat} g tuků.`);
+  const wUnit = p.weightKg ? (p.unitPref==="lb" ? kgToLb(p.weightKg) : p.weightKg) : null;
+  if(wUnit){
+    const goalMeta = INTAKE_GOALS[p.goal];
+    const proteinRange = p.goal==="custom" ? (p.customTargets?.protein ? [p.customTargets.protein,p.customTargets.protein] : null) : (goalMeta ? goalMeta.protein : null);
+    if(proteinRange){
+      const avgPerKg = Math.round((stats.avgProtein/wUnit)*100)/100;
+      if(avgPerKg < proteinRange[0]) insights.push(`⚠️ Příjem bílkovin (${avgPerKg} g/${weightUnitLabel(p.unitPref)}) je pod tvým cílem (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — zkus přidat cca ${Math.round((proteinRange[0]-avgPerKg)*wUnit)} g bílkovin denně navíc.`);
+      else if(avgPerKg > proteinRange[1]) insights.push(`Příjem bílkovin (${avgPerKg} g/${weightUnitLabel(p.unitPref)}) je nad doporučeným rozmezím (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — není to nutně problém, ale je nad tím, co si sám nastavil/a jako cíl.`);
+      else insights.push(`✅ Příjem bílkovin se drží přesně v tvém cílovém rozmezí (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — pěkná konzistence.`);
+    }
+  } else {
+    insights.push("Zadej si váhu a cíl v Denním přehledu, ať appka umí porovnat příjem s konkrétním doporučením, ne jen ukázat čísla.");
+  }
+  const coverage = Math.round((stats.daysWithData/stats.dayCount)*100);
+  if(coverage < 50) insights.push(`Zaznamenal/a jsi jídlo jen u ${coverage} % dní z tohoto období — čím pravidelněji budeš zapisovat, tím přesnější bude vyhodnocení.`);
+  return insights;
+}
+function nutritionChartHTML(series){
+  const w = 320, h = 90, padTop = 8, padBottom = 4;
+  const maxCal = Math.max(...series.map(d=>d.calories), 100);
+  const barW = Math.max(2, Math.floor((w / series.length) - 2));
+  const bars = series.map((d, i) => {
+    const x = i * (w/series.length);
+    const barH = d.hasData ? Math.max(2, ((d.calories/maxCal) * (h-padTop-padBottom))) : 0;
+    const y = h - padBottom - barH;
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${d.hasData?'#059669':'#e2e8f0'}"></rect>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:80px;display:block">${bars}</svg>`;
+}
+let nutritionPeriodMode = "week"; // "week" | "month" | "year" | "custom"
+let nutritionCustomStart = null, nutritionCustomEnd = null;
+let nutritionAiAnalysis = null; // {text, computedAt, forPeriod}
+function nutritionPeriodDates(){
+  const end = todayISO;
+  if(nutritionPeriodMode === "week") return [toISO(addDays(new Date(), -6)), end];
+  if(nutritionPeriodMode === "month") return [toISO(addDays(new Date(), -29)), end];
+  if(nutritionPeriodMode === "year") return [toISO(addDays(new Date(), -364)), end];
+  return [nutritionCustomStart || toISO(addDays(new Date(),-6)), nutritionCustomEnd || end];
+}
+async function analyzeNutritionPeriodAI(){
+  const [start, end] = nutritionPeriodDates();
+  const stats = computePeriodNutritionStats(start, end);
+  if(stats.daysWithData === 0){ showToast("Za tohle období nemáš zaznamenaná žádná jídla."); return; }
+  const p = state.userProfile || {};
+  const btn = document.getElementById("nutritionAiBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🧠 AI analyzuje…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6", max_tokens: 800,
+        messages: [{ role:"user", content:
+          `Jsi zkušený nutriční specialista. Zhodnoť stravování klienta za období ${start} až ${end} (${stats.daysWithData} dní se záznamem z ${stats.dayCount}):\n- Průměrně ${stats.avgCalories} kcal/den, ${stats.avgProtein} g bílkovin, ${stats.avgCarbs} g sacharidů, ${stats.avgFat} g tuků.\n${p.weightKg ? `- Váha klienta: ${Math.round(p.weightKg)} kg, cíl: ${p.goal==="lose"?"hubnutí":p.goal==="gain"?"nabírání svalů":p.goal==="custom"?"vlastní cíl":"udržení váhy"}.` : "- Váha ani cíl nejsou zadané."}\n\nNapiš krátké (4-6 vět) profesionální ale srozumitelné zhodnocení jako od nutričního specialisty — co dělá dobře, co by mohl/mohla zlepšit, a 1-2 konkrétní chytrá doporučení. Piš v češtině, přátelsky, věcně, bez odborného žargonu.\n\nOdpověz POUZE čistým textem, žádný JSON, žádný markdown.`
+        }],
+      }),
+    });
+    if(!response.ok) throw new Error("http-"+response.status);
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    if(!text) throw new Error("empty");
+    nutritionAiAnalysis = { text, computedAt: Date.now(), forPeriod: `${start}_${end}` };
+    showToast("Analýza hotova ✨");
+  }catch(e){
+    showToast("AI analýza teď není dostupná — appka zatím ukazuje rychlé vyhodnocení bez AI.");
+  }finally{
+    const btn2 = document.getElementById("nutritionAiBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🧠 AI: Podrobná analýza od nutričního specialisty"; }
+    renderModals();
+  }
+}
+function nutritionTrendsModalHTML(){
+  const [start, end] = nutritionPeriodDates();
+  const stats = computePeriodNutritionStats(start, end);
+  const insights = generateNutritionInsights(stats);
+  const currentPeriodKey = `${start}_${end}`;
+  const aiStale = nutritionAiAnalysis && nutritionAiAnalysis.forPeriod !== currentPeriodKey;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:440px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">📈 Vyhodnocení jídelníčku</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="row gap-2 wrapf" style="margin-bottom:12px">
+          <button class="chip ${nutritionPeriodMode==='week'?'active':''}" data-action="set-nutrition-period" data-id="week">Týden</button>
+          <button class="chip ${nutritionPeriodMode==='month'?'active':''}" data-action="set-nutrition-period" data-id="month">Měsíc</button>
+          <button class="chip ${nutritionPeriodMode==='year'?'active':''}" data-action="set-nutrition-period" data-id="year">Rok</button>
+          <button class="chip ${nutritionPeriodMode==='custom'?'active':''}" data-action="set-nutrition-period" data-id="custom">Vlastní</button>
+        </div>
+        ${nutritionPeriodMode==="custom" ? `
+          <div class="row gap-2" style="margin-bottom:12px">
+            <input type="date" class="field" value="${nutritionCustomStart||''}" data-nutrition-custom-field="start" />
+            <input type="date" class="field" value="${nutritionCustomEnd||''}" data-nutrition-custom-field="end" />
+          </div>
+        ` : ""}
+        <p class="text-xs muted" style="margin:0 0 6px">${start} — ${end} · ${stats.daysWithData}/${stats.dayCount} dní se záznamem</p>
+        ${nutritionChartHTML(stats.series)}
+        <p class="text-xs muted" style="margin:6px 0 14px">🟢 dny se záznamem jídla · ⬜ bez záznamu — výška = kalorie</p>
+
+        <div class="row gap-4 wrapf" style="margin-bottom:14px">
+          <div><p class="text-xs muted" style="margin:0">Ø kalorie/den</p><p class="text-sm font-semi" style="margin:0;color:#059669">${displayEnergy(stats.avgCalories)}</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø bílkoviny</p><p class="text-sm font-semi" style="margin:0;color:#7c3aed">${stats.avgProtein} g</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø sacharidy</p><p class="text-sm font-semi" style="margin:0;color:#0284c7">${stats.avgCarbs} g</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø tuky</p><p class="text-sm font-semi" style="margin:0;color:#d97706">${stats.avgFat} g</p></div>
+        </div>
+
+        <div style="background:#f8fafc;border-radius:12px;padding:12px;margin-bottom:12px">
+          <p class="text-xs font-semi muted" style="margin:0 0 6px">📋 Rychlé vyhodnocení</p>
+          ${insights.map(i => `<p class="text-sm" style="margin:0 0 6px;color:#475569">${i}</p>`).join("")}
+        </div>
+
+        ${nutritionAiAnalysis && !aiStale ? `
+          <div style="background:#faf5ff;border-radius:12px;padding:12px;margin-bottom:12px">
+            <p class="text-xs font-semi" style="margin:0 0 6px;color:#7c3aed">🧠 Od nutričního specialisty (AI)</p>
+            <p class="text-sm" style="margin:0;color:#475569;white-space:pre-wrap">${escapeHTML(nutritionAiAnalysis.text)}</p>
+          </div>
+        ` : ""}
+        <button id="nutritionAiBtn" class="btn btn-primary" style="width:100%;justify-content:center" data-action="analyze-nutrition-period">🧠 AI: ${nutritionAiAnalysis && !aiStale ? 'Přepočítat' : 'Podrobná analýza od nutričního specialisty'}</button>
+      </div>
+    </div>`;
+}
+function shoppingListModalHTML(){
+  const unchecked = state.shoppingList.filter(i=>!i.checked);
+  const checked = state.shoppingList.filter(i=>i.checked);
+  const row = (i) => `
+    <div class="row gap-2" style="align-items:center">
+      <button data-action="toggle-shopping-item" data-id="${i.id}" style="width:20px;height:20px;border-radius:6px;border:2px solid ${i.checked?'#10b981':'#cbd5e1'};background:${i.checked?'#10b981':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${i.checked?'✓':''}</button>
+      <span class="text-sm grow ${i.checked?'strike':''}" style="color:${i.checked?'#94a3b8':'#334155'}">${escapeHTML(i.text)}</span>
+      <button class="icon-btn-sm shrink0" data-action="remove-shopping-item" data-id="${i.id}">🗑️</button>
+    </div>`;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🛒 Nákupní seznam</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="row gap-2" style="align-items:center;margin-bottom:8px">
+          <input id="shoppingDaysAheadInput" type="number" min="1" max="60" class="field" style="width:60px" value="${shoppingDaysAhead}" />
+          <span class="text-xs muted">dní dopředu</span>
+          <button class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🔄 Doplnit z jídelníčku</button>
+        </div>
+        <button class="chip" style="margin-bottom:12px" data-action="toggle-pantry-section">${pantryExpanded?'▲':'🏠'} Mám doma (${state.pantryStock.length})</button>
+        ${pantryExpanded ? `
+          <div style="background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:12px">
+            <p class="text-xs muted" style="margin:0 0 8px">Appka tyhle suroviny přeskočí, když bude generovat seznam z jídelníčku — např. maso v mrazáku, zelenina ze zahrady, ovoce od známých.</p>
+            <div class="row gap-2" style="margin-bottom:8px">
+              <input id="pantryItemInput" class="field grow" placeholder="např. kuřecí maso, mrkev…" />
+              <button class="icon-btn shrink0" data-action="add-pantry-item">➕</button>
+            </div>
+            ${state.pantryStock.length ? `
+              <div class="row gap-1 wrapf">
+                ${state.pantryStock.map(p => `<span class="chip" style="background:#dcfce7;color:#166534">${escapeHTML(p.name)} <button data-action="remove-pantry-item" data-id="${p.id}" style="margin-left:4px;color:#166534">✕</button></span>`).join("")}
+              </div>
+            ` : `<p class="text-xs muted" style="margin:0">Zatím nic.</p>`}
+          </div>
+        ` : ""}
+        <div class="row gap-2" style="margin-bottom:14px">
+          <input id="shoppingItemInput" class="field grow" placeholder="Přidat vlastní položku…" />
+          <button class="icon-btn shrink0" data-action="add-shopping-item">➕</button>
+        </div>
+        ${state.shoppingList.length===0 ? `<p class="text-sm muted" style="text-align:center;padding:16px 0">Seznam je zatím prázdný.</p>` : `
+          <div class="col gap-2" style="margin-bottom:${checked.length?'14px':'0'}">
+            ${unchecked.map(row).join("")}
+          </div>
+          ${checked.length ? `
+            <p class="text-xs font-semi muted" style="margin:0 0 8px">Koupeno (${checked.length})</p>
+            <div class="col gap-2" style="opacity:0.6;margin-bottom:12px">${checked.map(row).join("")}</div>
+            <button class="chip" data-action="clear-checked-shopping">🗑️ Smazat odškrtnuté</button>
+          ` : ""}
+        `}
+      </div>
+    </div>`;
+}
+
 saveState(); // persist any one-time data migrations (e.g. demo recipe nutrition) immediately
 
 // transient (not persisted) UI/form state
@@ -4644,6 +5107,9 @@ function renderTopBar(){
         <button class="nav-btn ${state.currentView==='settings'?'active':''}" style="${state.currentView==='settings'?'background:linear-gradient(135deg,#94a3b8,#64748b)':''}" data-action="switch-view" data-id="settings">
           <span class="nav-icon">⚙️</span><span class="nav-label">Nastavení</span>
         </button>
+        <button class="nav-btn" data-action="open-search">
+          <span class="nav-icon">🔍</span><span class="nav-label">Hledat</span>
+        </button>
         <button class="nav-btn" data-action="open-modal" data-modal="archive">
           <span class="nav-icon">🗂️</span><span class="nav-label">Archiv</span>
         </button>
@@ -5445,6 +5911,10 @@ function renderModals(){
   else if(name === "workoutRecurringManager") html = workoutRecurringManagerModalHTML();
   else if(name === "quickActivity") html = quickActivityModalHTML();
   else if(name === "mealPhoto") html = mealPhotoModalHTML();
+  else if(name === "confirmRestore") html = confirmRestoreModalHTML();
+  else if(name === "globalSearch") html = globalSearchModalHTML();
+  else if(name === "shoppingList") html = shoppingListModalHTML();
+  else if(name === "nutritionTrends") html = nutritionTrendsModalHTML();
   else if(name === "taskQuickView") html = taskQuickViewModalHTML(currentModal.taskId);
   else if(name === "workoutSession") html = workoutSessionModalHTML();
   else if(name === "recurringManager") html = recurringManagerModalHTML();
@@ -7620,6 +8090,17 @@ function renderSettingsView(){
       <p class="text-lg font-semi text-main" style="margin:0">⚙️ Nastavení</p>
     </div>
     <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">💾 Záloha dat</p>
+      <p class="text-xs muted" style="margin:0 0 12px">Všechna tvá data žijí jen v tomhle telefonu/prohlížeči. Stáhni si zálohu, ať o ně nepřijdeš při výměně telefonu nebo smazání appky — a jde ji kdykoliv zpátky obnovit.</p>
+      <div class="row gap-2 wrapf">
+        <button class="btn btn-primary" data-action="export-backup">⬇️ Stáhnout zálohu</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          ⬆️ Obnovit ze zálohy
+          <input type="file" accept=".json,application/json" style="display:none" data-action="upload-backup" />
+        </label>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">🎂 Rodina a blízcí</p>
       <p class="text-xs muted" style="margin:0 0 12px">Přidej jméno a appka sama pozná svátek podle českého kalendáře. Zapni upozornění na narozeniny, svátek nebo vlastní výročí — appka ti sama vytvoří úkol s předstihem, který si nastavíš.</p>
       <div class="row gap-2">
@@ -8175,6 +8656,8 @@ function renderMealsView(){
       <p class="text-lg font-semi text-main" style="margin:0">🍽️ Jídelníček</p>
       <div class="row gap-2">
         <button class="icon-btn-sm btn-ghost-card" style="width:34px;height:34px" data-action="open-modal" data-modal="mealMonthCalendar" title="Otevřít celý kalendář">📅</button>
+        <button class="btn btn-soft" data-action="open-modal" data-modal="shoppingList">🛒</button>
+        <button class="btn btn-soft" data-action="open-modal" data-modal="nutritionTrends">📈</button>
         <button class="btn btn-soft" data-action="open-modal" data-modal="mealHistory">📜 Historie</button>
       </div>
     </div>
@@ -8641,6 +9124,18 @@ function handleFieldChange(e){
   const reminderNotePrefix = e.target.dataset.reminderNoteField;
   if(reminderNotePrefix){
     applyReminderFieldChange(reminderNotePrefix, e.target.dataset.id, e.target.dataset.sub, "note", e.target.value);
+    return;
+  }
+  if(e.target.id === "globalSearchInput"){
+    globalSearchQuery = e.target.value;
+    renderGlobalSearchResults();
+    return;
+  }
+  const nutritionCustomField = e.target.dataset.nutritionCustomField;
+  if(nutritionCustomField){
+    if(nutritionCustomField === "start") nutritionCustomStart = e.target.value || null;
+    else nutritionCustomEnd = e.target.value || null;
+    if(e.type === "change") renderModals();
     return;
   }
   const mealField = e.target.dataset.mealField;
@@ -9165,6 +9660,39 @@ function handleClickInner(e){
     case "force-meal-photo-estimate": forceMealPhotoEstimate(); break;
     case "apply-meal-photo-result": applyMealPhotoResult(); break;
     case "retry-meal-photo": if(mealPhotoState) runMealPhotoTurn(mealPhotoState.lastForceFinal||false); break;
+    case "export-backup": exportBackup(); break;
+    case "open-search": openGlobalSearch(); break;
+    case "open-search-result": {
+      const r = { id, type: t.dataset.sub };
+      openGlobalSearchResult(r);
+      break;
+    }
+    case "generate-shopping-list": {
+      const daysInp = document.getElementById("shoppingDaysAheadInput");
+      const days = daysInp ? Math.max(1, Number(daysInp.value)||7) : 7;
+      shoppingDaysAhead = days;
+      generateShoppingListFromMeals(days);
+      renderModals();
+      break;
+    }
+    case "toggle-pantry-section": pantryExpanded = !pantryExpanded; renderModals(); break;
+    case "add-pantry-item": {
+      const inp = document.getElementById("pantryItemInput");
+      if(inp && inp.value.trim()){ addPantryItem(inp.value); inp.value=""; renderModals(); }
+      break;
+    }
+    case "remove-pantry-item": removePantryItem(id); renderModals(); break;
+    case "add-shopping-item": {
+      const inp = document.getElementById("shoppingItemInput");
+      if(inp && inp.value.trim()){ addShoppingListItem(inp.value); inp.value=""; renderModals(); }
+      break;
+    }
+    case "toggle-shopping-item": toggleShoppingListItem(id); renderModals(); break;
+    case "remove-shopping-item": removeShoppingListItem(id); renderModals(); break;
+    case "clear-checked-shopping": clearCheckedShoppingItems(); renderModals(); break;
+    case "set-nutrition-period": nutritionPeriodMode = id; renderModals(); break;
+    case "analyze-nutrition-period": analyzeNutritionPeriodAI(); break;
+    case "confirm-restore-backup": confirmRestoreBackup(); break;
     case "add-person": {
       const inp = document.getElementById("newPersonName");
       if(inp && inp.value.trim()){
@@ -9374,6 +9902,7 @@ function handleChangeUpload(e){
   else if(action === "upload-document-image") handleDocumentImageUpload(t.dataset.id, e.target.files);
   else if(action === "upload-document-file") handleDocumentFileUpload(t.dataset.id, e.target.files);
   else if(action === "upload-meal-photo") handleMealPhotoUpload(e.target.files);
+  else if(action === "upload-backup") handleBackupUpload(e.target.files);
   else if(action === "use-template"){ if(e.target.value) useTemplate(e.target.value); }
 }
 
@@ -9430,6 +9959,8 @@ function initEvents(){
       }
     }
     else if(id === "exerciseNameInput"){ e.preventDefault(); if(openWorkoutId) addExercise(openWorkoutId, e.target.value); }
+    else if(id === "shoppingItemInput"){ e.preventDefault(); if(e.target.value.trim()){ addShoppingListItem(e.target.value); e.target.value=""; renderModals(); } }
+    else if(id === "pantryItemInput"){ e.preventDefault(); if(e.target.value.trim()){ addPantryItem(e.target.value); e.target.value=""; renderModals(); } }
     else if(id === "mealItemInput" || id === "mealItemGramsInput"){
       e.preventDefault();
       const textInp = document.getElementById("mealItemInput");
