@@ -1259,6 +1259,10 @@ function defaultState(){
     anniversaryTaskLog: {},
     shoppingList: [],
     pantryStock: [],
+    aiFoodCache: {},
+    aiWorkoutCache: {},
+    aiFoodCache: {},
+    aiWorkoutCache: {},
     foodCategories: FOOD_CATEGORIES,
     currentView: "calendar",
     selectedDate: todayISO,
@@ -1352,6 +1356,7 @@ function loadState(){
         nutrition: m.nutrition || null,
         eaten: !!m.eaten,
         items: Array.isArray(m.items) ? m.items : [],
+        shareId: m.shareId || null, sharedStatus: m.sharedStatus || null, sharedAccepterName: m.sharedAccepterName || null,
       })) : seedMeals(),
       mealLabels: Array.isArray(parsed.mealLabels) && parsed.mealLabels.length ? parsed.mealLabels : defaultMealLabels(),
       recipeCategories: Array.isArray(parsed.recipeCategories) && parsed.recipeCategories.length ? parsed.recipeCategories : defaultRecipeCategories(),
@@ -1380,6 +1385,7 @@ function loadState(){
         recurrenceDurationValue: w.recurrenceDurationValue || 4,
         recurrenceDurationUnit: w.recurrenceDurationUnit || "weeks",
         recurrenceGroupId: w.recurrenceGroupId || null,
+        shareId: w.shareId || null, sharedStatus: w.sharedStatus || null, sharedAccepterName: w.sharedAccepterName || null,
       })) : [],
       medications: Array.isArray(parsed.medications) ? parsed.medications.map(m => ({
         ...m,
@@ -1427,6 +1433,10 @@ function loadState(){
       anniversaryTaskLog: (parsed.anniversaryTaskLog && typeof parsed.anniversaryTaskLog === "object") ? parsed.anniversaryTaskLog : {},
       shoppingList: Array.isArray(parsed.shoppingList) ? parsed.shoppingList : [],
       pantryStock: Array.isArray(parsed.pantryStock) ? parsed.pantryStock : [],
+      aiFoodCache: (parsed.aiFoodCache && typeof parsed.aiFoodCache === "object") ? parsed.aiFoodCache : {},
+      aiWorkoutCache: (parsed.aiWorkoutCache && typeof parsed.aiWorkoutCache === "object") ? parsed.aiWorkoutCache : {},
+      aiFoodCache: (parsed.aiFoodCache && typeof parsed.aiFoodCache === "object") ? parsed.aiFoodCache : {},
+      aiWorkoutCache: (parsed.aiWorkoutCache && typeof parsed.aiWorkoutCache === "object") ? parsed.aiWorkoutCache : {},
       currentView: ["recipes","meals","notes","documents","medications","workouts","settings"].includes(parsed.currentView) ? parsed.currentView : "calendar",
       selectedDate: todayISO,
       activeListFilter: parsed.activeListFilter || "all",
@@ -1526,11 +1536,70 @@ function openGlobalSearch(){
   globalSearchQuery = "";
   openModal("globalSearch");
 }
+// Strips accents/diacritics so "ukol" finds "úkol" and "recepty" finds
+// "recepty" regardless of how the person happens to type it — works for any
+// Latin-based diacritics, not just Czech.
+function normalizeSearchText(text){
+  return String(text||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+// ================= AI ANSWER MEMORY (cheaper AI without losing quality) =================
+// Once AI has estimated macros for e.g. "Rohlík" or calories for "Běh 30 min",
+// the app remembers it — scaled per 100g/100ml, or per activity+duration — so
+// asking about the SAME thing again (which happens constantly in real use;
+// people eat the same foods and do the same activities repeatedly) is
+// instant and free, with zero AI call. Nothing about the model or the
+// quality of a genuinely NEW estimate changes — only real repeats get
+// skipped, so the "brilliant thinking" stays exactly as sharp as before for
+// anything the app hasn't already learned.
+function normalizeCacheKey(text){ return normalizeSearchText(text).trim(); }
+function getCachedFoodNutrition(name){
+  const key = normalizeCacheKey(name);
+  return state.aiFoodCache[key] || null;
+}
+function cacheFoodNutrition(name, grams, nutrition){
+  const key = normalizeCacheKey(name);
+  if(!key) return;
+  const ratio = 100 / (Number(grams) || 100);
+  state.aiFoodCache[key] = {
+    caloriesPer100: Math.round((Number(nutrition.calories)||0)*ratio),
+    proteinPer100: Math.round((Number(nutrition.protein)||0)*ratio*10)/10,
+    fatPer100: Math.round((Number(nutrition.fat)||0)*ratio*10)/10,
+    carbsPer100: Math.round((Number(nutrition.carbs)||0)*ratio*10)/10,
+    cachedAt: Date.now(),
+  };
+  saveState();
+}
+function scaleFoodFromCache(cached, grams){
+  const ratio = (Number(grams)||100) / 100;
+  return {
+    calories: Math.round((cached.caloriesPer100||0)*ratio),
+    protein: Math.round((cached.proteinPer100||0)*ratio*10)/10,
+    fat: Math.round((cached.fatPer100||0)*ratio*10)/10,
+    carbs: Math.round((cached.carbsPer100||0)*ratio*10)/10,
+  };
+}
+// Workout/activity calorie cache — keyed by activity name + duration rounded
+// to the nearest 5 minutes, so "Běh 28 min" and "Běh 30 min" still share one
+// learned answer (close enough not to matter, and it means far fewer misses).
+function workoutCacheKey(label, minutes){
+  const roundedMin = Math.round((Number(minutes)||0)/5)*5;
+  return `${normalizeCacheKey(label)}::${roundedMin}`;
+}
+function getCachedWorkoutCalories(label, minutes){
+  return state.aiWorkoutCache[workoutCacheKey(label, minutes)] || null;
+}
+function cacheWorkoutCalories(label, minutes, calories, reasoning){
+  const key = workoutCacheKey(label, minutes);
+  if(!normalizeCacheKey(label)) return;
+  state.aiWorkoutCache[key] = { calories: Math.round(Number(calories)||0), reasoning: String(reasoning||"").slice(0,300), cachedAt: Date.now() };
+  saveState();
+}
 function globalSearchResults(query){
-  const q = (query||"").trim().toLowerCase();
+  const q = normalizeSearchText(query).trim();
   if(q.length < 2) return [];
   const results = [];
-  const matches = (text) => text && String(text).toLowerCase().includes(q);
+  const matches = (text) => text && normalizeSearchText(text).includes(q);
   state.tasks.filter(t=>!t.deletedAt).forEach(t => {
     if(matches(t.title) || matches(t.content)) results.push({type:"task", icon:"☑️", title:t.title, sub:t.date, id:t.id});
   });
@@ -2515,7 +2584,7 @@ function toggleDone(id){
   });
   saveState(); scheduleReminders(); renderBoard();
   if(currentModal) renderModals();
-  if(updated) syncSharedCompletionIfNeeded(updated);
+  if(updated) syncSharedCompletionIfNeeded(updated, "done");
 }
 function deleteTask(id){
   state.tasks = state.tasks.map(t => t.id === id ? {...t, deletedAt: Date.now()} : t);
@@ -2913,6 +2982,8 @@ function deleteRecipeCategory(id){
 function toggleMealEaten(id){
   state.meals = state.meals.map(m => m.id===id ? {...m, eaten: !m.eaten} : m);
   saveState(); scheduleReminders(); renderMealsView(); renderTopBar();
+  const updated = state.meals.find(m => m.id===id);
+  syncSharedCompletionIfNeeded(updated, "eaten");
 }
 function deleteMeal(id){
   state.meals = state.meals.map(m => m.id === id ? {...m, deletedAt: Date.now()} : m);
@@ -3083,7 +3154,7 @@ function addMeal(){
     servingsCount: mealDraft.servingsCount, recipeAmountMode: mealDraft.recipeAmountMode, customGrams: mealDraft.customGrams,
     nutrition: nutrition ? {...nutrition} : null,
     eaten:false, reminder: reminder ? {...reminder} : null, reminderBaseTime: mealDraft.reminderBaseTime,
-    recurrenceGroupId: groupId,
+    recurrenceGroupId: groupId, shareId:null, sharedStatus:null, sharedAccepterName:null,
   }));
   state.meals = [...state.meals, ...newItems];
   saveState(); scheduleReminders();
@@ -4596,6 +4667,10 @@ function applyMealPhotoResult(){
       nutrition: { calories: it.calories, protein: it.protein, fat: it.fat, carbs: it.carbs },
       proteinTier: guessProteinTier(it.name), proteinUsablePercent: null,
     }];
+    // A photo-identified item is just as real a data point as a typed one —
+    // remembering it means the NEXT time this food comes up (photo or text),
+    // it's instant and free instead of needing AI again.
+    cacheFoodNutrition(it.name, it.grams, {calories: it.calories, protein: it.protein, fat: it.fat, carbs: it.carbs});
   });
   mealPhotoState = null;
   closeModal();
@@ -4703,9 +4778,33 @@ async function analyzeDayProteinAI(date){
 async function estimateMealItemsNutritionAI(){
   const items = mealDraft.customItems;
   if(!items.length){ showToast("Nejdřív přidej aspoň jednu surovinu."); return; }
+
+  // Check memory first — anything already learned gets filled instantly for
+  // free, no AI call at all. Only genuinely new items go to the model.
+  const uncached = [];
+  let cacheHits = 0;
+  items.forEach(item => {
+    const cached = getCachedFoodNutrition(item.text);
+    if(cached){
+      const scaled = scaleFoodFromCache(cached, item.grams || 100);
+      setMealDraftItemNutrition(item.id, "calories", scaled.calories);
+      setMealDraftItemNutrition(item.id, "protein", scaled.protein);
+      setMealDraftItemNutrition(item.id, "fat", scaled.fat);
+      setMealDraftItemNutrition(item.id, "carbs", scaled.carbs);
+      cacheHits++;
+    } else {
+      uncached.push(item);
+    }
+  });
+  if(!uncached.length){
+    showToast(`✅ Vyplněno z paměti appky (${cacheHits}× zdarma, bez AI) ⚡`);
+    renderMealsView();
+    return;
+  }
+
   const btn = document.getElementById("mealItemsNutAiBtn");
   if(btn){ btn.disabled = true; btn.textContent = "✨ AI počítá…"; }
-  const listText = items.map((i, idx) => `${idx+1}. ${i.text}${i.grams ? ` (${i.grams} ${i.unit||"g"})` : ""}`).join("\n");
+  const listText = uncached.map((i, idx) => `${idx+1}. ${i.text}${i.grams ? ` (${i.grams} ${i.unit||"g"})` : ""}`).join("\n");
   try{
     const response = await fetch("/.netlify/functions/ai-proxy", {
       method: "POST", headers: {"Content-Type":"application/json"},
@@ -4720,15 +4819,20 @@ async function estimateMealItemsNutritionAI(){
     const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
     const cleaned = text.replace(/```json|```/g,"").trim();
     const parsed = JSON.parse(cleaned);
-    if(!Array.isArray(parsed) || parsed.length !== items.length) throw new Error("shape mismatch");
-    items.forEach((item, idx) => {
+    if(!Array.isArray(parsed) || parsed.length !== uncached.length) throw new Error("shape mismatch");
+    uncached.forEach((item, idx) => {
       const v = parsed[idx] || {};
-      setMealDraftItemNutrition(item.id, "calories", Math.round(Number(v.calories))||0);
-      setMealDraftItemNutrition(item.id, "protein", Math.round((Number(v.protein)||0)*10)/10);
-      setMealDraftItemNutrition(item.id, "fat", Math.round((Number(v.fat)||0)*10)/10);
-      setMealDraftItemNutrition(item.id, "carbs", Math.round((Number(v.carbs)||0)*10)/10);
+      const calories = Math.round(Number(v.calories))||0;
+      const protein = Math.round((Number(v.protein)||0)*10)/10;
+      const fat = Math.round((Number(v.fat)||0)*10)/10;
+      const carbs = Math.round((Number(v.carbs)||0)*10)/10;
+      setMealDraftItemNutrition(item.id, "calories", calories);
+      setMealDraftItemNutrition(item.id, "protein", protein);
+      setMealDraftItemNutrition(item.id, "fat", fat);
+      setMealDraftItemNutrition(item.id, "carbs", carbs);
+      cacheFoodNutrition(item.text, item.grams, {calories, protein, fat, carbs}); // learn for next time
     });
-    showToast(`Nutrice vyplněna u ${items.length} surovin ✨ — uprav si klidně ručně`);
+    showToast(`Nutrice vyplněna u ${uncached.length} surovin ✨${cacheHits ? ` (+ ${cacheHits} zdarma z paměti ⚡)` : ""} — uprav si klidně ručně`);
     renderMealsView();
   }catch(e){
     showToast("AI odhad teď není dostupný (funguje jen v prostředí s přístupem k API) — vyplň prosím hodnoty ručně u surovin níže.");
@@ -4765,6 +4869,55 @@ function shareStatusLabel(status, accepterName){
   };
   return map[status] || "📤 Odesláno";
 }
+// All the people you might want to share/delegate something with, combined
+// from both lists (Friends used for sharing, Family/blízcí used for
+// anniversaries) — one simple picker instead of two separate, confusing lists.
+function allShareableContacts(){
+  const combined = [
+    ...state.friends.map(f => ({ id:"f_"+f.id, name:f.name, emoji:f.emoji||"👤", raw:f, kind:"friend" })),
+    ...state.people.map(p => ({ id:"p_"+p.id, name:p.name, emoji:"🎂", raw:p, kind:"person" })),
+  ];
+  const seen = new Set();
+  return combined.filter(c => {
+    const key = c.name.trim().toLowerCase();
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function shareTaskModalHTML(taskId){
+  const task = state.tasks.find(t => t.id === taskId);
+  if(!task) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const contacts = allShareableContacts();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">👥 Sdílet / delegovat úkol</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(task.title)}</p>
+        ${task.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:8px 10px;margin-bottom:12px" class="text-xs" style="color:#059669">${shareStatusLabel(task.sharedStatus, task.sharedAccepterName)}</div>` : ""}
+
+        <p class="text-xs font-semi muted" style="margin:0 0 6px">Poslat konkrétní osobě</p>
+        ${contacts.length ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:14px">
+            ${contacts.map(c => `<button class="chip" data-action="share-to-contact" data-id="${task.id}" data-sub="${c.id}">${c.emoji} ${escapeHTML(c.name)}</button>`).join("")}
+          </div>
+        ` : `<p class="text-xs muted" style="margin:0 0 14px">Zatím nemáš nikoho přidaného — přidej lidi v Nastavení (🎂 Rodina a blízcí) nebo přes „Spravovat přátele".</p>`}
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" data-action="share-generic" data-id="${task.id}">📤 Sdílet (nabídne vše v telefonu)</button>
+        <div class="row gap-2 wrapf" style="margin-bottom:10px">
+          <button data-action="share-via" data-id="${task.id}" data-sub="whatsapp" class="chip" style="background:#dcfce7;color:#15803d">WhatsApp</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="email" class="chip">E-mail</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="sms" class="chip">SMS</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="copy" class="chip">📋 Kopírovat odkaz</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Ten, komu to pošleš, nemusí appku mít — odkaz se otevře v prohlížeči a jde si úkol přidat jedním klepnutím.</p>
+        <button class="chip" style="width:100%;justify-content:center" data-action="export-ics" data-id="${task.id}">📅 Exportovat do kalendáře (Google/Apple)</button>
+      </div>
+    </div>`;
+}
 
 // ---------- Real friend sharing / delegation via self-contained link ----------
 // Encodes the essential task fields into the URL itself (base64 in the hash), so
@@ -4780,33 +4933,55 @@ function shareStatusLabel(status, accepterName){
 // If the service is ever unreachable, sharing/importing still works exactly
 // as before — only the live status tracking is skipped, silently and safely.
 const SHARE_STATUS_API = "https://jsonblob.com/api/jsonBlob";
+// A tiny retry helper — free third-party services like jsonblob occasionally
+// have a transient hiccup (timeout, brief rate-limit); retrying 2-3 times
+// with a short pause turns "silently doesn't work" into "quietly recovers"
+// for the vast majority of real-world failures.
+async function withRetry(fn, attempts){
+  const max = attempts || 3;
+  let lastErr = null;
+  for(let i=0;i<max;i++){
+    try{ return await fn(); }
+    catch(e){ lastErr = e; if(i < max-1) await new Promise(r => setTimeout(r, 400 * (i+1))); }
+  }
+  throw lastErr;
+}
 async function createShareStatusRecord(data){
   try{
-    const res = await fetch(SHARE_STATUS_API, {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ ...data, createdAt: Date.now(), updatedAt: Date.now() }),
+    return await withRetry(async () => {
+      const res = await fetch(SHARE_STATUS_API, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ ...data, createdAt: Date.now(), updatedAt: Date.now() }),
+      });
+      if(!res.ok) throw new Error("http-"+res.status);
+      const loc = res.headers.get("Location") || res.headers.get("location") || "";
+      const id = loc.split("/").filter(Boolean).pop();
+      if(!id) throw new Error("no-location-header");
+      return id;
     });
-    const loc = res.headers.get("Location") || res.headers.get("location") || "";
-    const id = loc.split("/").filter(Boolean).pop();
-    return id || null;
   }catch(e){ return null; }
 }
 async function fetchShareStatusRecord(shareId){
   if(!shareId) return null;
   try{
-    const res = await fetch(`${SHARE_STATUS_API}/${shareId}`);
-    if(!res.ok) return null;
-    return await res.json();
+    return await withRetry(async () => {
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`);
+      if(!res.ok) throw new Error("http-"+res.status);
+      return await res.json();
+    }, 2);
   }catch(e){ return null; }
 }
 async function updateShareStatusRecord(shareId, patch){
   if(!shareId) return false;
   try{
-    const current = (await fetchShareStatusRecord(shareId)) || {};
-    const merged = { ...current, ...patch, updatedAt: Date.now() };
-    await fetch(`${SHARE_STATUS_API}/${shareId}`, {
-      method: "PUT", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(merged),
+    await withRetry(async () => {
+      const current = (await fetchShareStatusRecord(shareId)) || {};
+      const merged = { ...current, ...patch, updatedAt: Date.now() };
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`, {
+        method: "PUT", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(merged),
+      });
+      if(!res.ok) throw new Error("http-"+res.status);
     });
     return true;
   }catch(e){ return false; }
@@ -4826,31 +5001,158 @@ async function ensureTaskShareId(task){
 // Checks the live status of every task *you* have shared, and lets you know
 // if anything changed since you last looked (opened / accepted / completed).
 async function refreshSharedStatuses(silent){
-  const mine = state.tasks.filter(t => t.shareId);
-  if(!mine.length) return;
+  const mineTasks = state.tasks.filter(t => t.shareId).map(x => ({item:x, arr:"tasks"}));
+  const mineMeals = state.meals.filter(m => m.shareId).map(x => ({item:x, arr:"meals"}));
+  const mineWorkouts = state.workouts.filter(w => w.shareId).map(x => ({item:x, arr:"workouts"}));
+  const mine = [...mineTasks, ...mineMeals, ...mineWorkouts];
+  if(!mine.length) return { checked:0, failed:0, changed:false };
   let anyChange = false;
-  for(const t of mine){
-    const record = await fetchShareStatusRecord(t.shareId);
-    if(!record || !record.status) continue;
-    if(record.status !== t.sharedStatus){
+  let failed = 0;
+  for(const {item, arr} of mine){
+    const record = await fetchShareStatusRecord(item.shareId);
+    if(!record){ failed++; continue; }
+    if(!record.status) continue;
+    if(record.status !== item.sharedStatus){
       anyChange = true;
-      state.tasks = state.tasks.map(x => x.id===t.id ? {...x, sharedStatus:record.status, sharedAccepterName:record.accepterName||null} : x);
+      state[arr] = state[arr].map(x => x.id===item.id ? {...x, sharedStatus:record.status, sharedAccepterName:record.accepterName||null} : x);
       if(!silent){
         const who = record.accepterName ? record.accepterName : "Někdo";
-        const label = { seen:"si úkol otevřel/a", accepted:"úkol přijal/a", declined:"úkol odmítl/a", completed:"úkol dokončil/a ✓" }[record.status];
-        if(label) showToast(`👀 ${who} ${label}: „${t.title}“`);
+        const label = { seen:"si to otevřel/a", accepted:"to přijal/a", declined:"to odmítl/a", completed:"to dokončil/a ✓" }[record.status];
+        if(label) showToast(`👀 ${who} ${label}: „${item.title}“`);
       }
     }
   }
-  if(anyChange){ saveState(); renderLanes(); if(currentModal) renderModals(); }
+  if(anyChange){ saveState(); renderAll(); if(currentModal) renderModals(); }
+  return { checked: mine.length, failed, changed: anyChange };
 }
 // When a task imported from a friend (has sharedFromId) is toggled done or
 // undone locally, that flows back to the sender's status board automatically.
-function syncSharedCompletionIfNeeded(task){
-  if(!task || !task.sharedFromId) return;
-  updateShareStatusRecord(task.sharedFromId, { status: task.done ? "completed" : "accepted" });
+function syncSharedCompletionIfNeeded(item, doneField){
+  if(!item || !item.sharedFromId) return;
+  updateShareStatusRecord(item.sharedFromId, { status: item[doneField] ? "completed" : "accepted" });
 }
 
+// ---------- Generic sharing for meals & workouts (same reliable engine as
+// tasks — same retry-hardened network calls, same shareId/status tracking).
+async function ensureItemShareId(item, itemType){
+  if(item.shareId) return item.shareId;
+  const id = await createShareStatusRecord({ itemTitle: item.title, itemType, status:"sent" });
+  if(id){
+    if(itemType === "meal") state.meals = state.meals.map(m => m.id===item.id ? {...m, shareId:id, sharedStatus:"sent"} : m);
+    else if(itemType === "workout") state.workouts = state.workouts.map(w => w.id===item.id ? {...w, shareId:id, sharedStatus:"sent"} : w);
+    saveState();
+  }
+  return id;
+}
+function encodeItemShare(item, itemType){
+  let payload;
+  if(itemType === "meal"){
+    payload = {
+      v:1, itemType:"meal", title:item.title, date:item.date, source:item.source,
+      recipeTitle: item.source==="recipe" ? (findRecipe(item.recipeId)?.title||"") : null,
+      nutrition: item.nutrition||null,
+      items: (item.items||[]).map(i => ({text:i.text, grams:i.grams, unit:i.unit||"g"})),
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "workout"){
+    payload = {
+      v:1, itemType:"workout", title:item.title, date:item.date, notes:item.notes||"",
+      exercises: (item.exercises||[]).map(e => ({name:e.name, sets:e.sets, reps:e.reps, weight:e.weight, restSeconds:e.restSeconds})),
+      checklist: (item.checklist||[]).map(c => ({text:c.text, minutes:c.minutes})),
+      shareId: item.shareId || null,
+    };
+  }
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+function buildItemShareURL(item, itemType){
+  const url = new URL(location.href);
+  url.hash = "shared=" + encodeItemShare(item, itemType);
+  return url.toString();
+}
+function itemShareMessageText(item, itemType, friend){
+  const greet = friend ? `Ahoj ${friend.name}! ` : "";
+  const emoji = itemType==="meal" ? "🍽️" : "🏋️";
+  return `${greet}${emoji} ${item.title}\n📅 ${item.date}\n\nPosílám ti ${itemType==="meal"?"jídlo":"trénink"} z Vibe Calendar — klikni na odkaz, uvidíš ho i bez instalace appky, a jedním klikem si ho můžeš přidat:`;
+}
+async function shareItemToContact(item, itemType, contactId){
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  const isFriend = contactId.startsWith("f_");
+  const realId = contactId.slice(2);
+  const friend = isFriend ? friendById(realId) : null;
+  await ensureItemShareId(item, itemType);
+  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===item.id) || item;
+  const url = buildItemShareURL(fresh, itemType);
+  const text = itemShareMessageText(fresh, itemType, friend);
+  if(friend && friend.phone){
+    window.open(`https://wa.me/${friend.phone.replace(/^\+/,"")}?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+    showToast(`Odesláno ${friend.name} přes WhatsApp ✓`);
+    closeModal();
+    return;
+  }
+  await shareItemGeneric(fresh, itemType, text, url);
+  closeModal();
+}
+async function shareItemGeneric(item, itemType, text, url){
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  await ensureItemShareId(item, itemType);
+  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===item.id) || item;
+  text = text || itemShareMessageText(fresh, itemType, null);
+  url = url || buildItemShareURL(fresh, itemType);
+  if(navigator.share){
+    try{ await navigator.share({ title: fresh.title, text, url }); return; }
+    catch(e){ /* cancelled — fall through */ }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+}
+async function shareItemVia(itemId, itemType, channel){
+  const item = (itemType==="meal" ? state.meals : state.workouts).find(x => x.id === itemId);
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  await ensureItemShareId(item, itemType);
+  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===itemId) || item;
+  const url = buildItemShareURL(fresh, itemType);
+  const text = itemShareMessageText(fresh, itemType, null);
+  if(channel === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "email") window.open(`mailto:?subject=${encodeURIComponent("Z Vibe Calendar: "+fresh.title)}&body=${encodeURIComponent(text+"\n\n"+url)}`, "_blank");
+  else if(channel === "sms") window.open(`sms:?body=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "copy"){
+    try{ await navigator.clipboard.writeText(text+"\n"+url); showToast("Odkaz zkopírován ✓"); }
+    catch(e){ showToast("Kopírování se nezdařilo — zkus odkaz vybrat ručně."); }
+  }
+  if(currentModal) renderModals();
+}
+function shareItemModalHTML(itemId, itemType){
+  const item = (itemType==="meal" ? state.meals : state.workouts).find(x => x.id === itemId);
+  if(!item) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const contacts = allShareableContacts();
+  const label = itemType==="meal" ? "jídlo" : "trénink";
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">${itemType==="meal"?"🍽️":"🏋️"} Sdílet ${label}</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(item.title)}</p>
+        ${item.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:8px 10px;margin-bottom:12px" class="text-xs" style="color:#059669">${shareStatusLabel(item.sharedStatus, item.sharedAccepterName)}</div>` : ""}
+
+        <p class="text-xs font-semi muted" style="margin:0 0 6px">Poslat konkrétní osobě</p>
+        ${contacts.length ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:14px">
+            ${contacts.map(c => `<button class="chip" data-action="share-item-to-contact" data-id="${item.id}" data-sub="${itemType}:${c.id}">${c.emoji} ${escapeHTML(c.name)}</button>`).join("")}
+          </div>
+        ` : `<p class="text-xs muted" style="margin:0 0 14px">Zatím nemáš nikoho přidaného — přidej lidi v Nastavení (🎂 Rodina a blízcí).</p>`}
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" data-action="share-item-generic" data-id="${item.id}" data-sub="${itemType}">📤 Sdílet (nabídne vše v telefonu)</button>
+        <div class="row gap-2 wrapf" style="margin-bottom:10px">
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:whatsapp" class="chip" style="background:#dcfce7;color:#15803d">WhatsApp</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:email" class="chip">E-mail</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:sms" class="chip">SMS</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:copy" class="chip">📋 Kopírovat odkaz</button>
+        </div>
+        <p class="text-xs muted" style="margin:0">Ten, komu to pošleš, nemusí appku mít — odkaz se otevře v prohlížeči a jde si to přidat jedním klepnutím.</p>
+      </div>
+    </div>`;
+}
 function encodeTaskShare(task){
   const payload = {
     v: 1,
@@ -4898,6 +5200,34 @@ async function shareTaskToFriend(task, friendId){
   await shareTaskGeneric(fresh, text, url);
   shareOpenId = null; renderLanes();
 }
+// Works with the unified contact picker (friends + family combined) used by
+// the new share modal — id is prefixed "f_" (friend, has a phone number) or
+// "p_" (family/blízcí from Settings, phone-less).
+async function shareTaskToContact(task, contactId){
+  if(!task){ showToast("Úkol nebyl nalezen."); return; }
+  const isFriend = contactId.startsWith("f_");
+  const realId = contactId.slice(2);
+  const friend = isFriend ? friendById(realId) : null;
+  const person = !isFriend ? findPerson(realId) : null;
+  const name = friend ? friend.name : (person ? person.name : null);
+  if(friend && !(task.friendIds||[]).includes(friend.id)){
+    state.tasks = state.tasks.map(t => t.id===task.id ? {...t, friendIds:[...(t.friendIds||[]), friend.id]} : t);
+    saveState();
+  }
+  await ensureTaskShareId(task);
+  const fresh = state.tasks.find(t=>t.id===task.id) || task;
+  const url = buildShareURL(fresh);
+  const text = shareMessageText(fresh, friend);
+  if(friend && friend.phone){
+    window.open(`https://wa.me/${friend.phone.replace(/^\+/,"")}?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+    showToast(`Úkol odeslán ${friend.name} přes WhatsApp ✓`);
+    closeModal();
+    return;
+  }
+  await shareTaskGeneric(fresh, text, url);
+  showToast(name ? `Vyber appku pro odeslání ${name} ✓` : "Vyber appku pro odeslání ✓");
+  closeModal();
+}
 async function shareTaskGeneric(task, text, url){
   if(!task){ showToast("Úkol nebyl nalezen."); return; }
   await ensureTaskShareId(task);
@@ -4936,12 +5266,12 @@ function checkForSharedTaskLink(){
     const m = /shared=([^&]+)/.exec(location.hash);
     if(!m) return;
     const payload = decodeTaskShare(decodeURIComponent(m[1]));
-    if(!payload){ showToast("Sdílený úkol se nepodařilo načíst — odkaz je neplatný."); return; }
+    if(!payload){ showToast("Sdílená položka se nepodařilo načíst — odkaz je neplatný."); return; }
     sharedTaskPayload = payload;
     renderSharedOverlay();
     if(payload.shareId) updateShareStatusRecord(payload.shareId, { status: "seen" });
   }catch(e){
-    showToast("Sdílený úkol se nepodařilo načíst — odkaz je neplatný.");
+    showToast("Sdílená položka se nepodařilo načíst — odkaz je neplatný.");
   }
 }
 function closeSharedOverlay(){
@@ -4950,9 +5280,12 @@ function closeSharedOverlay(){
   try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){ location.hash = ""; }
   document.getElementById("sharedOverlayRoot").innerHTML = "";
 }
-function importSharedTask(){
+async function importSharedTask(){
   const p = sharedTaskPayload;
   if(!p) return;
+  const itemType = p.itemType || "task";
+  if(itemType === "meal"){ await importSharedMeal(); return; }
+  if(itemType === "workout"){ await importSharedWorkout(); return; }
   const ws = getWorkspace();
   const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený úkol";
   const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
@@ -4967,15 +5300,139 @@ function importSharedTask(){
   };
   state.tasks = [...state.tasks, newItem];
   saveState(); scheduleReminders();
-  if(p.shareId) updateShareStatusRecord(p.shareId, { status: "accepted", accepterName: null });
   closeSharedOverlayWithoutDeclining();
   renderAll();
-  showToast("Úkol přidán do tvého kalendáře ✓ — odesílatel uvidí, že jsi ho přijal/a");
+  showToast("Úkol přidán do tvého kalendáře ✓");
+  // The task is safely saved locally either way — this just tells the sender.
+  // Only claim success once the network call has actually been confirmed,
+  // never assume it worked, and let the person know clearly if it didn't so
+  // they can tell the sender directly instead of silently wondering why.
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status: "accepted", accepterName: null });
+    if(ok) showToast("Odesílatel uvidí, že jsi úkol přijal/a ✓");
+    else showToast("⚠️ Úkol máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím znovu za chvíli, nebo mu to napiš přímo.");
+  }
+}
+async function importSharedMeal(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílené jídlo";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newMeal = {
+    id: uid(), type:"meal", date: safeDate, labelId: state.mealLabels[0]?.id || null, source:"custom",
+    title: safeTitle,
+    items: (Array.isArray(p.items)?p.items:[]).slice(0,50).map(i => ({
+      id:uid(), text:String(i.text||"").slice(0,120), grams:Number(i.grams)||null, unit:i.unit||"g",
+      nutrition:null, proteinTier: guessProteinTier(String(i.text||"")), proteinUsablePercent:null,
+    })),
+    recipeId:null, servingsCount:1, recipeAmountMode:"servings", customGrams:null,
+    nutrition: p.nutrition ? {...p.nutrition} : null,
+    eaten:false, reminder:null, reminderBaseTime:null, recurrenceGroupId:null,
+    sharedFromId: p.shareId || null,
+  };
+  state.meals = [...state.meals, newMeal];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  renderAll();
+  showToast("Jídlo přidáno do tvého jídelníčku ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi jídlo přijal/a ✓");
+    else showToast("⚠️ Jídlo máš uložené, ale appce se nepodařilo dát vědět odesílateli — zkus to prosím znovu za chvíli.");
+  }
+}
+async function importSharedWorkout(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený trénink";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newWorkout = {
+    id: uid(), type:"workout", title: safeTitle, notes: typeof p.notes==="string" ? p.notes.slice(0,2000) : "",
+    exercises: (Array.isArray(p.exercises)?p.exercises:[]).slice(0,50).map(e => ({
+      id:uid(), name:String(e.name||"").slice(0,120), sets:Number(e.sets)||3, reps:Number(e.reps)||10,
+      weight: e.weight ? String(e.weight).slice(0,30) : "", restSeconds: Number(e.restSeconds)||60,
+    })),
+    checklist: (Array.isArray(p.checklist)?p.checklist:[]).slice(0,50).map(c => ({
+      id:uid(), text:String(c.text||"").slice(0,120), done:false, minutes: Number(c.minutes)||5,
+    })),
+    drawings:[], audioIds:[], date: safeDate, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    deletedAt:null, sharedFromId: p.shareId || null,
+  };
+  state.workouts = [...state.workouts, newWorkout];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  renderAll();
+  showToast("Trénink přidán do tvého plánu ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi trénink přijal/a ✓");
+    else showToast("⚠️ Trénink máš uložený, ale appce se nepodařilo dát vědět odesílateli — zkus to prosím znovu za chvíli.");
+  }
 }
 function closeSharedOverlayWithoutDeclining(){
   sharedTaskPayload = null;
   try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){ location.hash = ""; }
   document.getElementById("sharedOverlayRoot").innerHTML = "";
+}
+async function importSharedMeal(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílené jídlo";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const items = (Array.isArray(p.items)?p.items:[]).slice(0,50).map(i => ({
+    id: uid(), text: String(i.text||"").slice(0,120), grams: Number(i.grams)||null, unit: i.unit||"g",
+    nutrition: null, proteinTier: guessProteinTier(String(i.text||"")), proteinUsablePercent: null,
+  }));
+  const newMeal = {
+    id: uid(), type:"meal", date: safeDate, labelId: state.mealLabels[0]?.id || null, source:"custom",
+    title: safeTitle, items, recipeId: null, servingsCount:1, recipeAmountMode:"servings", customGrams:null,
+    nutrition: p.nutrition ? { calories:Number(p.nutrition.calories)||0, protein:Number(p.nutrition.protein)||0, fat:Number(p.nutrition.fat)||0, carbs:Number(p.nutrition.carbs)||0 } : null,
+    eaten:false, reminder:null, reminderBaseTime:null, recurrenceGroupId:null,
+  };
+  state.meals = [...state.meals, newMeal];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "meals"; state.selectedDate = safeDate; state.windowStart = toISO(addDays(parseISODate(safeDate), -1));
+  saveState(); renderAll();
+  showToast("Jídlo přidáno do tvého jídelníčku ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi jídlo přijal/a ✓");
+    else showToast("⚠️ Jídlo máš uložené, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedWorkout(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený trénink";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const exercises = (Array.isArray(p.exercises)?p.exercises:[]).slice(0,50).map(e => ({
+    id: uid(), name: String(e.name||"").slice(0,120), sets: Number(e.sets)||3, reps: Number(e.reps)||10,
+    weight: e.weight ? String(e.weight).slice(0,40) : "", restSeconds: Number(e.restSeconds)||60,
+  }));
+  const checklist = (Array.isArray(p.checklist)?p.checklist:[]).slice(0,50).map(c => ({
+    id: uid(), text: String(c.text||"").slice(0,120), done:false, minutes: Math.max(1, Number(c.minutes)||5),
+  }));
+  const newWorkout = {
+    id: uid(), type:"workout", title: safeTitle, notes: typeof p.notes === "string" ? p.notes.slice(0,2000) : "",
+    exercises, checklist, drawings:[], audioIds:[], deletedAt:null,
+    date: safeDate, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+  };
+  state.workouts = [...state.workouts, newWorkout];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "workouts"; state.selectedDate = safeDate; state.windowStart = toISO(addDays(parseISODate(safeDate), -1));
+  saveState(); renderAll();
+  showToast("Trénink přidán do tvého kalendáře ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi trénink přijal/a ✓");
+    else showToast("⚠️ Trénink máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
 }
 function downloadSharedICS(){
   const p = sharedTaskPayload;
@@ -5569,32 +6026,7 @@ function taskCardHTML(task, lane, ws){
         <button class="icon-btn-sm shrink0" data-action="edit-task" data-id="${task.id}">✏️</button>
         <button class="icon-btn-sm shrink0" data-action="delete-task" data-id="${task.id}">🗑️</button>
         <div class="rel shrink0">
-          <button class="icon-btn-sm" data-action="toggle-share" data-id="${task.id}">↗️</button>
-          ${shareOpenId===task.id ? `
-            <div class="card" style="position:absolute;right:0;margin-top:8px;width:280px;padding:10px;z-index:30;background:#fff;text-align:left">
-              <p class="text-xs font-semi" style="margin:2px 6px 6px;color:#059669">👥 Poslat / delegovat úkol</p>
-              ${task.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:7px 10px;margin:0 4px 8px" class="text-xs" style="color:#059669">${shareStatusLabel(task.sharedStatus, task.sharedAccepterName)}</div>` : ""}
-              ${state.friends.length ? `
-                <div class="row gap-2 wrapf" style="padding:0 4px 8px">
-                  ${state.friends.map(f => `<button class="chip" data-action="share-to-friend" data-id="${task.id}" data-sub="${f.id}">${f.emoji} ${escapeHTML(f.name)}</button>`).join("")}
-                </div>` : `<p class="text-xs muted" style="padding:0 6px 8px">Zatím nemáš přidané přátele — přidej je ve formuláři přes „Spravovat přátele“.</p>`}
-              <button data-action="share-generic" data-id="${task.id}" style="width:100%;text-align:left;padding:9px 10px;border-radius:12px;font-size:13px;color:#fff;background:linear-gradient(135deg,#6366f1,#8b5cf6);font-weight:600;margin-bottom:6px">📤 Sdílet (nabídne vše v telefonu)</button>
-              <div class="row gap-2 wrapf" style="padding:0 4px 8px">
-                <button data-action="share-via" data-id="${task.id}" data-sub="whatsapp" class="chip" style="background:#dcfce7;color:#15803d">WhatsApp</button>
-                <button data-action="share-via" data-id="${task.id}" data-sub="facebook" class="chip" style="background:#dbeafe;color:#1d4ed8">Facebook</button>
-                <button data-action="share-via" data-id="${task.id}" data-sub="email" class="chip">E-mail</button>
-                <button data-action="share-via" data-id="${task.id}" data-sub="sms" class="chip">SMS</button>
-                <button data-action="share-via" data-id="${task.id}" data-sub="copy" class="chip">📋 Kopírovat odkaz</button>
-              </div>
-              <p class="text-xs muted" style="margin:4px 6px 4px">Kamarád nemusí appku mít — odkaz otevře v prohlížeči a může úkol jen přečíst nebo si ho přidat.</p>
-              <div style="height:1px;background:#f1f5f9;margin:8px 0"></div>
-              <div style="padding:9px 10px">
-                <div class="row gap-2 text-sm" style="color:#475569;margin-bottom:6px">💬 Text pro WhatsApp</div>
-                <div style="background:#f8fafc;border-radius:10px;padding:8px;font-size:11.5px;color:#64748b;white-space:pre-line">${escapeHTML(whatsappText(task))}</div>
-                <button data-action="copy-whatsapp" data-id="${task.id}" style="margin-top:6px;font-size:11.5px;font-weight:600;color:#059669">Kopírovat text</button>
-              </div>
-              <button data-action="export-ics" data-id="${task.id}" style="width:100%;text-align:left;padding:9px 10px;border-radius:12px;font-size:13px;color:#475569">📅 Exportovat do Google/Apple kalendáře</button>
-            </div>` : ""}
+          <button class="icon-btn-sm" data-action="open-share-modal" data-id="${task.id}">↗️</button>
         </div>
       </div>
       ${taskFriends.length ? `
@@ -5893,6 +6325,9 @@ function renderRecipeDetail(){
 
 
 function openModal(name){ currentModal = {name}; renderModals(); }
+function openShareModal(taskId){ currentModal = {name:"shareTask", taskId}; renderModals(); }
+function openShareItemModal(itemId, itemType){ currentModal = {name:"shareItem", itemId, itemType}; renderModals(); }
+function openShareItemModal(itemId, itemType){ currentModal = {name:"shareItem", itemId, itemType}; renderModals(); }
 function openTaskQuickView(taskId){ currentModal = {name:"taskQuickView", taskId}; renderModals(); }
 function closeModal(){ currentModal = null; shareOpenId=null; document.getElementById("modalsRoot").innerHTML = ""; }
 
@@ -5915,6 +6350,9 @@ function renderModals(){
   else if(name === "globalSearch") html = globalSearchModalHTML();
   else if(name === "shoppingList") html = shoppingListModalHTML();
   else if(name === "nutritionTrends") html = nutritionTrendsModalHTML();
+  else if(name === "shareTask") html = shareTaskModalHTML(currentModal.taskId);
+  else if(name === "shareItem") html = shareItemModalHTML(currentModal.itemId, currentModal.itemType);
+  else if(name === "shareItem") html = shareItemModalHTML(currentModal.itemId, currentModal.itemType);
   else if(name === "taskQuickView") html = taskQuickViewModalHTML(currentModal.taskId);
   else if(name === "workoutSession") html = workoutSessionModalHTML();
   else if(name === "recurringManager") html = recurringManagerModalHTML();
@@ -6115,6 +6553,15 @@ function insertFoodItemIntoMeal(foodItemId, amount, unit){
 }
 async function estimateFoodItemNutritionAI(id){
   const f = findFoodItem(id); if(!f) return;
+  const cached = getCachedFoodNutrition(f.name);
+  if(cached){
+    updateFoodItem(id, { nutritionPer100g: {
+      calories: cached.caloriesPer100, protein: cached.proteinPer100, fat: cached.fatPer100, carbs: cached.carbsPer100,
+    }});
+    showToast("✅ Vyplněno z paměti appky — zdarma, bez AI ⚡");
+    renderModals();
+    return;
+  }
   const btn = document.getElementById("foodItemNutAiBtn-"+id);
   if(btn){ btn.disabled = true; btn.textContent = "✨ …"; }
   try{
@@ -6131,12 +6578,14 @@ async function estimateFoodItemNutritionAI(id){
     const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
     const cleaned = text.replace(/```json|```/g,"").trim();
     const v = JSON.parse(cleaned);
-    updateFoodItem(id, { nutritionPer100g: {
+    const nutritionPer100g = {
       calories: Math.round(Number(v.calories))||0,
       protein: Math.round((Number(v.protein)||0)*10)/10,
       fat: Math.round((Number(v.fat)||0)*10)/10,
       carbs: Math.round((Number(v.carbs)||0)*10)/10,
-    }});
+    };
+    updateFoodItem(id, { nutritionPer100g });
+    cacheFoodNutrition(f.name, 100, nutritionPer100g); // learn for next time
     showToast("Makra doplněna ✨ — uprav si klidně ručně");
     renderModals();
   }catch(e){
@@ -6273,6 +6722,61 @@ function taskQuickViewModalHTML(taskId){
       </div>
     </div>`;
 }
+let archiveSelected = new Set(); // "type:id" keys
+const ARCHIVE_HANDLERS = {
+  task: { restore: restoreTask, del: permanentlyDeleteTask },
+  note: { restore: restoreTask, del: permanentlyDeleteTask },
+  recipe: { restore: restoreRecipe, del: permanentlyDeleteRecipe },
+  meal: { restore: restoreMeal, del: permanentlyDeleteMeal },
+  document: { restore: restoreDocument, del: permanentlyDeleteDocument },
+  medication: { restore: restoreMedication, del: permanentlyDeleteMedication },
+  foodItem: { restore: restoreFoodItem, del: permanentlyDeleteFoodItem },
+  workout: { restore: restoreWorkout, del: permanentlyDeleteWorkout },
+};
+function toggleArchiveSelect(key){
+  if(archiveSelected.has(key)) archiveSelected.delete(key); else archiveSelected.add(key);
+  renderModals();
+}
+function archiveSelectAll(allKeys){
+  archiveSelected = new Set(allKeys);
+  renderModals();
+}
+function archiveClearSelection(){
+  archiveSelected = new Set();
+  renderModals();
+}
+function archiveBulkRestore(){
+  archiveSelected.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.restore(id);
+  });
+  const count = archiveSelected.size;
+  archiveSelected = new Set();
+  showToast(`Obnoveno ${count} položek ✓`);
+  renderModals(); renderAll();
+}
+function archiveBulkDelete(){
+  archiveSelected.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.del(id);
+  });
+  const count = archiveSelected.size;
+  archiveSelected = new Set();
+  showToast(`Trvale smazáno ${count} položek`);
+  renderModals();
+}
+function archiveDeleteAll(allKeys){
+  allKeys.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.del(id);
+  });
+  archiveSelected = new Set();
+  showToast(`Archiv vyprázdněn (${allKeys.length} položek smazáno natrvalo)`);
+  renderModals();
+}
 function archiveModalHTML(){
   const deletedTasks = state.tasks.filter(t => t.deletedAt && t.type === "task");
   const deletedNotes = state.tasks.filter(t => t.deletedAt && t.type === "note");
@@ -6283,16 +6787,27 @@ function archiveModalHTML(){
   const deletedFoodItems = state.foodItems.filter(f => f.deletedAt);
   const deletedWorkouts = state.workouts.filter(w => w.deletedAt);
   const totalCount = deletedTasks.length + deletedNotes.length + deletedRecipes.length + deletedMeals.length + deletedDocs.length + deletedMeds.length + deletedFoodItems.length + deletedWorkouts.length;
+  const allKeys = [
+    ...deletedTasks.map(t=>`task:${t.id}`), ...deletedNotes.map(n=>`note:${n.id}`),
+    ...deletedRecipes.map(r=>`recipe:${r.id}`), ...deletedMeals.map(m=>`meal:${m.id}`),
+    ...deletedDocs.map(d=>`document:${d.id}`), ...deletedMeds.map(m=>`medication:${m.id}`),
+    ...deletedFoodItems.map(f=>`foodItem:${f.id}`), ...deletedWorkouts.map(w=>`workout:${w.id}`),
+  ];
 
-  const row = (label, restoreAction, deleteAction, id) => `
-    <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+  const row = (type, id, label) => {
+    const key = `${type}:${id}`;
+    const selected = archiveSelected.has(key);
+    return `
+    <div class="row gap-3" style="background:${selected?'#eff6ff':'#f8fafc'};border-radius:14px;padding:10px 12px">
+      <button data-action="toggle-archive-select" data-id="${key}" style="width:20px;height:20px;border-radius:6px;border:2px solid ${selected?'#3b82f6':'#cbd5e1'};background:${selected?'#3b82f6':'transparent'};color:#fff;font-size:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${selected?'✓':''}</button>
       <span class="grow text-sm truncate" style="color:#334155">${escapeHTML(label)}</span>
-      <button class="chip" data-action="${restoreAction}" data-id="${id}">↩️ Obnovit</button>
-      <button class="icon-btn-sm" data-action="${deleteAction}" data-id="${id}" title="Smazat natrvalo" style="color:#dc2626">🗑️</button>
+      <button class="chip" data-action="${ARCHIVE_HANDLERS[type] ? 'restore-archive-item' : ''}" data-id="${type}" data-sub="${id}">↩️ Obnovit</button>
+      <button class="icon-btn-sm" data-action="delete-archive-item" data-id="${type}" data-sub="${id}" title="Smazat natrvalo" style="color:#dc2626">🗑️</button>
     </div>`;
-  const section = (title, items, html) => items.length ? `
+  };
+  const section = (title, items, type, labelFn) => items.length ? `
     <p class="text-xs font-semi muted" style="margin:14px 0 6px">${title} (${items.length})</p>
-    <div class="col gap-2">${items.map(html).join("")}</div>
+    <div class="col gap-2">${items.map(it => row(type, it.id, labelFn(it))).join("")}</div>
   ` : "";
 
   return `
@@ -6303,15 +6818,27 @@ function archiveModalHTML(){
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
         <p class="text-xs muted" style="margin:0 0 10px">Smazané položky tu zůstávají, dokud je trvale nesmažeš — kdykoliv je jde vrátit zpět.</p>
-        ${totalCount===0 ? `<p class="text-sm muted">Archiv je zatím prázdný.</p>` : ""}
-        ${section("☑️ Úkoly", deletedTasks, t => row(t.title, "restore-task", "permanently-delete-task", t.id))}
-        ${section("📝 Poznámky", deletedNotes, n => row(n.title, "restore-task", "permanently-delete-task", n.id))}
-        ${section("🍳 Recepty", deletedRecipes, r => row(r.title, "restore-recipe", "permanently-delete-recipe", r.id))}
-        ${section("🍽️ Jídelníček", deletedMeals, m => row(m.title, "restore-meal", "permanently-delete-meal", m.id))}
-        ${section("📁 Dokumenty", deletedDocs, d => row(d.title, "restore-document", "permanently-delete-document", d.id))}
-        ${section("💊 Léky, vitamíny, doplňky", deletedMeds, m => row(m.name + (m.dosage?" — "+m.dosage:""), "restore-medication", "permanently-delete-medication", m.id))}
-        ${section("📋 Seznam jídel", deletedFoodItems, f => row(f.name, "restore-food-item", "permanently-delete-food-item", f.id))}
-        ${section("🏋️ Trénink", deletedWorkouts, w => row(w.title, "restore-workout", "permanently-delete-workout", w.id))}
+        ${totalCount===0 ? `<p class="text-sm muted">Archiv je zatím prázdný.</p>` : `
+          <div class="row gap-2 wrapf" style="margin-bottom:10px">
+            <button class="chip" data-action="archive-select-all">☑️ Vybrat vše</button>
+            ${archiveSelected.size ? `<button class="chip" data-action="archive-clear-selection">✕ Zrušit výběr (${archiveSelected.size})</button>` : ""}
+            <button class="chip" style="color:#dc2626;margin-left:auto" data-action="archive-delete-all">🗑️ Vysypat vše natrvalo</button>
+          </div>
+          ${archiveSelected.size ? `
+            <div class="row gap-2" style="margin-bottom:12px;background:#eff6ff;border-radius:12px;padding:8px 10px">
+              <button class="chip" style="background:#dbeafe;color:#1d4ed8" data-action="archive-bulk-restore">↩️ Obnovit vybrané (${archiveSelected.size})</button>
+              <button class="chip" style="background:#fee2e2;color:#dc2626" data-action="archive-bulk-delete">🗑️ Smazat vybrané natrvalo</button>
+            </div>
+          ` : ""}
+        `}
+        ${section("☑️ Úkoly", deletedTasks, "task", t=>t.title)}
+        ${section("📝 Poznámky", deletedNotes, "note", n=>n.title)}
+        ${section("🍳 Recepty", deletedRecipes, "recipe", r=>r.title)}
+        ${section("🍽️ Jídelníček", deletedMeals, "meal", m=>m.title)}
+        ${section("📁 Dokumenty", deletedDocs, "document", d=>d.title)}
+        ${section("💊 Léky, vitamíny, doplňky", deletedMeds, "medication", m=>m.name + (m.dosage?" — "+m.dosage:""))}
+        ${section("📋 Seznam jídel", deletedFoodItems, "foodItem", f=>f.name)}
+        ${section("🏋️ Trénink", deletedWorkouts, "workout", w=>w.title)}
       </div>
     </div>`;
 }
@@ -7696,6 +8223,7 @@ function stopActivityStopwatch(){
     drawings:[], audioIds:[], date: todayISO, done:true,
     estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
     recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
   };
   state.workouts = [...state.workouts, w];
   state.activityStopwatch = null;
@@ -7721,6 +8249,7 @@ function logQuickActivityManual(label, hours, minutes){
     drawings:[], audioIds:[], date: state.selectedDate || todayISO, done:true,
     estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
     recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
   };
   state.workouts = [...state.workouts, w];
   saveState();
@@ -7816,6 +8345,7 @@ function createBlankWorkout(){
     date: state.selectedDate || todayISO, done:false,
     estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
     recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
   };
   state.workouts = [...state.workouts, newItem];
   saveState();
@@ -7894,7 +8424,7 @@ function moveExercise(workoutId, exId, dir){
 // clearly flagged once the workout's content changes after being analyzed. ----------
 function workoutContentSignature(w){
   const ex = (w.exercises||[]).map(e => `${e.name}|${e.sets}|${e.reps}|${e.weight||''}`).join(";");
-  const cl = (w.checklist||[]).map(i => i.text).join(";");
+  const cl = (w.checklist||[]).map(i => `${i.text}|${i.minutes||''}`).join(";");
   return `${ex}::${cl}::${w.notes||''}`;
 }
 function isWorkoutCalorieStale(w){
@@ -7918,6 +8448,21 @@ function roughWorkoutCalorieEstimate(w){
 async function estimateWorkoutCaloriesAI(workoutId){
   const w = findWorkout(workoutId); if(!w) return;
   if(!(w.exercises||[]).length && !(w.checklist||[]).length && !w.notes){ showToast("Přidej aspoň cviky, to-do položky nebo poznámku, ať má appka co analyzovat."); return; }
+  // Same instant-and-free memory as the food estimates — a recurring workout
+  // (same exercises copied across many dates) or a repeated quick activity
+  // ("Horská túra" again) reuses the first real AI estimate instead of paying
+  // for the identical answer over and over.
+  const signature = workoutContentSignature(w);
+  const cached = state.aiWorkoutCache[signature];
+  if(cached){
+    updateWorkout(workoutId, {
+      estimatedCalories: cached.calories, calorieReasoning: cached.reasoning,
+      calorieAnalyzedAt: Date.now(), calorieSignature: signature,
+    });
+    showToast("✅ Odhad kalorií vyplněn z paměti appky — zdarma, bez AI ⚡");
+    renderWorkoutDetail(); renderMealsView();
+    return;
+  }
   const btn = document.getElementById("workoutCalorieBtn");
   if(btn){ btn.disabled = true; btn.textContent = "🔥 AI počítá…"; }
   const exText = (w.exercises||[]).map(e => `- ${e.name}: ${e.sets} série × ${e.reps} opakování${e.weight?`, ${e.weight}`:''}`).join("\n");
@@ -7936,12 +8481,16 @@ async function estimateWorkoutCaloriesAI(workoutId){
     const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
     const cleaned = text.replace(/```json|```/g,"").trim();
     const v = JSON.parse(cleaned);
+    const calories = Math.round(Number(v.caloriesBurned))||0;
+    const reasoning = String(v.reasoning||"").slice(0,400);
     updateWorkout(workoutId, {
-      estimatedCalories: Math.round(Number(v.caloriesBurned))||0,
-      calorieReasoning: String(v.reasoning||"").slice(0,400),
+      estimatedCalories: calories,
+      calorieReasoning: reasoning,
       calorieAnalyzedAt: Date.now(),
-      calorieSignature: workoutContentSignature(findWorkout(workoutId)),
+      calorieSignature: signature,
     });
+    state.aiWorkoutCache[signature] = { calories, reasoning, cachedAt: Date.now() };
+    saveState();
     showToast("Odhad kalorií hotov ✨");
     renderWorkoutDetail();
     renderMealsView();
@@ -7956,6 +8505,7 @@ function toggleWorkoutDone(workoutId){
   const w = findWorkout(workoutId); if(!w) return;
   updateWorkout(workoutId, { done: !w.done });
   renderWorkoutDetail(); renderWorkoutsView(); renderMealsView();
+  syncSharedCompletionIfNeeded(findWorkout(workoutId), "done");
 }
 
 // ---------- Workout recurrence — same engine as tasks/meals/medications
@@ -8101,6 +8651,14 @@ function renderSettingsView(){
       </div>
     </div>
     <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">🎓 Co se appka už naučila</p>
+      <p class="text-xs muted" style="margin:0 0 10px">Appka si pamatuje, co už AI jednou spočítala — příště je to okamžité a zdarma, bez nového volání AI. Čím víc appku používáš, tím víc věcí umí bez placení za AI.</p>
+      <div class="row gap-4">
+        <div><p class="text-xs muted" style="margin:0">Potraviny</p><p class="text-lg font-semi" style="margin:0;color:#059669">${Object.keys(state.aiFoodCache).length}</p></div>
+        <div><p class="text-xs muted" style="margin:0">Tréninky/aktivity</p><p class="text-lg font-semi" style="margin:0;color:#d97706">${Object.keys(state.aiWorkoutCache).length}</p></div>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">🎂 Rodina a blízcí</p>
       <p class="text-xs muted" style="margin:0 0 12px">Přidej jméno a appka sama pozná svátek podle českého kalendáře. Zapni upozornění na narozeniny, svátek nebo vlastní výročí — appka ti sama vytvoří úkol s předstihem, který si nastavíš.</p>
       <div class="row gap-2">
@@ -8204,6 +8762,7 @@ function renderWorkoutsView(){
                 <p class="text-xs muted" style="margin:2px 0 0">${(w.exercises||[]).length} cviků${(w.exercises||[]).length ? " · " + (w.exercises||[]).map(e=>e.name).slice(0,3).join(", ") + ((w.exercises||[]).length>3?"…":"") : ""}</p>
                 ${w.estimatedCalories!=null ? `<p class="text-xs" style="margin:2px 0 0;color:#d97706;font-weight:600">🔥 ${displayEnergy(w.estimatedCalories)}${isWorkoutCalorieStale(w)?' <span style="color:#dc2626">⚠️ neaktuální</span>':''}</p>` : ""}
               </div>
+              <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${w.id}" data-sub="workout">↗️</button>
               <button class="icon-btn-sm shrink0" data-action="delete-workout" data-id="${w.id}">🗑️</button>
             </button>`).join("")}
         </div>
@@ -8713,6 +9272,7 @@ function mealCardHTML(m){
         </p>
         ${m.recurrenceGroupId ? `<button data-action="delete-meal-series" data-id="${m.recurrenceGroupId}" class="text-xs" style="color:#fb7185;font-weight:600;margin-top:4px">🔁 Smazat celou sérii opakování</button>` : ""}
       </div>
+      <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${m.id}" data-sub="meal">↗️</button>
       <button class="icon-btn-sm shrink0" data-action="edit-meal" data-id="${m.id}">✏️</button>
       <button class="icon-btn-sm shrink0" data-action="delete-meal" data-id="${m.id}">🗑️</button>
     </div>`;
@@ -8998,33 +9558,46 @@ function renderSharedOverlay(){
   const el = document.getElementById("sharedOverlayRoot");
   const p = sharedTaskPayload;
   if(!p){ el.innerHTML = ""; return; }
-  const meta = priorityMeta(Math.min(10, Math.max(1, Number(p.priority) || 5)));
+  const itemType = p.itemType || "task"; // old links (before this update) had no itemType — always a task
+  const label = itemType==="meal" ? "jídlo" : itemType==="workout" ? "trénink" : "úkol";
+  const emoji = itemType==="meal" ? "🍽️" : itemType==="workout" ? "🏋️" : escapeHTML(p.emoji||"📌");
+  const meta = itemType==="task" ? priorityMeta(Math.min(10, Math.max(1, Number(p.priority) || 5))) : null;
   el.innerHTML = `
     <div class="shared-overlay">
       <div class="shared-card">
-        <p class="text-xs muted" style="margin:0 0 4px;text-align:center">📬 Poslal ti kamarád úkol z</p>
+        <p class="text-xs muted" style="margin:0 0 4px;text-align:center">📬 Poslal ti někdo ${label} z</p>
         <p class="text-sm font-semi" style="margin:0 0 16px;text-align:center;color:#059669">✨ Vibe Calendar</p>
         <div style="background:#f8fafc;border-radius:18px;padding:16px;margin-bottom:16px">
           <div class="row gap-3" style="margin-bottom:8px">
-            <span style="font-size:26px">${escapeHTML(p.emoji||"📌")}</span>
+            <span style="font-size:26px">${emoji}</span>
             <div class="grow">
               <p class="text-base font-semi text-main" style="margin:0">${escapeHTML(p.title||"")}</p>
-              <p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(p.catLabel||"")} · ${escapeHTML(p.date||"")} · ${escapeHTML(meta.tag)}</p>
+              <p class="text-xs muted" style="margin:2px 0 0">${itemType==="task" ? `${escapeHTML(p.catLabel||"")} · ` : ""}${escapeHTML(p.date||"")}${meta ? ` · ${escapeHTML(meta.tag)}` : ""}</p>
             </div>
           </div>
           ${p.content ? `<p class="text-sm" style="color:#475569;margin:8px 0 0">${escapeHTML(p.content)}</p>` : ""}
-          ${(Array.isArray(p.checklist)&&p.checklist.length) ? `
+          ${itemType==="task" && Array.isArray(p.checklist)&&p.checklist.length ? `
             <div class="col gap-1" style="margin-top:10px">
               ${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(String(c))}</div>`).join("")}
             </div>` : ""}
+          ${itemType==="meal" ? `
+            ${p.nutrition ? `<p class="text-xs" style="margin:8px 0 0;color:#059669">🔥 ${p.nutrition.calories||0} kcal · B ${p.nutrition.protein||0}g · T ${p.nutrition.fat||0}g · S ${p.nutrition.carbs||0}g</p>` : ""}
+            ${Array.isArray(p.items)&&p.items.length ? `<div class="col gap-1" style="margin-top:8px">${p.items.map(i => `<div class="text-xs" style="color:#64748b">• ${escapeHTML(i.text)}${i.grams?` (${i.grams} ${i.unit||'g'})`:''}</div>`).join("")}</div>` : ""}
+          ` : ""}
+          ${itemType==="workout" ? `
+            ${Array.isArray(p.exercises)&&p.exercises.length ? `<div class="col gap-1" style="margin-top:8px">${p.exercises.map(e => `<div class="text-xs" style="color:#64748b">• ${escapeHTML(e.name)} — ${e.sets}×${e.reps}${e.weight?`, ${escapeHTML(e.weight)}`:''}</div>`).join("")}</div>` : ""}
+            ${Array.isArray(p.checklist)&&p.checklist.length ? `<div class="col gap-1" style="margin-top:8px">${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(c.text)} (${c.minutes} min)</div>`).join("")}</div>` : ""}
+          ` : ""}
         </div>
         <div class="col gap-2">
           <button class="btn btn-primary" style="justify-content:center" data-action="import-shared-task">➕ Přidat do mého Vibe Calendar</button>
-          <button class="btn btn-soft" style="justify-content:center" data-action="download-shared-ics">📅 Stáhnout do kalendáře (.ics)</button>
-          <button class="btn btn-soft" style="justify-content:center" data-action="confirm-shared-done">✅ Poslat zpět, že mám hotovo</button>
+          ${itemType==="task" ? `
+            <button class="btn btn-soft" style="justify-content:center" data-action="download-shared-ics">📅 Stáhnout do kalendáře (.ics)</button>
+            <button class="btn btn-soft" style="justify-content:center" data-action="confirm-shared-done">✅ Poslat zpět, že mám hotovo</button>
+          ` : ""}
           <button class="btn" style="justify-content:center;color:#94a3b8" data-action="close-shared-overlay">Zavřít bez přidání</button>
         </div>
-        <p class="text-xs muted" style="margin-top:14px;text-align:center">Nemáš Vibe Calendar? Nevadí — .ics soubor otevřeš v Google/Apple/Outlook kalendáři.</p>
+        <p class="text-xs muted" style="margin-top:14px;text-align:center">Nemáš Vibe Calendar? Nevadí — appka se otevře i bez instalace.</p>
       </div>
     </div>`;
 }
@@ -9356,14 +9929,28 @@ function handleClickInner(e){
       break;
     }
     case "play-task-audio": playAudioById(id); break;
-    case "toggle-share": shareOpenId = shareOpenId===id ? null : id; renderLanes(); break;
+    case "open-share-modal": openShareModal(id); break;
+    case "share-to-contact": shareTaskToContact(state.tasks.find(x=>x.id===id), t.dataset.sub); break;
+    case "open-share-item-modal": openShareItemModal(id, t.dataset.sub); break;
+    case "share-item-to-contact": {
+      const [itemType, contactId] = t.dataset.sub.split(":");
+      const item = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===id);
+      shareItemToContact(item, itemType, contactId);
+      break;
+    }
+    case "share-item-generic": shareItemGeneric(state.meals.find(x=>x.id===id)||state.workouts.find(x=>x.id===id), t.dataset.sub); closeModal(); break;
+    case "share-item-via": {
+      const [itemType, channel] = t.dataset.sub.split(":");
+      shareItemVia(id, itemType, channel);
+      break;
+    }
     case "copy-link": copyLink(state.tasks.find(x=>x.id===id)); shareOpenId=null; renderLanes(); break;
     case "copy-whatsapp": {
       const task = state.tasks.find(x=>x.id===id);
       try{ navigator.clipboard.writeText(whatsappText(task)); }catch(err){}
       showToast("Text zkopírován pro WhatsApp ✓"); shareOpenId=null; renderLanes(); break;
     }
-    case "export-ics": downloadICS(state.tasks.find(x=>x.id===id)); shareOpenId=null; renderLanes(); break;
+    case "export-ics": downloadICS(state.tasks.find(x=>x.id===id)); closeModal(); break;
     case "move-today": moveToToday(id); break;
     case "move-date": {
       const inp = document.getElementById("moveDate-"+id);
@@ -9396,11 +9983,15 @@ function handleClickInner(e){
     case "delete-friend": deleteFriend(id); break;
     case "toggle-friend-confirm": toggleFriendConfirm(id, t.dataset.sub); break;
     case "share-to-friend": shareTaskToFriend(state.tasks.find(x=>x.id===id), t.dataset.sub); break;
-    case "share-generic": shareTaskGeneric(state.tasks.find(x=>x.id===id)); shareOpenId=null; renderLanes(); break;
+    case "share-generic": shareTaskGeneric(state.tasks.find(x=>x.id===id)); closeModal(); break;
     case "share-via": shareTaskVia(id, t.dataset.sub); break;
     case "refresh-shared-statuses": {
       showToast("🔄 Kontroluji stav delegovaných úkolů…");
-      refreshSharedStatuses(false).then(() => showToast("Hotovo — stav aktualizován ✓"));
+      refreshSharedStatuses(false).then((r) => {
+        if(r.failed > 0 && r.failed === r.checked) showToast(`⚠️ Nepodařilo se spojit se serverem (${r.failed}× selhalo) — zkus to prosím za chvíli znovu.`);
+        else if(r.failed > 0) showToast(`Zkontrolováno ✓ (${r.failed} z ${r.checked} se nepodařilo ověřit — zkus znovu za chvíli)`);
+        else showToast("Hotovo — stav aktualizován ✓");
+      });
       break;
     }
     case "import-shared-task": importSharedTask(); break;
@@ -9558,6 +10149,32 @@ function handleClickInner(e){
     case "save-document": saveDocumentNow(id); break;
     case "restore-task": restoreTask(id); renderModals(); renderAll(); break;
     case "permanently-delete-task": permanentlyDeleteTask(id); renderModals(); break;
+    case "toggle-archive-select": toggleArchiveSelect(id); break;
+    case "archive-select-all": {
+      const el = document.getElementById("modalsRoot");
+      const keys = [...el.querySelectorAll("[data-action='toggle-archive-select']")].map(b=>b.dataset.id);
+      archiveSelectAll(keys);
+      break;
+    }
+    case "archive-clear-selection": archiveClearSelection(); break;
+    case "archive-bulk-restore": archiveBulkRestore(); break;
+    case "archive-bulk-delete": archiveBulkDelete(); break;
+    case "archive-delete-all": {
+      const el = document.getElementById("modalsRoot");
+      const keys = [...el.querySelectorAll("[data-action='toggle-archive-select']")].map(b=>b.dataset.id);
+      archiveDeleteAll(keys);
+      break;
+    }
+    case "restore-archive-item": {
+      const h = ARCHIVE_HANDLERS[id];
+      if(h){ h.restore(t.dataset.sub); renderModals(); renderAll(); }
+      break;
+    }
+    case "delete-archive-item": {
+      const h = ARCHIVE_HANDLERS[id];
+      if(h){ h.del(t.dataset.sub); renderModals(); }
+      break;
+    }
     case "restore-recipe": restoreRecipe(id); renderModals(); renderAll(); break;
     case "permanently-delete-recipe": permanentlyDeleteRecipe(id); renderModals(); break;
     case "restore-meal": restoreMeal(id); renderModals(); renderAll(); break;
