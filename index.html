@@ -4906,17 +4906,10 @@ function shareStatusLabel(status, accepterName){
 // from both lists (Friends used for sharing, Family/blízcí used for
 // anniversaries) — one simple picker instead of two separate, confusing lists.
 function allShareableContacts(){
-  const combined = [
-    ...state.friends.map(f => ({ id:"f_"+f.id, name:f.name, emoji:f.emoji||"👤", raw:f, kind:"friend" })),
-    ...state.people.map(p => ({ id:"p_"+p.id, name:p.name, emoji:"🎂", raw:p, kind:"person" })),
-  ];
-  const seen = new Set();
-  return combined.filter(c => {
-    const key = c.name.trim().toLowerCase();
-    if(seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Jen Přátelé — Rodina a blízcí (v Nastavení) slouží čistě pro
+  // narozeninová/svátková upozornění a záměrně se do sdílení/delegování
+  // nemíchá, ať se to nepletě.
+  return state.friends.map(f => ({ id:"f_"+f.id, name:f.name, emoji:f.emoji||"👤", raw:f, kind:"friend" }));
 }
 function shareTaskModalHTML(taskId){
   const task = state.tasks.find(t => t.id === taskId);
