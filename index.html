@@ -506,137 +506,2183 @@ const TODAY_DOY = dayOfYear(TODAY);
 
 // ---------- Personality quotes (large pool, rotates daily) ----------
 const PERSONALITIES = {
-  mindfulness: { label:"Mindfulness a vnitřní klid", icon:"🧘", quotes:[
-    "Klid nenajdeš tam venku, ale v tom, jak dýcháš právě teď.",
-    "Tento nádech je jediný okamžik, který doopravdy máš.",
-    "Nemusíš stíhat myšlenky — stačí je nechat proplout kolem.",
-    "Klid není nepřítomnost bouře, ale kotva uprostřed ní.",
-    "Zpomal. Život se neděje ve spěchu, ale v pozornosti.",
-    "Čím méně bojuješ s přítomným okamžikem, tím víc síly ti zbývá.",
-    "Ticho není prázdnota — je to prostor, kde slyšíš sám sebe.",
-    "Dech je most mezi tělem a myslí, kdykoliv se po něm můžeš vrátit domů.",
-    "Nejkratší cesta ke klidu vede přes přijetí toho, co právě je.",
-    "Dnes si dovol nedělat nic dokonale — jen být tady.",
-    "Mysl je jako hladina jezera — nech ji, ať se sama uklidní.",
-    "Vnitřní klid nezávisí na okolnostech, ale na tom, kam upřeš pozornost.",
-    "Každý nádech je pozvánka vrátit se zpátky do přítomnosti.",
-    "Nejsi své myšlenky. Jsi ten, kdo si je všímá.",
-    "Odpočinek není odměna za výkon — je to základní potřeba, ne luxus.",
-    "Co nemůžeš změnit, můžeš alespoň přijmout s laskavostí.",
-    "Klid v hlavě začíná jedním pomalým výdechem.",
-    "Buď tam, kde jsou tvé nohy — tělo i mysl ti poděkují.",
-    "Ne všechno vyžaduje reakci. Někdy stačí jen všimnout si a nechat být.",
-    "Vnitřní ticho je nejhlasitější odpověď na venkovní chaos.",
-    "Malý okamžik ticha dokáže přeladit celý zbytek dne.",
-    "Dnešek si nezaslouží být prožitý ve spěchu k zítřku.",
-    "Přítomnost je jediné místo, kde se skutečně něco děje.",
-    "Nauč se odpočívat, aniž bys cítil vinu.",
-    "Klid se nehledá — vytváří se, dech po dechu.",
-    "Než zareaguješ, nadechni se — mezi podnětem a reakcí je vždycky volba.",
-    "Jedna tichá minuta dokáže vrátit rozumu vládu nad emocemi.",
-    "Nejsi pozadu, jen jdeš svým vlastním tempem.",
-    "Vděčnost za maličkost umí proměnit celý den.",
-    "To, čemu věnuješ pozornost, roste — vybírej moudře.",
+  zdravi: { label:"Zdraví a wellness", icon:"🌱", quotes:[
+// --- Tělo a péče o něj ---
+"Tvé tělo je jediné místo, kde musíš žít celý život — starej se o něj podle toho.",
+"Zdraví není všechno, ale bez zdraví je všechno ostatní míň.",
+"Tělo ti odpouští roky zanedbávání, ale ne navždy.",
+"Péče o tělo není sobectví. Je to základ, díky kterému můžeš být tu pro ostatní.",
+"Nejlepší čas začít se o sebe starat lépe byl včera. Druhý nejlepší je teď.",
+"Tělo mluví dřív, než onemocní — jen se musíš naučit ho poslouchat.",
+"Zdraví se nebuduje v den krize. Buduje se v tisících obyčejných dnech předtím.",
+"Kdo nemá čas na pohyb dnes, bude muset najít čas na nemoc později.",
+"Tvé tělo pracuje pro tebe každou vteřinu, i když si to neuvědomuješ — odměň ho péčí.",
+"Zdravý životní styl není o dokonalosti. Je to o směru, kterým se dennodenně vydáváš.",
+
+// --- Pohyb a cvičení ---
+"Pohyb není trest za to, co jsi snědl. Je to oslava toho, co tvé tělo dokáže.",
+"Nejlepší cvičení je to, které skutečně děláš, ne to nejdokonalejší na papíře.",
+"Tělo v pohybu zůstává v pohybu. Tělo v klidu si na klid zvykne až moc.",
+"Deset minut pohybu dnes je lepší než hodinový plán, co nikdy nezačneš.",
+"Síla, kterou budueš v tělocvičně, tě podrží i mimo ni.",
+"Pohyb je nejlevnější lék na špatnou náladu, co existuje.",
+"Kdo si najde pohyb, který ho baví, nikdy nebude potřebovat motivaci, aby cvičil.",
+"Tělo, co se hýbe pravidelně, stárne pomaleji než tělo, co sedí.",
+"Nejsilnější verze tebe nezačíná v posilovně. Začíná rozhodnutím tam dnes přijít.",
+"Cvičení není o vzhledu. Je to o tom, jak se cítíš, když otevřeš oči ráno.",
+
+// --- Spánek a odpočinek ---
+"Spánek není luxus. Je to základní údržba, bez které se všechno ostatní rozpadá.",
+"Kdo obětuje spánek kvůli práci, obětuje zítřejší produktivitu kvůli dnešní iluzi produktivity.",
+"Kvalitní spánek je nejúčinnější a nejlevnější forma regenerace, jakou máš k dispozici.",
+"Tělo se neopravuje, když jsi vzhůru. Opravuje se, když spíš.",
+"Nevyspalá mysl dělá horší rozhodnutí, i když si myslí, že je v pohodě.",
+"Sedm až osm hodin spánku není slabost. Je to investice do zítřejší verze tebe.",
+"Kdo si nedopřeje odpočinek, nakonec ho tělo vezme samo, a to v horší chvíli.",
+"Spánek je čas, kdy mozek třídí den a připravuje tě na ten další.",
+"Únava, co ignoruješ týdny, se jednou ozve způsobem, který nejde ignorovat.",
+"Kvalita spánku ovlivňuje kvalitu celého tvého následujícího dne.",
+
+// --- Stravování a výživa ---
+"Jídlo je palivo i informace pro tělo — vybírej ho vědomě, ne jen podle chuti.",
+"Malá změna ve stravování dnes se za rok promění ve velký rozdíl ve zdraví.",
+"Tělo neumí lhát o tom, co do něj dáváš — dřív nebo později to ukáže.",
+"Vyvážená strava není o zákazech. Je to o rovnováze, co dlouhodobě udržíš.",
+"Kdo jí vědomě, ne automaticky, si víc užije jídlo i své tělo.",
+"Jídlo připravené s péčí chutná jinak než jídlo sežrané ve spěchu.",
+"Nejlepší dieta není ta nejpřísnější. Je to ta, kterou dokážeš dodržovat roky, ne týdny.",
+"Tělo potřebuje pestrost, ne dokonalost — malé odchylky ti neublíží, pokud je základ zdravý.",
+"Voda je nejpodceňovanější nástroj zdraví, co máš zdarma k dispozici.",
+"Jíst pomalu a vědomě je forma respektu k vlastnímu tělu.",
+
+// --- Duševní zdraví a klid mysli ---
+"Duševní zdraví není luxus pro slabé. Je to základ pro všechno ostatní, co chceš v životě dokázat.",
+"Klid mysli se nekupuje. Buduje se dennodenní péčí o to, co si pouštíš do hlavy.",
+"Někdy je nejsilnější věc, co můžeš udělat, přiznat, že potřebuješ pomoc.",
+"Duševní únava bolí stejně jako fyzická, jen se to hůř vidí zvenčí.",
+"Péče o duševní zdraví není sobectví. Je to základ, na kterém stojí péče o všechny ostatní vztahy.",
+"Mysl, co si nedopřeje klid, nakonec najde klid sama — často formou vyčerpání.",
+"Kdo si nevšímá svých emocí, nakonec je stejně bude muset řešit, jen později a hlasitěji.",
+"Terapie není znak slabosti. Je to nástroj síly pro ty, co chtějí rozumět sami sobě.",
+"Duševní zdraví se buduje stejně jako fyzické — malými, konzistentními kroky, ne jednorázovým zázrakem.",
+"Mysl potřebuje odpočinek stejně jako tělo — dej jí ho, než si ho vezme sama.",
+
+// --- Stres a jeho zvládání ---
+"Stres není nepřítel. Nepřítel je stres, co nikdy neskončí.",
+"Kdo se naučí zvládat stres, místo aby ho ignoroval, žije déle a klidněji.",
+"Chronický stres je tichý zloděj zdraví, co si všimneš, až je pozdě.",
+"Dýchání je nejrychlejší nástroj na zklidnění, co máš vždycky u sebe.",
+"Ne všechno, co tě stresuje, si zaslouží tvou energii — nauč se rozeznat, co pustit.",
+"Krátká pauza uprostřed hektického dne dokáže víc, než si myslíš.",
+"Stres se nezmenší tím, že ho budeš ignorovat. Zmenší se, když si najdeš způsob, jak ho zpracovat.",
+"Tělo pod chronickým stresem platí cenu, kterou nevidíš hned, ale zaplatíš ji jednou.",
+"Kdo si najde way, jak vypnout, i uprostřed shonu, chrání si zdraví na roky dopředu.",
+"Zvládání stresu není o eliminaci problémů. Je to o tom, jak na ně reaguješ.",
+
+// --- Prevence a dlouhodobá péče ---
+"Prevence je nudná, dokud nezažiješ, jaké je to bez ní.",
+"Preventivní prohlídka, co odkládáš, může jednou být rozdílem mezi včasným záchytem a pozdním problémem.",
+"Zdraví není něco, co řešíš, až se pokazí. Je to něco, co budueš, dokud funguje dobře.",
+"Malé preventivní kroky dnes ušetří velké problémy zítra.",
+"Kdo investuje do prevence, investuje do let života navíc.",
+"Tělo dává varovné signály dřív, než selže — naslouchej jim, než je pozdě.",
+"Pravidelná péče o zdraví je nudná investice s ohromujícím výnosem.",
+"Nejlevnější lékař je prevence — vyjde tě míň než léčba.",
+"Kdo se stará o své zdraví průběžně, nemusí ho zoufale zachraňovat později.",
+"Dlouhověkost není náhoda. Je to výsledek stovek malých zdravých rozhodnutí.",
+
+// --- Rovnováha a životní styl ---
+"Wellness není o dokonalém životním stylu. Je to o rovnováze, co ti dává energii, ne o ní ubírá.",
+"Zdravý životní styl, co tě dělá nešťastným, není zdravý — je jen přísný.",
+"Rovnováha znamená vědět, kdy zatlačit a kdy povolit.",
+"Nejudržitelnější změna je ta, co tě nezničí, když ji jednou porušíš.",
+"Wellness je maraton plný malých rozhodnutí, ne sprint plný extrémů.",
+"Kdo hledá dokonalost ve zdravém životním stylu, často skončí u ničeho, protože dokonalost neexistuje.",
+"Zdraví je stav, ne cíl — pečuj o něj průběžně, ne nárazově.",
+"Malé radosti, co si dopřeješ vědomě, jsou součástí zdravého života, ne jeho nepřítelem.",
+"Rovnováha mezi disciplínou a odpočinkem je klíč k dlouhodobému zdraví.",
+"Wellness začíná rozhodnutím, že se ti stojíš za péči, kterou si dáváš druhým.",
+
+// --- Vděčnost za zdraví ---
+"Zdraví si všimneš nejvíc ve chvíli, kdy o něj přijdeš — važ si ho dřív.",
+"Každý den bez bolesti je den, za který stojí za to být vděčný.",
+"Kdo bere zdraví jako samozřejmost, si ho neváží, dokud nezažije jeho ztrátu.",
+"Schopnost hýbat se, dýchat, myslet jasně — to jsou dary, co bereme jako samozřejmost, dokud fungují.",
+"Vděčnost za zdraví, co máš dnes, je motivace, proč se o něj starat zítra.",
+"Tělo, co tě nese celý život, si zaslouží víc než jen povinnou pozornost.",
+"Kdo si všímá malých projevů zdraví — dobrého spánku, energie, klidu — žije vděčněji.",
+"Nejvzácnější bohatství není na účtu. Je to zdraví, co ti umožňuje si ho užívat.",
+"Vděčnost za fungující tělo je základ motivace se o něj dobře starat.",
+"Zdraví je tichý dar, co si všimneš nejvíc, když chybí.",
+
+// --- Léčení a regenerace ---
+"Tělo se umí léčit samo, pokud mu dáš čas a podmínky, co potřebuje.",
+"Zotavení není slabost. Je to nezbytná součást každého procesu růstu.",
+"Kdo spěchá s uzdravením, často prodlouží dobu, než se skutečně uzdraví.",
+"Regenerace potřebuje trpělivost, kterou moderní svět často nedovoluje.",
+"Tělo léčí rány rychleji, když mu dovolíš odpočívat, ne když ho nutíš pokračovat.",
+"Duševní i fyzické zotavení vyžaduje stejnou věc — čas a laskavost k sobě samému.",
+"Kdo respektuje proces léčení, uzdraví se úplněji než ten, kdo ho ignoruje.",
+"Nejrychlejší cesta k uzdravení často vede přes zpomalení, ne přes zrychlení.",
+"Regenerace není ztráta času. Je to investice do síly, co přijde po ní.",
+"Tělo ti řekne, kdy je připravené pokračovat — musíš mu jen naslouchat.",
+
+// --- Energie a vitalita ---
+"Energie, co máš dnes, je výsledkem stovek malých rozhodnutí, co jsi udělal minulý týden.",
+"Únava není vždycky o nedostatku spánku. Často je to o nedostatku smysluplného odpočinku.",
+"Vitalita se nekupuje v lékárně. Buduje se pohybem, spánkem, jídlem a klidem mysli dohromady.",
+"Kdo si všímá, co mu bere energii, a co mu ji dává, žije s větší jasností každý den.",
+"Nejlevnější zdroj energie je dobrý spánek — dražší varianty (kofein, cukr) jen půjčují, co musíš vrátit později.",
+"Energetický propad odpoledne často není o lenosti. Je to signál těla, že potřebuje jinou péči.",
+"Vitalita roste tam, kde se setká pohyb, odpočinek a smysluplný cíl.",
+"Kdo žije v souladu s přirozeným rytmem těla, má víc energie než ten, kdo proti němu bojuje.",
+"Energie se neplýtvá jen fyzicky. Plýtvá se i zbytečným starostmi a nevyřešenými konflikty.",
+"Nejsilnější zdroj energie je pocit, že děláš něco, na čem záleží.",
+
+// --- Imunita a odolnost těla ---
+"Imunitní systém pracuje nejlíp, když mu dáš spánek, pohyb a jídlo, co potřebuje, ne když ho zahltíš doplňky.",
+"Chronický stres oslabuje imunitu tišeji, než si myslíš, ale stejně účinně.",
+"Tělo, co se pravidelně hýbe a dobře spí, se brání nemocem lépe než tělo, co jen sedí a nespí.",
+"Odolnost těla se buduje roky zdravých návyků, ne týden před chřipkovou sezónou.",
+"Kdo se stará o své zdraví průběžně, má silnější obranu, když ji nejvíc potřebuje.",
+"Imunita a duševní pohoda jsou propojené víc, než si většina lidí uvědomuje.",
+"Tělo v rovnováze se brání nemocem účinněji než tělo v chronickém přetížení.",
+"Prevence nemoci začíná dávno předtím, než se první příznak objeví.",
+"Silná imunita není náhoda. Je to odraz let péče o tělo.",
+"Kdo dá tělu, co potřebuje, dostane zpátky odolnost, kterou očekává.",
+
+// --- Vztah k vlastnímu tělu ---
+"Tvé tělo není nepřítel, co je potřeba porazit. Je to spojenec, o kterého je potřeba pečovat.",
+"Kdo mluví k sobě laskavě, se o sebe stará jinak než ten, kdo si nadává za každou nedokonalost.",
+"Přijetí vlastního těla není vzdání se péče o něj. Je to základ, ze kterého péče vychází.",
+"Tělo se mění celý život — laskavost k těmto změnám je forma zdraví samo o sobě.",
+"Nejzdravější vztah k tělu je ten, co je založený na respektu, ne na trestu.",
+"Kdo srovnává své tělo s cizími standardy, ztrácí ze zřetele, co jeho vlastní tělo skutečně potřebuje.",
+"Péče o tělo z lásky vydrží déle než péče z nenávisti k sobě.",
+"Tělo ti odpustí roky nelaskavosti, ale odmění tě, když se konečně naučíš být k němu hodný.",
+"Zdravý vztah k jídlu a pohybu začíná zdravým vztahem k sobě samému.",
+"Kdo se naučí naslouchat svému tělu bez soudu, žije v lepší shodě s ním.",
+
+// --- Návyky pro dlouhověkost ---
+"Dlouhověkost není o zázračných lécích. Je to o desetiletích jednoduchých, konzistentních návyků.",
+"Kdo se hýbe každý den, i málo, žije déle a kvalitněji než ten, kdo se nehýbe vůbec.",
+"Sociální vazby jsou stejně důležité pro dlouhověkost jako strava a pohyb.",
+"Lidé, co žijí nejdéle, nemají dokonalý životní styl — mají konzistentní, udržitelný životní styl.",
+"Smysl života je jeden z nejsilnějších prediktorů dlouhověkosti, co věda zná.",
+"Kdo se stará o své tělo v mladším věku, sklidí úrodu ve starším.",
+"Dlouhověkost se neměří jen počtem let, ale kvalitou let, co prožiješ.",
+"Malé každodenní návyky — procházka, zelenina k obědu, dobrý spánek — mají větší efekt než jakákoliv dieta.",
+"Kdo si udrží zvědavost a učení i ve stáří, udržuje si i mysl mladší.",
+"Dlouhý a kvalitní život je souhrn tisíců malých zdravých rozhodnutí.",
+
+// --- Mysl a tělo jako celek ---
+"Mysl a tělo nejsou oddělené systémy — to, co se děje v jednom, ovlivňuje to druhé.",
+"Kdo léčí jen tělo a ignoruje mysl, léčí jen polovinu problému.",
+"Stres v mysli se dřív nebo později projeví v těle — jako bolest zad, únava nebo nespavost.",
+"Klidná mysl umožňuje tělu lépe se hojit a regenerovat.",
+"Pohyb těla je jeden z nejúčinnějších způsobů, jak zklidnit rozbouřenou mysl.",
+"Kdo pečuje o mysl i tělo současně, žije v hlubší rovnováze než ten, kdo se soustředí jen na jedno.",
+"Emoce, co nezpracuješ, si najdou cestu ven skrz tělo — proto je důležité je nevytěsňovat.",
+"Dech je most mezi tělem a myslí — zpomal ho, a zpomalí se i myšlenky.",
+"Fyzická bolest a emoční bolest sdílí víc společného, než si lidé obvykle myslí.",
+"Celostní zdraví znamená pečovat o tělo, mysl i vztahy jako o jeden propojený systém.",
+
+// --- Digitální hygiena a pozornost ---
+"Telefon v ruce před spaním krade kvalitu spánku, i když si to nepřiznáš.",
+"Neustálé rozptýlení notifikacemi je forma chronického stresu, co si většina lidí ani nevšimne.",
+"Digitální detox není o vzdání se technologie navždy. Je to o vědomém vztahu k ní.",
+"Mysl potřebuje nudu, aby mohla odpočívat — neustálé scrollování jí to nedovolí.",
+"Kdo si dá pauzu od obrazovek, si všimne, jak moc energie mu braly, aniž by věděl.",
+"Modré světlo večer klame mozek, že je ještě den, a krade ti spánek.",
+"Sociální sítě porovnávají tvůj obyčejný den s cizími nejlepšími momenty — to není fér vůči tobě.",
+"Prvních deset minut po probuzení stráv beze telefonu — dej mysli čas se probudit v klidu.",
+"Digitální hranice nejsou omezení. Jsou to ochrana tvé pozornosti a klidu mysli.",
+"Kdo ovládá svůj vztah k technologii, místo aby ho technologie ovládala, žije s větším klidem.",
+
+// --- Prostředí a jeho vliv na zdraví ---
+"Prostředí, ve kterém žiješ, ovlivňuje tvé zdraví víc, než si uvědomuješ.",
+"Nepořádek kolem tebe se často odráží v nepořádku v hlavě.",
+"Čerstvý vzduch a přirozené světlo jsou podceňované nástroje pro lepší náladu a energii.",
+"Kdo si upraví prostředí pro zdravé návyky, nemusí spoléhat jen na sílu vůle.",
+"Čas strávený v přírodě snižuje stres účinněji, než by čekal kdokoliv, kdo to nezkusil.",
+"Domov, co je uklizený a klidný, podporuje klidnější mysl, co v něm žije.",
+"Zvuk, světlo a vzduch kolem tebe ovlivňují, jak se cítíš, víc, než si přiznáváš.",
+"Kdo si vytvoří prostředí podporující zdravé návyky, nemusí bojovat proti sobě každý den.",
+"Příroda léčí tempo, co si moderní život často vynucuje.",
+"Prostor, ve kterém trávíš nejvíc času, by měl podporovat, ne brzdit, tvé zdraví.",
+
+// --- Sebepéče jako priorita, ne luxus ---
+"Sebepéče není sobecká. Je to údržba, díky které můžeš být pro ostatní tím, kým chceš být.",
+"Kdo se stará jen o ostatní a zapomíná na sebe, dřív nebo později nebude mít co dávat.",
+"Sebepéče neznamená utrácet peníze. Znamená to věnovat si čas a pozornost, co si zasloužíš.",
+"Nejlepší dárek, co můžeš dát svým blízkým, je verze sebe, co je odpočatá a v pohodě.",
+"Kdo si dovolí říct ne, chrání si energii pro věci, na kterých skutečně záleží.",
+"Sebepéče je základ, ne odměna za to, že jsi byl dost produktivní.",
+"Péče o sebe dnes je prevence vyhoření zítra.",
+"Nikdo jiný nebude pečovat o tvé zdraví za tebe — je to tvá odpovědnost a tvůj dar sobě.",
+"Kdo si najde čas na sebe každý den, i pár minut, žije s větší rovnováhou.",
+"Sebepéče se nemusí zdát velká — malé rituály, co tě naplní, se počítají stejně.",
+
+// --- Nemoc jako signál a příležitost ---
+"Nemoc je někdy jediný způsob, jak tě tělo donutí zpomalit, když jsi ho neposlouchal dřív.",
+"Kdo se poučí z nemoci, místo aby se jen chtěl rychle vrátit do starých kolejí, roste ze zkušenosti.",
+"Tělo, co onemocní, ti často dává zprávu, kterou jsi ignoroval příliš dlouho.",
+"Nemoc není selhání. Je to připomínka, že tělo potřebuje péči, kterou možná neposkytuješ.",
+"Zotavení z nemoci je příležitost přehodnotit návyky, co k ní vedly.",
+"Kdo respektuje čas potřebný k uzdravení, se vrátí silnější než ten, kdo spěchá zpátky příliš brzy.",
+"Nemoc ti připomene, jak vzácné je zdraví, co bereš jako samozřejmost.",
+"Tělo, co bojuje s nemocí, potřebuje odpočinek, ne vinu za to, že zpomaluje.",
+"Kdo naslouchá varovným signálům včas, se vyhne mnoha nemocem, co by jinak přišly.",
+"Uzdravení není jen o návratu ke starému stavu. Je to příležitost vrátit se lepší.",
+
+// --- Rovnováha práce a zdraví ---
+"Kariéra, co ničí tvé zdraví, není úspěch — je to půjčka, co musíš jednou splatit.",
+"Kdo obětuje zdraví kvůli práci, jednou zjistí, že bez zdraví nemá sílu si práci užívat.",
+"Nejúspěšnější lidé nejsou ti, co pracují nejvíc hodin, ale ti, co si udrží zdraví na dlouhou trať.",
+"Práce má být součástí zdravého života, ne jeho nepřítelem.",
+"Kdo si nastaví hranice mezi prací a odpočinkem, pracuje efektivněji v čase, co mu zbývá.",
+"Vyhoření není odznak cti. Je to varování, že rovnováha byla dávno ztracena.",
+"Zdraví je základ, na kterém stojí každá kariéra — bez něj se všechno ostatní zhroutí.",
+"Kdo si dovolí odpočívat bez pocitu viny, pracuje s větší energií, když se vrátí.",
+"Produktivita bez zdraví je jen dočasná iluze úspěchu.",
+"Nejlepší kariérní strategie zahrnuje péči o tělo a mysl jako nedílnou součást plánu.",
+
+// --- Dech a jeho síla ---
+"Dech je jediná automatická funkce těla, kterou můžeš vědomě ovládat — využij tu moc.",
+"Pomalý, hluboký nádech dokáže zklidnit nervový systém rychleji než cokoliv jiného.",
+"Kdo si všímá svého dechu, si všímá i svého stavu mysli.",
+"Mělké dýchání je tichý společník chronického stresu — nauč se dýchat hluboko.",
+"Tři vědomé nádechy dokážou přerušit spirálu úzkosti dřív, než nabere sílu.",
+"Dech je most mezi tělem a nervovým systémem — zpomal ho, a zpomalí se i tep.",
+"Kdo dýchá vědomě před stresující situací, vstupuje do ní s klidnější myslí.",
+"Správné dýchání není samozřejmost — většina lidí dýchá mělce a rychle, aniž by si to uvědomovala.",
+"Dech, co zpomalíš úmyslně, umí zklidnit i mysl, co se zdá nezvladatelná.",
+"Nejrychlejší nástroj na zklidnění je vždycky s tebou — je to tvůj vlastní dech.",
+
+// --- Držení těla a fyzická přítomnost ---
+"Držení těla ovlivňuje nejen záda, ale i to, jak se cítíš psychicky.",
+"Kdo sedí hrbeně celý den, si nese napětí, co se dřív nebo později ozve bolestí.",
+"Vzpřímené držení těla dokáže zvýšit sebevědomí rychleji, než by čekal.",
+"Tělo, co sedí příliš dlouho, ztrácí sílu, co by mělo mít k dispozici.",
+"Malé protažení každou hodinu u počítače ušetří roky bolesti zad.",
+"Fyzická přítomnost — jak stojíš, jak dýcháš, jak se pohybuješ — ovlivňuje tvůj vnitřní stav víc, než si myslíš.",
+"Kdo věnuje pozornost svému držení těla, posílá signál klidu celému nervovému systému.",
+"Tělo v napětí drží i mysl v napětí — uvolni jedno, a uvolní se i druhé.",
+"Pravidelný pohyb během dne je protijed na škody, co napáchá dlouhé sezení.",
+"Vzpřímené tělo nese vzpřímenou mysl.",
+
+// --- Zdravé stárnutí ---
+"Stárnutí není nepřítel. Je to proces, co si zaslouží péči, ne strach.",
+"Kdo se hýbe a učí se celý život, stárne s grácií, ne s rezignací.",
+"Zdravé stárnutí začíná návyky, co si vybuduješ dlouho předtím, než přijde první šedivý vlas.",
+"Tělo se mění s věkem, ale péče o něj má smysl v každém věku, ne jen v mládí.",
+"Kdo si udrží zvědavost a pohyb i ve stáří, si udrží i kvalitu života.",
+"Stárnutí s důstojností znamená přijmout změny těla a zároveň se o něj dál starat.",
+"Síla, co budueš ve středním věku, tě podrží v tom pozdějším.",
+"Nejlepší prevence křehkosti ve stáří je síla a pohyblivost, co budueš už teď.",
+"Stárnutí není o vzdání se aktivity. Je to o přizpůsobení jejího tempa a formy.",
+"Kdo pečuje o zdraví celý život, sklidí ovoce v podobě aktivního a kvalitního stáří.",
+
+// --- Bolest a jak ji vnímat ---
+"Bolest je posel, ne nepřítel — poslouchej, co ti chce říct, než ji umlčíš.",
+"Kdo ignoruje malou bolest, riskuje, že se z ní stane velký problém.",
+"Chronická bolest mění život, ale nemusí ho definovat — péče a trpělivost pomáhají najít cestu dál.",
+"Akutní bolest tě chrání. Chronická bolest potřebuje pochopení a péči, ne jen potlačení.",
+"Tělo, co bolí, žádá o pozornost, ne o ignorování.",
+"Kdo se naučí rozlišit bolest z námahy od bolesti z poškození, chrání si tělo lépe.",
+"Bolest, co přetrvává, si zaslouží odbornou pozornost, ne jen trpělivé čekání.",
+"Práce s bolestí zahrnuje tělo i mysl — obojí hraje roli v tom, jak ji vnímáš.",
+"Naslouchání tělu, když bolí, je forma respektu, ne slabosti.",
+"Kdo pečuje o prevenci zranění, ušetří si bolest, co by jinak přišla později.",
+
+// --- Radost z pohybu a života ---
+"Zdraví není jen absence nemoci. Je to schopnost naplno prožívat život, co máš.",
+"Kdo najde radost v pohybu, ne povinnost, cvičí celý život, ne jen do ledna.",
+"Tělo, co ti umožňuje tančit, běhat, objímat blízké, je dar, co si zaslouží vděčnost.",
+"Wellness není o dokonalém těle. Je to o těle, co ti umožňuje žít život, jaký chceš.",
+"Kdo si užívá pohyb, ne ho jen snáší, si buduje zdravý vztah k vlastnímu tělu na roky.",
+"Radost ze zdraví přichází, když si uvědomíš, co všechno ti tvé tělo umožňuje dělat.",
+"Nejzdravější motivace k péči o tělo není strach z nemoci, ale láska k životu, co chceš žít.",
+"Zdravé tělo je nástroj k prožívání života naplno, ne cíl sám o sobě.",
+"Kdo se stará o zdraví s radostí, ne z povinnosti, vydrží u zdravých návyků déle.",
+"Život v pohybu, s energií a jasnou myslí, je jeden z nejcennějších darů, co si můžeš dát.",
+
+// --- Slunce, příroda a přirozené rytmy ---
+"Sluneční světlo ráno nastavuje tvůj vnitřní rytmus na celý den — dej mu šanci.",
+"Kdo tráví čas venku každý den, i krátce, má lepší náladu a spánek než ten, kdo zůstává jen uvnitř.",
+"Přirozené světlo je zdarma dostupný nástroj pro lepší spánek a energii.",
+"Tělo je nastavené na rytmus dne a noci — respektuj ho, a odmění tě lepším spánkem.",
+"Procházka venku dokáže vyřešit víc problémů s náladou než hodina scrollování uvnitř.",
+"Kdo žije v souladu s přirozeným světlem, žije v souladu se svým vlastním tělem.",
+"Příroda nemá žádnou agendu — jen ti nabízí klid, pokud si ho vezmeš.",
+"Ranní světlo je signál pro tělo, že je čas být vzhůru a aktivní.",
+"Čas strávený venku snižuje hladinu stresového hormonu rychleji, než by čekal kdokoliv, kdo to nezkusil.",
+"Kdo si dopřeje denní dávku přírody, dopřeje si i denní dávku klidu.",
+
+// --- Hormonální a vnitřní rovnováha ---
+"Tělo je systém v rovnováze — naruš jednu část dlouho, a ostatní to pocítí taky.",
+"Spánek, strava a stres společně ovlivňují hormonální rovnováhu víc, než si lidé uvědomují.",
+"Kdo ignoruje chronický stres, ignoruje i jeho dopad na celý hormonální systém.",
+"Tělo v rovnováze funguje tišeji — všimneš si ho hlavně, když rovnováha chybí.",
+"Vnitřní rovnováha se nebuduje rychlými zásahy, ale roky konzistentní péče.",
+"Kdo naslouchá signálům těla — únavě, chuti k jídlu, náladě — rozumí své vnitřní rovnováze líp.",
+"Hormony ovlivňují náladu, energii i spánek — péče o ně začíná základními zdravými návyky.",
+"Tělo hledá rovnováhu neustále — tvým úkolem je mu v tom nebránit zbytečným přetěžováním.",
+"Kdo si udrží pravidelný rytmus dne, podporuje i svou vnitřní hormonální rovnováhu.",
+"Rovnováha těla se odráží v jasnosti mysli a stabilitě nálady.",
+
+// --- Malé zdravé zvyky ---
+"Sklenice vody hned po probuzení je malý zvyk s velkým dopadem.",
+"Kdo si vytvoří jeden zdravý zvyk najednou, má větší šanci ho udržet, než když změní všechno naráz.",
+"Malé zdravé rozhodnutí, opakované denně, se za rok promění ve velkou změnu.",
+"Zdravý zvyk, co je snadný na udržení, porazí přísný plán, co vzdáš po týdnu.",
+"Kdo si spojí nový zdravý zvyk se starým, co už má, si ho snáz zapamatuje a udrží.",
+"Deset minut protažení ráno je malý zvyk, co ovlivní celý zbytek dne.",
+"Zdravé návyky se nebudují motivací, ale opakováním, dokud se nestanou automatickými.",
+"Kdo si dovolí začít malým krokem, má větší šanci vydržet než ten, kdo chce změnit všechno hned.",
+"Nejsilnější zdravé návyky jsou ty nejjednodušší — pravidelný spánek, pohyb, voda, čerstvý vzduch.",
+"Malá změna, co uděláš dnes, je základ velké změny, co uvidíš za rok.",
+
+// --- Sociální zdraví a vztahy ---
+"Osamělost škodí zdraví podobně jako kouření — sociální vazby jsou nezbytná součást wellness.",
+"Kdo pečuje o své vztahy, pečuje i o své duševní i fyzické zdraví.",
+"Smích s blízkými je jeden z nejúčinnějších a nejpříjemnějších způsobů, jak snížit stres.",
+"Kvalitní vztahy jsou stejně důležité pro dlouhověkost jako strava a pohyb.",
+"Kdo se izoluje v těžkých chvílích, si often prodlužuje utrpení, co by sdílení zkrátilo.",
+"Sociální podpora je nárazník proti stresu, co žádná dieta ani cvičení nenahradí.",
+"Zdravé vztahy živí duši stejně, jako zdravé jídlo živí tělo.",
+"Kdo si udržuje blízké vztahy, žije déle a šťastněji, ukazují desítky studií.",
+"Pocit sounáležitosti je základní lidská potřeba, stejně důležitá jako jídlo a spánek.",
+"Kvalita tvých vztahů často předpovídá kvalitu tvého zdraví lépe než cokoliv jiného.",
+
+// --- Poslední, shrnující ---
+"Zdraví není cílová stanice. Je to způsob cestování životem.",
+"Nejlepší investice, jakou můžeš udělat, je investice do vlastního těla a mysli.",
+"Kdo si dnes najde deset minut na sebe, si dá dar, co se počítá víc, než si myslí.",
+"Wellness je souhrn tisíců malých rozhodnutí, ne jeden velký zázrak.",
+"Tělo a mysl jsou jediný domov, který máš na celý život — starej se o něj podle toho.",
+"Zdraví, co budueš dnes, je dar, co dáváš své budoucí verzi sebe sama.",
+"Kdo si váží svého zdraví, když ho má, nemusí ho zoufale hledat, až přijde o něj.",
+"Nejkrásnější forma úspěchu je žít dlouhý život plný energie, jasnosti a radosti.",
+"Péče o sebe není luxus pro ty, co mají čas navíc. Je to nezbytnost pro každého.",
+"Na konci dne se neptej, jak jsi byl produktivní. Zeptej se, jak ses o sebe postaral.",
+
+// --- Léky, doplňky a odborná péče ---
+"Doplňky nejsou náhrada za základy — kvalitní jídlo, spánek a pohyb přijdou vždycky první.",
+"Kdo bere léky podle plánu, ne podle nálady, dává svému tělu nejlepší šanci fungovat správně.",
+"Konzultace s odborníkem není přiznání slabosti. Je to moudré využití dostupné pomoci.",
+"Tělo si zaslouží odbornou péči, ne jen internetové rady, když je něco vážně v nepořádku.",
+"Kdo si nastaví pravidelné užívání léků nebo doplňků, dá tělu konzistenci, co potřebuje.",
+"Samoléčba má své meze — vědět, kdy vyhledat odbornou pomoc, je forma péče o sebe.",
+"Doplňky fungují nejlíp jako doplněk zdravého životního stylu, ne jako náhrada za něj.",
+"Kdo bere svou léčbu vážně, i když se cítí lépe, předchází relapsu a komplikacím.",
+"Pravidelnost v užívání léků je stejně důležitá jako pravidelnost ve spánku nebo jídle.",
+"Odborná péče o zdraví je investice, ne výdaj, co je škoda utratit.",
+
+// --- Sebeuvědomění a naslouchání tělu ---
+"Tělo mluví celý den — únavou, hladem, napětím. Otázka je, jestli mu nasloucháš.",
+"Kdo si všímá drobných signálů těla, zachytí problém dřív, než se stane velkým.",
+"Sebeuvědomění těla není posedlost. Je to základní dovednost pro zdravý život.",
+"Tělo ti řekne, kdy potřebuje odpočinek, pohyb, jídlo nebo klid — musíš se jen naučit poslouchat.",
+"Kdo ignoruje signály těla dost dlouho, se naučí je přehlížet, dokud není pozdě.",
+"Všímavost k vlastnímu tělu je dovednost, co se dá trénovat stejně jako jakákoliv jiná.",
+"Tělo a mysl spolu komunikují neustále — sebeuvědomění je schopnost tomu naslouchat.",
+"Kdo se pravidelně zeptá sám sebe 'jak se dnes cítím', buduje si hlubší vztah k vlastnímu zdraví.",
+"Sebeuvědomění těla ti dá náskok v prevenci, co žádný lékař nemůže nahradit.",
+"Naslouchání vlastnímu tělu je forma sebeúcty, co se vyplácí na roky dopředu.",
+
+// --- Úplně poslední dávka ---
+"Zdraví je tichý základ, na kterém stojí všechno ostatní, co v životě chceš dokázat.",
+"Kdo si dopřeje odpočinek bez pocitu viny, se vrací silnější a jasnější.",
+"Tělo odmění péči, kterou mu dáváš, i když výsledky nepřijdou hned.",
+"Malé zlepšení životního stylu dnes je dárek, co oceníš za deset let.",
+"Kdo pečuje o zdraví jako o prioritu, ne jako o poslední položku na seznamu, žije s větší lehkostí.",
+"Wellness není destinace, kam jednou dorazíš. Je to způsob, jak cestuješ každý den.",
+"Nejsilnější forma sebelásky je péče o tělo, co tě nese celý život.",
+"Kdo respektuje limity svého těla, mu dává prostor růst silnější, ne slabší.",
+"Zdravý životní styl se nebuduje v jeden den. Buduje se tisíci obyčejnými rozhodnutími.",
+"Tělo, o které pečuješ s láskou, ti to vrátí energií, jasností a odolností.",
+"Kdo si všímá pokroku, ne dokonalosti, vydrží u zdravých návyků déle.",
+"Zdraví je jazyk, kterým ti tělo říká, jak se má — nauč se mu rozumět.",
+"Malá pauza na dech uprostřed rušného dne je dar, co si vždycky můžeš dovolit.",
+"Kdo staví své zdraví na prvním místě, staví základ pro všechno ostatní v životě.",
+"Nejkrásnější odměna za péči o sebe je energie a klid, co cítíš každý den.",
+"Zdraví se neměří jen fyzicky. Zahrnuje mysl, vztahy i pocit smyslu.",
+"Kdo si dovolí zpomalit, když to tělo potřebuje, sklidí sílu, co přijde po odpočinku.",
+"Tvé budoucí já bude vděčné za každé zdravé rozhodnutí, co uděláš dnes.",
+"Zdraví je dar, co dostáváš zdarma každé ráno — jak s ním naložíš, je na tobě.",
+"Nejcennější bohatství, jaké můžeš mít, je tělo a mysl, co ti dobře slouží po celý život.",
+
+// --- Definitivně poslední dávka ---
+"Kdo si každý den dá jeden malý dar péče o sebe, buduje zdraví, co vydrží celý život.",
+"Tělo je poutník na cestě životem — starej se o něj, ať dojde daleko.",
+"Nejlepší verze tebe začíná rozhodnutím starat se o sebe dnes, ne až zítra.",
+"Kdo respektuje svůj spánek, svůj pohyb a svůj klid, žije s hlubší stabilitou.",
+"Zdraví je nekonečný projekt — nikdy není hotový, jen se o něj dál staráš.",
+"Malé rozhodnutí pro zdraví, opakované denně, je nejsilnější forma sebelásky.",
+"Kdo si najde rovnováhu mezi péčí o sebe a péčí o ostatní, žije udržitelněji.",
+"Tělo si zaslouží stejnou péči, jakou věnuješ všemu ostatnímu, na čem ti záleží.",
+"Zdravý životní styl není o omezení. Je to o svobodě, co ti dobré zdraví dává.",
+"Kdo naslouchá tělu s laskavostí, dostane zpátky odolnost a energii.",
+"Nejsilnější dar, co si můžeš dát, je čas věnovaný vlastnímu zdraví.",
+"Péče o sebe dnes je základ pro to, abys mohl být pro ostatní zítra.",
+"Kdo si dovolí odpočívat, roste silnější než ten, kdo se žene bez zastavení.",
+"Zdraví buduje základ, na kterém stojí každý sen, co chceš uskutečnit.",
+"Malý krok k lepšímu zdraví dnes se počítá, i když se necítí jako dost.",
+"Kdo si udrží klid a rovnováhu, zvládne životní bouře s menší škodou.",
+"Tělo ti sloužilo věrně celý život — je čas, abys mu to vrátil péčí.",
+"Nejkrásnější způsob, jak žít dlouho, je žít vědomě, den po dni.",
+"Kdo si najde radost v péči o sebe, ne povinnost, vydrží u ní roky.",
+"Zdraví není konečná odměna. Je to způsob, jak prožíváš každý jednotlivý den.",
+"Tvé tělo a mysl si zaslouží tu nejlepší verzi tvé pozornosti a lásky.",
+"Kdo pečuje o sebe s trpělivostí, sklidí výsledky, co vydrží celý život.",
+"Nejcennější investice není na účtu. Je to čas věnovaný vlastnímu zdraví.",
+"Zdraví je tichý společník, co si zaslouží víc vděčnosti, než mu obvykle dáváme.",
+"Na konci života nezáleží, kolik jsi toho stihl. Záleží, jak ses cítil po cestě.",
   ]},
-  productivity: { label:"Vysoká produktivita a kariéra", icon:"🚀", quotes:[
-    "Malé, důsledné kroky dnes vytvářejí velké výsledky zítra.",
-    "Disciplína je most mezi cíli a jejich naplněním.",
-    "Nepotřebuješ motivaci na celý den — stačí ji mít na první krok.",
-    "Perfektní plán, který nikdy nezačneš, je horší než nedokonalý, který dokončíš.",
-    "Produktivita neznamená dělat víc — znamená dělat to správné.",
-    "Každý úkol, který dokončíš, je hlas, který ti víc věří.",
-    "Nejlepší čas začít byl včera. Druhý nejlepší je teď.",
-    "Soustředění je supersíla v době plné rozptýlení.",
-    "Úspěch je součet nudných dnů, kdy jsi to nevzdal.",
-    "Tvůj budoucí já ti poděkuje za to, co uděláš právě teď.",
-    "Menší, ale dokončený krok posouvá víc než velký, co zůstal jen v hlavě.",
-    "Nemusíš vidět celé schodiště — stačí vidět první schod.",
-    "Kariéra se nebuduje v jednom dni, ale ani jeden den nesmíš úplně vypustit.",
-    "Systém tě dostane dál než chvilkový záblesk vůle.",
-    "Odkládání je jen půjčka na úkor tvého budoucího klidu.",
-    "Kdo řídí svůj čas, řídí i svůj úspěch.",
-    "Nejtěžší je začít — pak už tě nese vlastní setrvačnost.",
-    "Buď tak dobrý, že si tě nikdo nebude moct dovolit přehlédnout.",
-    "Výsledky nepřicházejí z nadšení, ale z návyků.",
-    "Dnešní priorita je ta, která má za rok stále smysl.",
-    "Nejde o to mít čas, ale o to, čemu ho dáváš.",
-    "Malý pokrok každý den porazí velké plány, co zůstanou jen na papíře.",
-    "Práce, která tě posouvá, nemusí být příjemná — jen musí být důležitá.",
-    "Cíl bez termínu je jen přání. Dej mu datum a stane se plánem.",
-    "Nejlepší investice je ta, kterou vložíš do sebe sama.",
-    "Není důležité být zaneprázdněný, ale být efektivní.",
-    "Jedna dokončená věc má větší cenu než pět rozdělaných.",
-    "Ráno rozhoduje o směru celého dne — nastav si ho vědomě.",
-    "Kdo neplánuje svůj den, nechá ho naplánovat někoho jiného.",
-    "Vytrvalost poráží talent, když talent nevytrvá.",
+  vykonnost: { label:"Výkonnost a produktivita", icon:"🚀", quotes:[
+// --- Disciplína a návyky ---
+"Disciplína není trest. Je to způsob, jak si dopředu koupit svobodu, kterou bys jinak neměl.",
+"Motivace tě nastartuje. Návyk tě udrží v pohybu, i když motivace dávno zmizela.",
+"Nejproduktivnější den nezačíná ráno. Začíná rozhodnutím z předchozího večera.",
+"Malý úkol, co odkládáš už týden, tě stojí víc energie než kdyby ses do něj pustil hned.",
+"Disciplína je most mezi tím, kým jsi teď, a tím, kým chceš být.",
+"Není důležité, jak moc chceš výsledek. Důležité je, co jsi ochotný dělat i ve dnech, kdy se ti nechce.",
+"Produktivita neznamená dělat víc věcí. Znamená to dělat správné věci bez zbytečného odkladu.",
+"Návyk, co opakuješ i ve špatný den, je silnější než talent, co se objeví jen v dobrý den.",
+"Nejtěžší krok každého úkolu je první minuta. Zbytek už jde samo.",
+"Disciplína dnes je jediný způsob, jak si zítra dopřát klid.",
+"Kdo čeká na ideální náladu k práci, čeká věčně. Práce vytváří náladu, ne naopak.",
+"Malé denní kroky, co se zdají nedůležité, jsou přesně to, co za rok rozhoduje o výsledku.",
+"Produktivní člověk nemá víc času než ostatní. Má jen jasnější rozhodnutí o tom, čemu ho dá.",
+"Disciplína je to, co děláš, když se ti do toho nechce a stejně to uděláš.",
+"Návyky, co si vybuduješ v klidu, tě podrží v chaosu.",
+
+// --- Prokrastinace a odkládání ---
+"Prokrastinace není lenost. Je to strach z toho, že úkol nezvládneš dokonale, tak ho radši neuděláš vůbec.",
+"Úkol, co odkládáš, neztrácí na důležitosti. Jen roste v hlavě, dokud se nestane hrou.",
+"Nejrychlejší způsob, jak se zbavit úzkosti z úkolu, je začít ho dělat, ne o něm přemýšlet.",
+"Odkládání ti nedá víc času. Jen ti vezme klid, který bys mohl mít teď.",
+"Perfekcionismus je nejlepší kamarád prokrastinace — obojí ti řekne, že ještě nejsi připravený začít.",
+"Pět minut práce na úkolu, co odkládáš, rozbije bariéru, kterou sis kolem něj postavil v hlavě.",
+"Většina úkolů není tak těžká, jak vypadá, když je jen v hlavě, ne na papíře.",
+"Nejlepší lék na prokrastinaci je začít, i když víš, že to nebude dokonalé.",
+"Odložený úkol nikdy nezmizí. Jen se stěhuje na zítřek s trochou navíc úzkosti.",
+"Čekání na tu správnou chvíli začít je nejjistější způsob, jak nikdy nezačít.",
+
+// --- Priority a rozhodování ---
+"Kdo se snaží dělat všechno stejně důležitě, nakonec nedělá nic pořádně.",
+"Ne všechno, co je naléhavé, je důležité. A ne všechno důležité křičí, že je naléhavé.",
+"Umění produktivity není dělat víc věcí za den. Je to umět říct ne věcem, co tě odvádí od těch důležitých.",
+"Tři důležité úkoly zvládnuté pořádně mají větší cenu než deset odškrtnutých maličkostí.",
+"Nejproduktivnější lidé nemají delší seznam úkolů. Mají kratší a jasnější.",
+"Než se zeptáš, jak stihnout víc, zeptej se, co vůbec nemusíš dělat.",
+"Priority nejsou o tom najít čas na všechno. Jsou o tom rozhodnout, co počká.",
+"Každé ano jedné věci je automatické ne něčemu jinému — vyber si svá ano pečlivě.",
+"Kdo si nerozhodne priority sám, nechá je za něj rozhodnout někoho jiného.",
+"Jasná priorita zjednoduší každé rozhodnutí, co přijde po ní.",
+
+// --- Soustředění a hluboká práce ---
+"Hluboká práce bez rušení hodinu udělá víc než roztříštěná pozornost celý den.",
+"Multitasking není dovednost. Je to způsob, jak dělat víc věcí najednou hůř, než kdybys je dělal jednu po druhé.",
+"Soustředění je sval — čím víc ho trénuješ, tím déle vydrží bez únavy.",
+"Telefon na dosah ruky stojí víc soustředění, než si myslíš, i když ho nepoužiješ.",
+"Práce, co vyžaduje myšlení, potřebuje ticho, ne hudbu na pozadí a deset otevřených záložek.",
+"Nejcennější zdroj dneška není čas. Je to nerozptýlená pozornost.",
+"Hluboké soustředění na jednu věc přinese víc než povrchní pozornost rozdělená na deset věcí.",
+"Kdo se naučí pracovat bez přerušení, získá zpátky hodiny, co jinak ztrácí na přepínání mezi úkoly.",
+"Soustředěná hodina práce má větší cenu než rozptýlený celý den.",
+"Ticho není nuda. Je to prostor, kde se rodí nejlepší práce.",
+
+// --- Cíle a plánování ---
+"Cíl bez plánu je jen přání. Plán bez akce je jen papír.",
+"Velký cíl tě může paralyzovat. Malý další krok tě posune dopředu.",
+"Nejlepší plán není ten nejdokonalejší. Je to ten, který skutečně začneš realizovat.",
+"Kdo si nedá jasný cíl, skončí tam, kam ho zavane vítr náhody.",
+"Plánování není ztráta času. Je to způsob, jak ušetřit čas, co bys jinak ztratil bloudění.",
+"Cíl, co si nezapíšeš, je jen myšlenka. Cíl, co si zapíšeš, je začátek plánu.",
+"Rozděl velký cíl na týdny, týdny na dny, a najednou přestane být nemožný.",
+"Nejlepší čas naplánovat zítřek je dnes večer, ne zítra ráno v chaosu.",
+"Bez jasného cíle je snadné být zaneprázdněný, aniž bys byl produktivní.",
+"Plán se nikdy nedrží stoprocentně. Ale bez plánu nemáš ani co upravovat.",
+
+// --- Vytrvalost a odolnost ---
+"Úspěch často nepatří nejtalentovanějším. Patří těm, kdo to nevzdali o den déle než ostatní.",
+"Každý neúspěch, co tě nezastaví, tě posune blíž k tomu, co funguje.",
+"Vytrvalost není o tom necítit únavu. Je to pokračovat i s ní.",
+"Kdo se vzdá těsně před cílem, nikdy nezjistí, jak blízko byl.",
+"Odolnost se nebuduje v pohodlí. Buduje se v chvílích, kdy chceš přestat a nepřestaneš.",
+"Nejtěžší část každého velkého úkolu je střed, kdy počáteční nadšení zmizelo a konec je ještě daleko.",
+"Malý pokrok každý den, i pomalý, tě dovede dál než rychlý start, co skončí po týdnu.",
+"Vytrvalost je schopnost dělat nezajímavou práci dostatečně dlouho na to, aby přinesla zajímavé výsledky.",
+"Kdo vydrží déle než jeho pochybnosti, obvykle vyhraje.",
+"Cesta k výsledku vede přes období, kdy to nevypadá, že se něco děje.",
+
+// --- Time management a efektivita ---
+"Čas neztrácíš, jen si vybíráš, čemu ho dáš.",
+"Nejcennější hodina dne je ta první po probuzení, než svět stihne o tvou pozornost požádat.",
+"Efektivita není dělat věci rychleji. Je to dělat míň zbytečných věcí vůbec.",
+"Kalendář nelže o tom, na čem ti skutečně záleží — ukazuje to jasněji než jakékoliv proslovy.",
+"Přestávka není ztráta času. Je to investice do kvality práce, co přijde po ní.",
+"Kdo si neplánuje svůj čas, nechá si ho naplánovat někým jiným.",
+"Deset minut plánování ráno ušetří hodinu zmateného rozhodování během dne.",
+"Nejefektivnější lidé nedělají víc hodin. Dělají víc s hodinami, co mají.",
+"Čas, co promarníš na nedůležité věci, nikdy nedostaneš zpátky, ať se snažíš sebevíc.",
+"Produktivita bez odpočinku je jen rychlejší cesta k vyhoření.",
+
+// --- Selhání a učení se z chyb ---
+"Chyba není opak úspěchu. Je to jeho nezbytná součást.",
+"Kdo se nikdy nespletl, pravděpodobně nikdy nic nezkusil dost těžkého.",
+"Selhání bolí míň, když ho vidíš jako informaci, ne jako rozsudek.",
+"Každá chyba, ze které se poučíš, tě posune dál než úspěch, který jsi nezkoumal.",
+"Neúspěch je jen zpětná vazba, co ti řekne, co příště zkusit jinak.",
+"Kdo se bojí chybovat, se nikdy nenaučí nic nového.",
+"Rychlé selhání je lepší než pomalé odkládání — aspoň se rychleji poučíš.",
+"Cesta k mistrovství vede přes stovky chyb, co nikdo neviděl.",
+"Nezáleží na tom, kolikrát padneš. Záleží na tom, jestli vstaneš o jednou víc.",
+"Chyba, kterou přiznáš a opravíš, tě posílí. Chyba, co skrýváš, tě brzdí.",
+
+// --- Kariéra a profesní růst ---
+"Kariéra se nebuduje jedním velkým skokem. Buduje se stovkami malých kroků, co nikdo nevidí.",
+"Odbornost přichází z opakování, ne z talentu, na který čekáš.",
+"Kdo se přestane učit, přestane růst, i když zůstane na stejné pozici roky.",
+"Nejlepší investice do kariéry není nový certifikát. Je to čas věnovaný zlepšování toho, co už umíš.",
+"Profesní růst často znamená dělat nepříjemné věci, dokud se nestanou pohodlnými.",
+"Reputace se buduje léta a zničí se za den — chraň ji každým rozhodnutím.",
+"Kdo nabízí víc, než se od něj čeká, nakonec dostane víc, než čekal.",
+"Kariéra není sprint. Je to maraton, kde vytrvalost poráží rychlý start.",
+"Nejcennější dovednost v práci není znalost. Je to schopnost se rychle učit nové věci.",
+"Tvá práce mluví za tebe hlasitěji než jakýkoliv životopis.",
+
+// --- Sebekázeň vs. motivace ---
+"Motivace je pomíjivá. Systém a rutina tě dovedou k cíli i ve dnech, kdy motivace chybí.",
+"Čekání na motivaci je jako čekání na počasí — nemůžeš ho ovládat, ale můžeš si vzít deštník.",
+"Kdo spoléhá jen na motivaci, dosáhne míň než ten, kdo si vybuduje pevný systém.",
+"Sebekázeň znamená dělat to, co je správné, ne to, co je v tu chvíli příjemné.",
+"Motivace tě donese k první míli. Sebekázeň tě donese až do cíle.",
+"Systém, co funguje bez ohledu na náladu, je silnější než jakákoliv dávka nadšení.",
+"Není potřeba cítit se motivovaný každý den. Stačí se rozhodnout jednat i bez toho pocitu.",
+"Kdo čeká, až se bude cítit připravený, obvykle čeká zbytečně dlouho.",
+"Disciplína je to, co zůstane, když motivace odejde na dovolenou.",
+"Malý krok bez motivace má větší cenu než velký plán bez akce.",
+
+// --- Rovnováha mezi prací a odpočinkem ---
+"Odpočinek není odměna za práci. Je to palivo, co ji umožňuje.",
+"Kdo nikdy nezastaví, nakonec zastaví ho tělo za něj, a to v horší čas.",
+"Produktivita bez pauzy je jako auto bez zastávky na tankování — dřív nebo později dojede benzín.",
+"Únava není znak slabosti. Je to signál, že přišel čas zpomalit.",
+"Nejlepší nápady často přijdou ne u pracovního stolu, ale při procházce nebo sprše.",
+"Kvalitní odpočinek je stejně důležitá dovednost jako kvalitní práce.",
+"Kdo si nedopřeje pauzu, nakonec pracuje pomaleji, i když pracuje déle.",
+"Odpočatá mysl vyřeší za hodinu to, co unavená mysl neřeší celý den.",
+"Rovnováha neznamená dělat míň. Znamená to vědět, kdy zastavit a kdy pokračovat.",
+"Nejproduktivnější lidé nepracují nejvíc hodin. Pracují nejchytřeji v hodinách, co mají.",
+
+// --- Sebedůvěra a výkon ---
+"Sebedůvěra nepřichází z toho, že víš, že uspěješ. Přichází z toho, že víš, že zvládneš i neúspěch.",
+"Kdo věří, že to zvládne, už udělal polovinu práce.",
+"Pochybnosti jsou normální. Nesmí ale rozhodovat za tebe, jestli začneš.",
+"Sebedůvěra se buduje důkazy, ne přáními — každý splněný slib sobě samému ji posiluje.",
+"Nejsilnější motivace je vzpomínka na to, co všechno jsi už zvládl, i když jsi si nevěřil.",
+"Věřit si neznamená myslet si, že jsi nejlepší. Znamená to věřit, že se dokážeš zlepšovat.",
+"Kdo čeká na jistotu, než začne, nikdy nezačne — jistota přichází až po akci.",
+"Sebevědomí roste s každým úkolem, co jsi dokončil, i když se ti nechtělo.",
+"Nejrychlejší způsob, jak si věřit víc, je udělat něco, co tě děsí, a přežít to.",
+"Tvá minulost tě neurčuje. Určuje tě to, co uděláš dnes.",
+
+// --- Efektivní návyky a rutiny ---
+"Ranní rutina není o dokonalosti. Je to o tom dát dni pevný základ, než začne chaos.",
+"Malá rutina, co dodržíš každý den, má větší efekt než velký plán, co dodržíš jednou za měsíc.",
+"Kdo si vytvoří pevné rituály, nemusí se každý den znovu rozhodovat, co udělat první.",
+"Rutina není nuda. Je to způsob, jak ušetřit energii na rozhodování pro věci, na kterých skutečně záleží.",
+"Večerní příprava na zítřek je tichý dárek, co dáváš svému budoucímu já.",
+"Nejsilnější návyky jsou ty nejmenší — stačí je jen dělat konzistentně.",
+"Kdo má systém, nepotřebuje sílu vůle na každé jednotlivé rozhodnutí.",
+"Rutina tě podrží v den, kdy nemáš náladu se rozhodovat.",
+"Malé denní rituály jsou cihly, ze kterých se staví velké výsledky.",
+"Konzistence poráží intenzitu — pravidelný malý krok je silnější než náhodný velký skok.",
+
+// --- Delegace a spolupráce ---
+"Kdo se snaží dělat všechno sám, nakonec zvládne míň než ten, kdo umí požádat o pomoc.",
+"Delegování není slabost. Je to uznání, že tvůj čas má hranice.",
+"Nejlepší lídři nedělají nejvíc práce. Umožňují ostatním dělat jejich nejlepší práci.",
+"Spolupráce znásobí to, co bys sám dokázal jen sečíst.",
+"Kdo neumí požádat o pomoc, nese břemena, co nemusí nést sám.",
+"Tým, co si důvěřuje, dosáhne víc než jednotlivec, co všechno kontroluje.",
+"Delegování úkolu neznamená ztrátu kontroly. Znamená to získání času na to důležitější.",
+"Nejsilnější organizace nejsou ty s nejchytřejším vedoucím, ale ty, kde každý dělá to, v čem je nejlepší.",
+"Umět přijmout pomoc je stejně důležitá dovednost jako umět pomoc nabídnout.",
+"Sám dojdeš rychle. Spolu dojdete dál.",
+
+// --- Poslední souhrnné, hluboké ---
+"Produktivita nemá smysl, pokud neslouží životu, který chceš žít.",
+"Nejúspěšnější lidé nejsou ti bez pochybností. Jsou to ti, co jednají navzdory nim.",
+"Výkon se neměří tím, kolik hodin sedíš u práce, ale tím, co za ně skutečně vytvoříš.",
+"Kdo definuje úspěch jen výkonem, zapomíná, že cesta k němu má taky cenu.",
+"Nejvzácnější zdroj není čas ani peníze. Je to pozornost, kterou věnuješ tomu, na čem záleží.",
+"Disciplína, vytrvalost a jasný cíl jsou tři pilíře, na kterých stojí každý velký výsledek.",
+"Práce má smysl, když víš proč ji děláš, ne jen co máš udělat.",
+"Kdo si zvykne překonávat malé odpory každý den, jednou zvládne i ty velké.",
+"Výkonnost bez smyslu vyhoří. Výkonnost s cílem vydrží.",
+"Na konci dne se neptej, kolik jsi toho udělal. Zeptej se, jestli jsi dělal to, na čem skutečně záleží.",
+
+// --- Krátkodobé vs. dlouhodobé myšlení ---
+"Kdo obětuje dlouhodobý výsledek kvůli krátkodobému pohodlí, platí za to úrokem, co roste s časem.",
+"Nejtěžší rozhodnutí dneška jsou často ta, co ti nejvíc pomůžou za rok.",
+"Krátkodobá bolest disciplíny je vždycky menší než dlouhodobá bolest lítosti.",
+"Kdo myslí jen na dnešek, staví na písku. Kdo myslí na roky dopředu, staví na skále.",
+"Investice do sebe dnes se neprojeví hned — ale projeví se, a víc, než čekáš.",
+"Trpělivost s výsledky je součást hry, kterou hraješ, když chceš něco skutečně velkého.",
+"Rychlé výsledky jsou lákavé, ale trvalé výsledky vyžadují čas, co většina lidí není ochotná dát.",
+"Nejlepší verze tebe za pět let závisí na rozhodnutích, co děláš dnes, ne na těch, co odkládáš.",
+"Kdo si vybere pohodlí dnes, často platí nepohodlím zítra — a naopak.",
+"Dlouhodobá vize dá smysl krátkodobé nepohodlnosti.",
+
+// --- Práce s časem a odhad úkolů ---
+"Úkoly vždycky trvají déle, než si myslíš — počítej s tím a nebudeš zklamaný.",
+"Kdo si naplánuje den na sto procent kapacity, naplánoval si den bez prostoru na realitu.",
+"Nejčastější chyba v plánování je podcenit, kolik věcí se během dne pokazí.",
+"Realistický plán, co dodržíš, je lepší než ambiciózní plán, co vzdáš po dvou dnech.",
+"Odhad času na úkol znásob jedenapůlkrát — a budeš blíž realitě.",
+"Kdo si nechá rezervu v plánu, zvládne nečekané věci bez stresu.",
+"Čas na přípravu není ztracený čas — je to čas, co ušetří hodiny zmatku později.",
+"Podcenění složitosti úkolu je nejčastější důvod, proč termíny nevycházejí.",
+"Realistické plánování začíná přiznáním, že věci nikdy nejdou přesně podle plánu.",
+"Nejlepší odhad času je ten, co počítá i s časem na chyby a opravy.",
+
+// --- Sebereflexe a zlepšování ---
+"Kdo se nikdy nezastaví a nezeptá se, jestli dělá správné věci, běží možná rychle, ale špatným směrem.",
+"Zpětný pohled na týden ti řekne víc o tom, co zlepšit, než měsíc bezhlavé práce.",
+"Sebereflexe není luxus pro ty, co mají čas navíc. Je to nástroj pro ty, co chtějí být lepší.",
+"Nejrychlejší způsob růstu je poctivě si přiznat, co nefunguje, a rychle to změnit.",
+"Kdo si každý týden položí otázku 'co bych udělal jinak', roste rychleji než ten, kdo jen pokračuje dál.",
+"Zlepšení o jedno procento denně se za rok promění v obrovský rozdíl.",
+"Sebereflexe bez akce je jen přemýšlení. Sebereflexe s akcí je růst.",
+"Kdo se poučí z každého týdne, nikdy neopakuje stejnou chybu dvakrát.",
+"Nejcennější zpětná vazba je ta, co si dáš sám, když jsi k sobě upřímný.",
+"Růst začíná přiznáním, že současný způsob není ten nejlepší možný.",
+
+// --- Vůle a sebeovládání ---
+"Síla vůle je jako sval — unaví se během dne, tak nejdůležitější rozhodnutí dělej ráno.",
+"Kdo si zjednoduší rozhodování, ušetří sílu vůle na věci, co na ní skutečně závisí.",
+"Sebeovládání není o potlačování tužeb navždy. Je to o odložení uspokojení pro větší cíl.",
+"Nejsilnější lidé nemají víc vůle. Mají chytřejší systémy, co jim vůli šetří.",
+"Kdo odstraní pokušení z dohledu, nemusí bojovat silou vůle tak často.",
+"Sebeovládání dnes buduje svobodu zítra.",
+"Vůle je omezený zdroj — chraň ji pro rozhodnutí, na kterých skutečně záleží.",
+"Kdo se naučí odložit okamžité uspokojení, získá schopnost, co mu vydrží celý život.",
+"Sebekázeň je nejtišší forma sebeúcty.",
+"Malé vítězství nad vlastním pohodlím dnes je základ velkého výsledku zítra.",
+
+// --- Práce s nejistotou a riziky ---
+"Kdo čeká na jistotu, než udělá krok, zůstane stát na místě navždy.",
+"Riziko není nepřítel úspěchu. Je to jeho nezbytná cena.",
+"Nejistota je nepříjemná, ale je to prostor, kde se rodí všechny zajímavé příležitosti.",
+"Kdo se bojí každého rizika, riskuje nakonec to největší — promarněný potenciál.",
+"Odvaha není absence strachu. Je to jednání navzdory němu.",
+"Kalkulované riziko, podložené přípravou, je jiná hra než hazard bez rozmyslu.",
+"Nejistota se zmenšuje akcí, ne přemýšlením o všech možných scénářích.",
+"Kdo nikdy neriskuje selhání, nikdy nezažije ani ten největší úspěch.",
+"Riziko se vyplácí těm, kdo se na něj připraví, ne těm, kdo mu jen věří.",
+"Odvaha udělat první krok do neznáma je základ každého velkého příběhu úspěchu.",
+
+// --- Zpětná vazba a kritika ---
+"Kritika bolí méně, když ji vidíš jako dárek, ne jako útok.",
+"Kdo odmítá veškerou zpětnou vazbu, odmítá i cestu k lepší verzi sebe.",
+"Nejcennější zpětná vazba často přichází zabalená v nepříjemné formě.",
+"Zpětná vazba není hodnocení tvé hodnoty. Je to informace o tvé práci.",
+"Kdo se naučí přijímat kritiku bez obrany, roste rychleji než ten, kdo ji odmítá.",
+"Konstruktivní kritika je nejrychlejší cesta ke zlepšení, i když nepříjemná.",
+"Nejlepší profesionálové aktivně hledají zpětnou vazbu, ne se jí vyhýbají.",
+"Kritika bolí jen tehdy, když si myslíš, že jsi už dokonalý.",
+"Kdo umí oddělit kritiku práce od kritiky sebe, se učí rychleji a s menší bolestí.",
+"Zpětná vazba, kterou ignoruješ, se stane chybou, kterou zopakuješ.",
+
+// --- Poslední doplňující, hluboké ---
+"Výkon bez odpočinku je jen rychlejší cesta k vyhoření, ne k úspěchu.",
+"Nejlepší investice, jakou můžeš udělat, je investice do vlastních schopností.",
+"Kdo pracuje s jasným proč, vydrží déle než ten, kdo pracuje jen pro výplatu.",
+"Produktivita má smysl jen tehdy, když ti přibližuje k životu, který chceš žít.",
+"Konzistentní průměrný výkon dlouhodobě porazí sporadický vynikající výkon.",
+"Kdo si stanoví jasné hranice mezi prací a odpočinkem, pracuje efektivněji v čase, co má.",
+"Největší nepřítel produktivity není lenost. Je to nedostatek jasnosti o tom, co je skutečně důležité.",
+"Systém, co funguje i ve špatný den, je cennější než motivace, co funguje jen v dobrý.",
+"Kdo se naučí pracovat chytře, ne jen tvrdě, ušetří roky zbytečného vyčerpání.",
+"Na konci každého projektu nezáleží na tom, jak těžké to bylo. Záleží na tom, co jsi se naučil.",
+
+// --- Excelence a kvalita práce ---
+"Kvalita práce se nepozná v okamžiku dokončení. Pozná se v okamžiku, kdy ji někdo skutečně použije.",
+"Excelence není o dokonalosti. Je to o tom dát do práce víc, než je nutné minimum.",
+"Kdo dělá věci pořádně, i když se nikdo nedívá, buduje pověst, co ho předchází.",
+"Detaily, co ostatní přehlédnou, jsou často to, co rozhoduje o skutečné kvalitě.",
+"Práce odvedená na sto procent dnes ušetří stovky hodin oprav zítra.",
+"Excelence je návyk, ne jednorázový akt — je to způsob, jak přistupuješ ke každému úkolu.",
+"Kdo se spokojí s 'stačí to', nikdy nezažije, jaké to je udělat něco skutečně dobře.",
+"Nejlepší práce vzniká, když se přestaneš ptát 'je to hotové' a začneš se ptát 'je to dobré'.",
+"Kvalita se nedá uspěchat — vyžaduje čas, který jí většina lidí není ochotná dát.",
+"Excelence v maličkostech buduje důvěru pro velké věci.",
+
+// --- Změna a adaptabilita ---
+"Kdo se nedokáže přizpůsobit změně, zůstává pozadu, i když stojí na místě.",
+"Změna je nepříjemná jen do chvíle, než si uvědomíš, že stagnace je nepříjemnější.",
+"Adaptabilita není slabost. Je to schopnost přežít a růst v podmínkách, co se mění.",
+"Kdo lpí na starém způsobu jen proto, že je pohodlný, promarní příležitost k lepšímu.",
+"Flexibilita v plánech neznamená nedostatek disciplíny. Znamená to moudrost reagovat na realitu.",
+"Největší firmy i lidé zanikli ne proto, že byli špatní, ale proto, že se odmítli změnit.",
+"Kdo vítá změnu jako příležitost, roste rychleji než ten, kdo v ní vidí jen hrozbu.",
+"Schopnost učit se nové věci je důležitější než znalosti, co už máš.",
+"Svět se mění rychleji než kdy dřív — kdo se nezmění s ním, zůstane pozadu.",
+"Adaptace není o vzdání se svých hodnot. Je to o změně metod, jak jich dosáhnout.",
+
+// --- Vedení a odpovědnost ---
+"Vedení není o titulu. Je to o tom, jak se chováš, když nikdo nekouká.",
+"Kdo přebírá odpovědnost i za cizí chyby v týmu, buduje si respekt, co žádný titul nedá.",
+"Skutečný lídr nedělá nejvíc rozhodnutí. Vytváří podmínky, kde ostatní mohou dělat ta svá dobře.",
+"Odpovědnost znamená přiznat chybu dřív, než ji někdo jiný odhalí.",
+"Kdo viní okolnosti za své výsledky, nikdy nezíská kontrolu nad tím, co příště udělá jinak.",
+"Vedení sebe sama je základ vedení kohokoliv jiného.",
+"Odpovědný člověk hledá řešení. Neodpovědný člověk hledá výmluvy.",
+"Nejsilnější lídři nejsou ti nejhlasitější. Jsou to ti nejdůslednější.",
+"Kdo převezme odpovědnost za svůj výsledek, získá i moc ho změnit.",
+"Vedení znamená jít první tam, kam žádáš ostatní, aby šli za tebou.",
+
+// --- Peníze, hodnota a práce ---
+"Peníze jsou odměnou za hodnotu, kterou přinášíš, ne za hodiny, které odsedíš.",
+"Kdo se soustředí jen na výplatu, přehlédne dovednosti, co mu přinesou víc výplat v budoucnu.",
+"Hodnota, kterou vytvoříš pro druhé, se dřív nebo později vrátí i tobě.",
+"Nejlepší kariérní investice není víc hodin práce. Je to lepší dovednosti za stejné hodiny.",
+"Kdo si cení svého času, přestane ho vyměňovat za věci, co mu nic nepřinášejí.",
+"Finanční svoboda nezačíná výší platu. Začíná návyky, co s ním děláš.",
+"Práce, co tě baví a v čem jsi dobrý, se dřív nebo později promění v hodnotu, za kterou ti zaplatí.",
+"Kdo investuje do svého vzdělání, investuje do jediného aktiva, co mu nikdo nemůže vzít.",
+"Peníze jsou nástroj, ne cíl — nezapomeň, proč je vlastně chceš vydělat.",
+"Hodnota tvé práce roste s každou novou dovedností, kterou si osvojíš.",
+
+// --- Poslední doplňkové, motivační ---
+"Nejlepší den začít cokoliv nového byl včera. Druhý nejlepší den je dnes.",
+"Kdo čeká na perfektní podmínky, nikdy nezačne — podmínky nikdy nejsou perfektní.",
+"Malý pokrok je pořád pokrok, i když se necítí jako dost.",
+"Výsledky přicházejí těm, kdo pokračují dlouho po tom, co ostatní vzdali.",
+"Kdo si každý den zlepší jen o kousek, se za rok ohlédne a nepozná se.",
+"Nejúspěšnější lidé nejsou ti nejchytřejší. Jsou to ti nejvytrvalejší.",
+"Práce, co má smysl, se necítí jako práce, i když je náročná.",
+"Kdo se soustředí na proces, ne jen na výsledek, vydrží déle a dosáhne víc.",
+"Úspěch není cíl, kam dojdeš a zastavíš se. Je to způsob, jakým cestuješ každý den.",
+"Nejsilnější verze tebe existuje na druhé straně disciplíny, co ještě nemáš, ale můžeš si ji vybudovat.",
+
+// --- Doplnění na cílový počet ---
+"Kdo si stanoví jasný záměr před začátkem dne, stráví míň času rozhodováním a víc konáním.",
+"Nejlepší práce vzniká na pomezí pohodlí a výzvy — příliš snadné nudí, příliš těžké paralyzuje.",
+"Systém porazí sílu vůle — dobrý systém tě donese k cíli, i když vůle zrovna chybí.",
+"Kdo si dovolí odpočívat bez pocitu viny, pracuje pak s větší energií a jasností.",
+"Produktivní člověk neříká 'nemám čas'. Říká 'tohle teď není priorita'.",
+"Nejrychlejší cesta k výsledku vede přes ochotu udělat to, co ostatní odkládají.",
+"Kdo pracuje na sobě, i když to nikdo nevidí, sklidí výsledky, co uvidí všichni.",
+"Výkon roste tam, kde se setká jasný cíl s konzistentní akcí.",
+"Nejcennější dovednost dnešní doby není znalost, ale schopnost se soustředit uprostřed rozptýlení.",
+"Kdo se nebojí začít nedokonale, dostane se dál než ten, kdo čeká na dokonalý start.",
+"Disciplína bez odpočinku vede k vyhoření. Odpočinek bez disciplíny vede nikam.",
+"Malý krok udělaný dnes má větší cenu než velký plán odložený na zítřek.",
+"Kdo si udrží směr i v bouři pochybností, dorazí tam, kam si ostatní jen přáli dojít.",
+"Práce s jasným účelem unaví míň než práce bez smyslu, i když trvá stejně dlouho.",
+"Nejlepší investice do budoucnosti je hodina soustředěné práce dnes.",
+"Kdo se učí z každého selhání, nikdy skutečně neprohrává — jen sbírá zkušenosti.",
+"Produktivita se nerovná zaneprázdněnosti — klidně můžeš být zaneprázdněný a nikam se nedostat.",
+"Kdo respektuje svůj čas, naučí i ostatní, aby respektovali ten jeho.",
+"Výsledky mluví hlasitěji než sliby — nech svou práci, ať mluví za tebe.",
+"Cesta k mistrovství je dlouhá, ale každý krok na ní má cenu, i když to tak nevypadá.",
+
+// --- Poslední, závěrečná dávka ---
+"Kdo se rozhodne dnes, ušetří si zítra spoustu zbytečného přemýšlení.",
+"Práce má hodnotu, i když výsledek přijde až za dlouho — semínko taky neroste přes noc.",
+"Nejsilnější lidé nejsou ti bez pochybností, ale ti, co jednají navzdory nim znovu a znovu.",
+"Kdo si udrží klid uprostřed tlaku, dělá lepší rozhodnutí než ten, kdo panikaří.",
+"Výkonnost bez odpočinku je půjčka, co se dřív nebo později musí splatit s úroky.",
+"Nejlepší způsob, jak zvládnout velký úkol, je přestat na něj myslet jako na jeden velký úkol.",
+"Kdo si všímá malého pokroku, vydrží déle než ten, kdo čeká jen na velký skok.",
+"Produktivní den nezačíná seznamem úkolů. Začíná jasností o tom, co je dnes skutečně důležité.",
+"Návyk, co buduješ měsíc, ti bude sloužit roky.",
+"Kdo pracuje s vášní i v nudné části procesu, dokončí to, co ostatní vzdají.",
+"Největší nepřítel dobrého výsledku je honba za dokonalým výsledkem, co nikdy nepřijde.",
+"Kdo se soustředí na to, co může ovlivnit, přestane plýtvat energií na to, co nemůže.",
+"Malý krok správným směrem je lepší než velký krok špatným.",
+"Výsledky přicházejí v sériích, ne rovnoměrně — nenech se odradit obdobím ticha.",
+"Kdo si dovolí odpočinout bez pocitu selhání, vrátí se silnější než ten, kdo se hnal bez přestávky.",
+"Nejcennější minuty dne jsou ty, co věnuješ plánování toho, co skutečně záleží.",
+"Kdo dokončí, co začal, buduje si důvěru v sebe, co mu vydrží na další výzvu.",
+"Práce, co dává smysl, unese i těžké dny, co by jinak zlomily motivaci.",
+"Nejrychlejší cesta k výsledku vede přes ochotu udělat i to nepříjemné jako první.",
+"Kdo se nebojí požádat o zpětnou vazbu, roste rychleji než ten, kdo pracuje potmě.",
+
+// --- Úplně poslední doplnění na 365 ---
+"Nejlepší čas zasadit strom byl před dvaceti lety. Druhý nejlepší čas je teď.",
+"Kdo si každý den připomene svůj cíl, nesejde z cesty, i když je dlouhá.",
+"Produktivita je jazyk lásky k budoucí verzi sebe sama.",
+"Malé zlepšení, opakované dostatečně dlouho, se stane velkým náskokem.",
+"Kdo se nevzdá po první překážce, obvykle zjistí, že další byla poslední.",
+"Práce beze smyslu unaví rychleji než práce s jasným účelem, i kdyby byla lehčí.",
+"Nejsilnější lidé si nevytvářejí výmluvy. Vytvářejí si řešení.",
+"Kdo respektuje svůj vlastní čas, přestane ho rozdávat věcem, na kterých nezáleží.",
+"Výsledek, co přijde snadno, se snadno i ztratí. Výsledek vydřený vytrvalostí vydrží.",
+"Kdo se soustředí na růst, ne na srovnávání s ostatními, jde svým vlastním tempem ke svému vlastnímu vrcholu.",
+"Nejtěžší část každé cesty je rozhodnutí vůbec vyrazit.",
+"Kdo dokáže zůstat klidný v chaosu, dělá lepší rozhodnutí než ten, kdo panikaří.",
+"Práce na sobě nikdy nekončí — a to je dobrá zpráva, ne špatná.",
+"Kdo věří svému procesu, i když výsledky ještě nejsou vidět, obvykle vytrvá dost dlouho na to, aby přišly.",
+"Nejcennější dovednost, kterou si můžeš vypěstovat, je schopnost začít znovu po neúspěchu.",
+"Disciplína ti dá svobodu, kterou motivace nikdy nedokáže zaručit.",
+"Kdo si najde radost v procesu, ne jen ve výsledku, vydrží déle a dosáhne víc.",
+"Nejrychlejší způsob, jak se dostat tam, kam chceš, je přestat čekat na dokonalý okamžik začít.",
+"Výkon, co je udržitelný, porazí výkon, co tě za rok vyčerpá.",
+"Kdo se každý den posune o kousek dál, nikdy nestojí na místě, i když se to tak občas zdá.",
+
+// --- Definitivně poslední dávka ---
+"Kdo neplánuje svůj úspěch, plánuje nevědomky svůj neúspěch.",
+"Nejlepší způsob, jak předpovědět budoucnost, je vytvořit si ji vlastní prací.",
+"Kázeň je cena, kterou platíš předem za svobodu, kterou získáš později.",
+"Kdo hledá výmluvy, najde je vždycky. Kdo hledá řešení, najde je taky.",
+"Práce, co tě posouvá za hranice pohodlí, je jediná práce, co tě skutečně rozvíjí.",
+"Nejsilnější návyk, který můžeš mít, je návyk nevzdávat se po prvním nezdaru.",
+"Kdo si každé ráno připomene svůj důvod, najde sílu i na den, kdy se mu nechce.",
+"Výsledky nejsou náhoda. Jsou to stopy po stovkách malých rozhodnutí.",
+"Kdo pracuje na svém charakteru stejně jako na svých dovednostech, buduje úspěch, co vydrží.",
+"Nejcennější věc, kterou můžeš dnes udělat pro budoucnost, je něco, co se právě teď nezdá důležité.",
+"Vytrvalost bez směru je jen vyčerpání. Směr bez vytrvalosti je jen sen.",
+"Kdo si zvykne na malé nepohodlí, přestane se bát toho velkého.",
+"Práce se stává lehčí, když víš přesně, proč ji děláš.",
+"Nejlepší lidé v jakémkoliv oboru nejsou ti nejtalentovanější. Jsou to ti nejobětavější.",
+"Kdo respektuje proces, i když je pomalý, dosáhne dál než ten, kdo hledá zkratky.",
+"Malý pokrok, co vidíš jen ty, je pořád pokrok, i když ho nikdo jiný nevidí.",
+"Kdo se naučí být trpělivý sám se sebou, vydrží na cestě déle než ten, kdo čeká okamžité výsledky.",
+"Disciplína postavená na lásce k cíli vydrží déle než disciplína postavená na strachu z neúspěchu.",
+"Nejdůležitější dovednost pro úspěch není talent. Je to schopnost pokračovat i po nezdaru.",
+"Kdo věří ve svůj proces, i když výsledky ještě nejsou vidět, nakonec sklidí to, co zasel.",
+"Práce má smysl, když víš, pro koho nebo pro co ji děláš.",
+"Kdo se zaměří na zlepšení o jedno procento denně, se za rok stane úplně jiným člověkem.",
+"Nejtěžší část úspěchu není dosáhnout ho. Je to udržet si pokoru poté.",
+"Kdo si všímá pokroku, ne jen vzdálenosti k cíli, vydrží motivovaný déle.",
+"Výkon roste tam, kde se péče o detail setká s dlouhodobou vytrvalostí.",
+"Kdo neustále investuje do svého růstu, nikdy nezůstane pozadu, ať se svět mění jakkoliv.",
+"Nejsilnější motivace není strach z neúspěchu, ale touha stát se lepší verzí sebe.",
+"Práce, co vyžaduje odvahu, je obvykle ta, co přináší největší růst.",
+"Kdo dokončí, co si předsevzal, i když to bylo těžké, si buduje důvěru, co mu vydrží celý život.",
+"Na konci cesty nezáleží na tom, jak rychle jsi šel. Záleží na tom, že jsi nepřestal jít.",
   ]},
-  creativity: { label:"Kreativita a motivace", icon:"🧠", quotes:[
-    "Nejlepší nápady se rodí tam, kde si dovolíš experimentovat bez strachu.",
-    "Kreativita je odvaha udělat první nedokonalý krok.",
-    "Nápady nepřicházejí čekáním — přicházejí tvořením.",
-    "Chyba je jen nápad, který ještě nenašel svůj správný tvar.",
-    "Inspirace tě najde, jen když už jsi v pohybu.",
-    "Originalita začíná tam, kde přestaneš kopírovat a začneš zkoumat.",
-    "Nejzajímavější řešení bydlí hned za hranicí pohodlí.",
-    "Prázdná stránka není nepřítel — je to pozvánka.",
-    "Hravost je nejrychlejší cesta k neotřelému řešení.",
-    "Tvoje jedinečná perspektiva je přesně to, co svět ještě neviděl.",
-    "Nápady se množí, když je sdílíš, ne když je schováváš.",
-    "Kreativní blok často znamená jen — příliš mnoho pravidel, málo odvahy.",
-    "Nejlepší verze nápadu přijde až po té nejhorší.",
-    "Zvědavost je palivo, které nikdy nedojde, pokud ji krmíš.",
-    "Tvoř nejdřív pro sebe, svět přijde později.",
-    "Každý velký objev začal jako malá, směšně vypadající myšlenka.",
-    "Kombinuj věci, které spolu zdánlivě nesouvisí — tam se rodí magie.",
-    "Motivace přichází po činu, ne před ním.",
-    "Dovol si být začátečník — jen tak objevíš něco nového.",
-    "Nejkreativnější lidé nemají méně strachu, jen ho méně poslouchají.",
-    "Inspirace je všude — stačí se dívat jako poprvé.",
-    "Hraní si je vážná práce mozku, který hledá nové cesty.",
-    "Nejlepší nápad dneška by neexistoval bez špatného nápadu včerejška.",
-    "Tvoje představivost nepotřebuje povolení, jen prostor.",
-    "Odvaha tvořit něco nedokonalého je základ všeho dokonalého.",
-    "Nuda je předpokoj kreativity — nespěchej ji zaplnit.",
-    "Zapisuj si nápady hned — pozdější já si je nebude pamatovat stejně živě.",
-    "Talent je začátek, zvědavost je motor.",
-    "Nejlepší způsob, jak najít nápad, je hledat deset špatných.",
-    "Svoboda tvořit začíná tam, kde končí potřeba mít pravdu.",
+  motivace: { label:"Motivace a odhodlání", icon:"🔥", quotes:[
+// --- Začátky a první krok ---
+"Každá velká cesta začíná krokem, co se nezdá důležitý, dokud se neohlédneš zpátky.",
+"Nejtěžší část každého snu není ho dosáhnout. Je to začít, když ještě nevěříš, že to dokážeš.",
+"Kdo čeká na dokonalý okamžik začít, čeká na něco, co nikdy nepřijde.",
+"První krok nemusí být velký. Musí být jen skutečný.",
+"Odhodlání se nerodí z jistoty. Rodí se z rozhodnutí jít dál i bez ní.",
+"Nezáleží na tom, jak malý je tvůj první krok — záleží na tom, že ho uděláš.",
+"Sen bez prvního kroku zůstane navždy jen snem.",
+"Kdo se bojí začít nedokonale, se nikdy nedostane k tomu být dobrý.",
+"Cesta tisíce kilometrů začíná jedním krokem, co se bojíš udělat.",
+"Nejlepší den začít je dnes. Druhý nejlepší byl včera.",
+
+// --- Vnitřní síla a odhodlání ---
+"Odhodlání není o tom necítit strach. Je to jednat navzdory němu.",
+"Síla, kterou hledáš venku, už dávno je v tobě — jen ji musíš probudit.",
+"Kdo věří ve svůj cíl víc než ve své pochybnosti, nakonec dojde dál.",
+"Vnitřní síla se neobjeví, až ji budeš potřebovat. Buduje se každým dnem předtím.",
+"Odhodlání je oheň, co hoří i tehdy, když všechno kolem říká, že by měl zhasnout.",
+"Kdo najde svůj vlastní důvod, najde i sílu, co potřebuje na cestě k němu.",
+"Největší síla, co máš, je rozhodnutí nevzdat se, i když je to těžké.",
+"Odhodlání se neztrácí v okamžiku neúspěchu. Ztrácí se v okamžiku, kdy přestaneš zkoušet.",
+"Síla charakteru se pozná ne v úspěchu, ale v tom, jak se vracíš po pádu.",
+"Kdo věří sám sobě, i když nikdo jiný nevěří, má sílu, co ho nese dál.",
+
+// --- Sny a vize ---
+"Sen bez plánu je jen přání. Sen s plánem je začátek cesty.",
+"Kdo se přestane snít, přestane i růst — dovol si snít velké sny.",
+"Vize budoucnosti tě táhne dopředu i ve dnech, kdy přítomnost není lehká.",
+"Nejsilnější lidé nemají menší strach. Mají větší sen, co je pohání kupředu i s ním.",
+"Sen, co tě děsí, je často ten, co za to nejvíc stojí.",
+"Kdo si dovolí snít bez omezení, otevírá si dveře k možnostem, co jinak ani neuvidí.",
+"Vize je kompas, co ti ukazuje směr, i když cesta není jasná.",
+"Nezáleží na tom, jak velký je tvůj sen. Záleží na tom, jestli jsi ochotný pro něj pracovat.",
+"Sny se neplní čekáním. Plní se prací, co jim věnuješ každý den.",
+"Kdo ztratí svou vizi, ztratí i důvod, proč pokračovat, když je to těžké.",
+
+// --- Překonávání překážek ---
+"Překážka není znamení, že máš přestat. Je to znamení, že cesta stojí za to.",
+"Kdo se naučí tančit s překážkami, místo aby s nimi bojoval, jde dál rychleji.",
+"Každá překážka, co překonáš, tě udělá silnějším pro tu další.",
+"Nejtěžší překážky často stojí těsně před největšími průlomy.",
+"Překážka se zdá nekonečná, dokud ji nezačneš řešit krok po kroku.",
+"Kdo hledá způsob, jak překážku obejít, místo aby se jí bál, najde ho.",
+"Síla se nebuduje v pohodlí. Buduje se v momentech, kdy překážka vypadá nepřekonatelně.",
+"Každý, koho obdivuješ, měl svou vlastní horu, kterou musel zdolat.",
+"Překážky testují, jak moc chceš svůj cíl — a odpověď se ukáže v tom, jestli pokračuješ.",
+"Kdo vidí v překážce příležitost k růstu, jde dál silnější než ten, kdo v ní vidí jen problém.",
+
+// --- Vytrvalost a nevzdávání se ---
+"Nevzdávej se v okamžiku, kdy je to nejtěžší — právě tam se rozhoduje o výsledku.",
+"Kdo vydrží o jeden den déle než jeho pochybnosti, obvykle vyhraje.",
+"Vytrvalost není o rychlosti. Je to o tom nezastavit se, i když jde všechno pomalu.",
+"Nejúspěšnější lidé nejsou ti nejtalentovanější. Jsou to ti, co to nevzdali jako poslední.",
+"Kdo padne desetkrát a vstane jedenáctkrát, nakonec vyhraje nad tím, kdo se vzdal po prvním pádu.",
+"Cesta k úspěchu je posetá momenty, kdy to vypadalo, že už dál nejde — a přesto to šlo.",
+"Vytrvalost je tichá síla, co nikdo nevidí, dokud se neprojeví ve výsledku.",
+"Kdo si věří i v okamžiku pochybností, najde sílu pokračovat, kde ostatní přestávají.",
+"Nikdy není pozdě začít znovu, pokud máš důvod, proč pokračovat.",
+"Nejtěžší část jakékoliv cesty je střed, kde nadšení zmizelo a konec je ještě daleko — právě tam se rodí síla charakteru.",
+
+// --- Sebedůvěra a víra v sebe ---
+"Věř si i v den, kdy nikdo jiný nevěří — právě tehdy tě tvá víra ponese nejdál.",
+"Sebedůvěra se nerodí z dokonalosti. Rodí se z akce a z toho, co jsi již zvládl.",
+"Kdo si nevěří, promarní příležitosti, co by jinak mohl mít.",
+"Víra v sebe není arogance. Je to tichá jistota, že to zvládneš, i když nevíš jak.",
+"Největší limit, co máš, není okolí. Je to to, čemu věříš, že dokážeš.",
+"Kdo se přestane pochybovat o sobě, začne konečně jednat.",
+"Sebedůvěra roste s každým malým úspěchem, co si dovolíš uznat.",
+"Věřit si znamená vědět, že i když selžeš, zvládneš to zase zkusit.",
+"Kdo si věří navzdory strachu, jde dál, než ten, kdo čeká, až strach zmizí.",
+"Tvá minulost tě nedefinuje. Definuje tě to, čemu věříš o své budoucnosti.",
+
+// --- Cíle a jejich dosahování ---
+"Cíl bez akce je jen přání. Akce bez cíle je jen pohyb bez směru.",
+"Kdo si stanoví jasný cíl, dá svému odhodlání směr, kterým se může vydat.",
+"Malý cíl, co splníš, ti dá sílu jít po dalším, větším.",
+"Nejúspěšnější lidé si nestanovují jen velké cíle. Rozdělují je na kroky, co zvládnou dnes.",
+"Cíl, co tě děsí, je často ten, co má cenu jít za ním.",
+"Kdo ztratí ze zřetele svůj cíl, ztratí i důvod, proč pokračovat, když je to těžké.",
+"Cíle se nedosahují nadšením jednoho dne, ale disciplínou stovek dní.",
+"Nejlepší cíl je ten, co tě posouvá za hranice toho, co si dnes myslíš, že dokážeš.",
+"Kdo si zapíše svůj cíl, mu dá reálnost, co jen v hlavě nikdy neměl.",
+"Vzdálenost mezi snem a realitou se jmenuje disciplína a odhodlání.",
+
+// --- Strach a jeho překonávání ---
+"Strach je jen kompas, co ukazuje, kde je růst — jdi tím směrem, ne pryč od něj.",
+"Kdo čeká, až strach zmizí, čeká věčně — odvaha znamená jednat s ním, ne bez něj.",
+"Na druhé straně strachu je obvykle přesně to, co jsi hledal.",
+"Strach z neúspěchu je často větší než neúspěch samotný.",
+"Nejodvážnější lidé nejsou ti bez strachu. Jsou to ti, co jednají navzdory němu.",
+"Strach ti lže o tom, co je nemožné — nevěř mu víc, než si zaslouží.",
+"Kdo se rozhodne čelit svému strachu, zjistí, že byl často větší v hlavě než v realitě.",
+"Odvaha se nerodí bez strachu. Rodí se rozhodnutím jít dál i s ním.",
+"Strach tě chrání před nebezpečím, ale taky tě může připravit o příležitosti — nauč se je rozlišit.",
+"Každý strach, co překonáš, ti ukáže, že jsi silnější, než sis myslel.",
+
+// --- Změna a nový začátek ---
+"Změna je nepříjemná jen do chvíle, než uvidíš, kam tě zavede.",
+"Nikdy není pozdě začít znovu, pokud tě to, co děláš teď, netěší.",
+"Kdo se bojí změny víc než stagnace, zůstává na místě, i když chce jít dál.",
+"Nový začátek nepotřebuje dokonalé podmínky. Potřebuje jen rozhodnutí začít.",
+"Změna, co se zdá děsivá, je často přesně ta, co tě posune tam, kam patříš.",
+"Kdo se drží starého ze strachu, promarní příležitost k něčemu lepšímu.",
+"Každý konec je zároveň začátek něčeho nového, i když to tak hned nevypadá.",
+"Odvaha ke změně roste s každým malým krokem, co uděláš směrem k ní.",
+"Nejtěžší část změny je rozhodnutí. Zbytek už je jen cesta.",
+"Kdo se nebojí nechat jít to, co ho brzdí, si otevírá prostor pro to, co ho posune dál.",
+
+// --- Sebepřekonávání a hranice ---
+"Tvé hranice nejsou pevné zdi. Jsou to jen čáry, co jsi zatím nezkusil překročit.",
+"Kdo si dovolí jít za hranice pohodlí, objeví schopnosti, co netušil, že má.",
+"Největší růst se odehrává přesně tam, kde končí tvá komfortní zóna.",
+"Nikdy se nedozvíš, co dokážeš, dokud se nezkusíš víc, než si myslíš, že zvládneš.",
+"Sebepřekonání není o tom být lepší než ostatní. Je to o tom být lepší, než jsi byl včera.",
+"Kdo si každý den dovolí trochu nepohodlí, si buduje sílu, co ho posune dál.",
+"Hranice, co si na sebe kladeš, jsou často jediné, co tě skutečně omezuje.",
+"Růst se neděje v pohodlí. Děje se v okamžicích, kdy si řekneš 'ještě jednou'.",
+"Kdo přestane věřit svým limitům, začne konečně objevovat, co všechno dokáže.",
+"Sebepřekonání je tichý akt odvahy, co nikdo nevidí, dokud se neprojeví ve výsledku.",
+
+// --- Inspirace a vnitřní oheň ---
+"Inspirace tě nastartuje. Odhodlání tě udrží v pohybu, i když inspirace zmizí.",
+"Kdo najde svůj vnitřní oheň, nepotřebuje vnější motivaci — nese si ji v sobě.",
+"Inspirace přichází a odchází. Odhodlání zůstává, i když inspirace odejde.",
+"Nejsilnější motivace není vnější chvála, ale vnitřní přesvědčení, že jdeš správným směrem.",
+"Kdo hledá inspiraci jen venku, nikdy nenajde tu nejsilnější, co je uvnitř něj.",
+"Vnitřní oheň se živí smyslem, ne aplausem od ostatních.",
+"Inspirace je jiskra. Odhodlání je oheň, co udržíš hořet i v dešti.",
+"Kdo si najde svůj vlastní důvod, nepotřebuje čekat na inspiraci zvenčí.",
+"Nejtrvalejší motivace přichází z hlubokého přesvědčení, ne z krátkodobého nadšení.",
+"Vnitřní oheň hoří nejjasněji, když víš přesně, proč ho zapaluješ.",
+
+// --- Selhání jako lekce ---
+"Selhání není konec příběhu. Je to jen jedna kapitola, co tě posune k té lepší.",
+"Kdo se z každého pádu poučí, nikdy skutečně neprohrává — jen sbírá zkušenosti na cestě k výhře.",
+"Neúspěch bolí míň, když ho vidíš jako informaci, ne jako verdikt o tvé hodnotě.",
+"Každý úspěšný člověk má za sebou dlouhý seznam selhání, co nikdo nevidí.",
+"Selhání je jen důkaz, že ses zkusil něco, co bylo dost velké na to, abys mohl neuspět.",
+"Kdo se bojí selhat, se nikdy nedozví, jak daleko mohl dojít.",
+"Nejrychlejší cesta k úspěchu vede přes ochotu selhat rychle a poučit se ještě rychleji.",
+"Selhání je jen zpětná vazba — poslouchej ji, uprav kurz, a jdi dál.",
+"Kdo přestane vnímat selhání jako tragédii, začne ho vnímat jako učitele.",
+"Cesta k velkému snu je dlážděná malými selháními, co tě k němu nakonec dovedou.",
+
+// --- Malá vítězství a jejich síla ---
+"Malé vítězství, co si nevšimneš, je pořád vítězství — počítej ho.",
+"Kdo slaví malé úspěchy, si buduje hybnou sílu pro ty velké.",
+"Nejsilnější motivace často přichází z pocitu, že jsi dnes udělal aspoň malý krok dopředu.",
+"Malé vítězství každý den se za rok promění ve velký příběh úspěchu.",
+"Kdo si všímá pokroku, ne jen vzdálenosti k cíli, zůstává motivovaný déle.",
+"Uznání malého úspěchu ti dá sílu jít po tom dalším.",
+"Nejrychlejší způsob, jak se cítit lépe, je udělat něco, na co budeš dnes večer hrdý, i kdyby to bylo maličké.",
+"Kdo sbírá malá vítězství, si buduje sebedůvěru pro velké výzvy.",
+"Malé úspěchy jsou cihly, ze kterých se staví velké výsledky.",
+"Oslavuj i nejmenší pokrok — je to důkaz, že jdeš správným směrem.",
+
+// --- Odhodlání v krizi a těžkých chvílích ---
+"V nejtěžších chvílích se nerodí slabost. Rodí se síla, o které jsi nevěděl, že v tobě je.",
+"Krize netestuje, jestli jsi silný. Testuje, jak silný se rozhodneš být.",
+"Kdo najde odhodlání i v nejtemnější chvíli, objeví sílu, co ho ponese celý zbytek života.",
+"Nejtěžší období často předchází největšímu růstu — vydrž o den déle.",
+"Odhodlání v krizi neznamená necítit strach. Znamená to jednat i s ním.",
+"Kdo se rozhodne bojovat i v okamžiku, kdy je to nejtěžší, si buduje charakter, co ho ponese dál.",
+"Bouře neurčuje, kým jsi. Určuje to, jak se rozhodneš skrz ni projít.",
+"V krizových chvílích se ukáže, co skutečně máš v sobě — a obvykle je toho víc, než sis myslel.",
+"Nejsilnější lidé nejsou ti, co nikdy nezažili krizi. Jsou to ti, co z ní vyšli silnější.",
+"Odhodlání v těžkých chvílích je základ, na kterém stojí každý příběh o velkém úspěchu.",
+
+// --- Sebekázeň a odhodlání dlouhodobě ---
+"Odhodlání jednoho dne je snadné. Odhodlání tisíc dní za sebou je to, co odlišuje úspěšné od ostatních.",
+"Kdo si udrží odhodlání i po ztrátě počátečního nadšení, dosáhne toho, co ostatní vzdali.",
+"Dlouhodobé odhodlání se nebuduje motivací. Buduje se rozhodnutím pokračovat, i když motivace zmizí.",
+"Nejsilnější lidé neudrží nadšení navždy. Udrží disciplínu, co nadšení nahradí, když zmizí.",
+"Odhodlání testuje čas — kdo vydrží měsíce, ne jen dny, dosáhne toho, co si předsevzal.",
+"Kdo si dovolí zpomalit, ale ne zastavit, si udrží odhodlání na dlouhou trať.",
+"Vytrvalé odhodlání poráží krátkodobé nadšení každý den v týdnu.",
+"Nejtěžší část odhodlání není začátek. Je to udržet ho, když se objeví nuda a rutina.",
+"Kdo si najde způsob, jak udržet odhodlání i v nudné fázi cesty, dosáhne cíle, co ostatní vzdali.",
+"Odhodlání se neměří intenzitou jednoho dne, ale konzistencí stovek dní.",
+
+// --- Smysl a proč ---
+"Kdo zná svůj proč, unese skoro každé jak.",
+"Motivace bez smyslu je jen dočasný záblesk. Smysl dá motivaci trvalost.",
+"Nejsilnější palivo pro odhodlání není touha po úspěchu, ale jasnost o tom, proč na něm záleží.",
+"Kdo ztratí svůj smysl, ztratí i sílu pokračovat, když je cesta těžká.",
+"Práce se smyslem unese víc těžkostí než práce jen pro výsledek.",
+"Najdi svůj důvod, a najdeš i sílu, co potřebuješ na cestě k cíli.",
+"Smysl je kotva, co tě drží na místě, i když bouře kolem zuří.",
+"Kdo ví, proč vstává ráno, má víc energie než ten, kdo jen plní povinnosti.",
+"Nejhlubší motivace nepřichází z odměny, ale z pocitu, že to, co děláš, má hodnotu.",
+"Smysl proměňuje nudnou práci v poslání, co stojí za to dokončit.",
+
+// --- Srovnávání se s ostatními ---
+"Jediné srovnání, na kterém záleží, je srovnání s tím, kým jsi byl včera.",
+"Kdo se srovnává jen s ostatními, ztrácí ze zřetele svůj vlastní pokrok.",
+"Cizí úspěch není tvá porážka — je to jen důkaz, že je to možné.",
+"Závist ke druhým tě brzdí. Inspirace jejich příběhem tě žene dopředu.",
+"Nikdo nevidí celý příběh druhého — jen výsledek, ne roky práce za ním.",
+"Kdo přestane sledovat cizí cestu a začne sledovat svou vlastní, jde rychleji tam, kam patří.",
+"Tvůj časový plán se nemusí shodovat s ničím jiným, než s tvým vlastním tempem.",
+"Srovnávání okrádá o radost z vlastního pokroku, i když je skutečný.",
+"Kdo běží svůj vlastní závod, nikdy neprohraje s někým jiným — může jen vyhrát sám nad sebou.",
+"Nejzdravější motivace vychází z tvého vlastního snu, ne z honby dohnat někoho jiného.",
+
+// --- Akce místo přemýšlení ---
+"Přemýšlení o úkolu spotřebuje víc energie než jeho samotné vykonání.",
+"Kdo čeká na jistotu před akcí, čeká na něco, co přijde jen skrz samotnou akci.",
+"Akce léčí úzkost z nejistoty rychleji než jakékoliv množství přemýšlení.",
+"Nejlepší způsob, jak zjistit, jestli to zvládneš, je zkusit to, ne o tom donekonečna přemýšlet.",
+"Analýza bez akce je jen elegantní forma prokrastinace.",
+"Kdo jedná navzdory nejistotě, se dozví víc za den, než přemýšlivý za měsíc.",
+"Rozhodnutí, co odkládáš přemýšlením, tě stojí víc energie, než by stálo ho udělat.",
+"Nejrychlejší cesta k jasnosti vede přes akci, ne přes další kolo úvah.",
+"Kdo přestane čekat na perfektní plán a začne jednat, se dostane dál rychleji.",
+"Akce je protijed na strach — čím déle čekáš, tím větší strach naroste.",
+
+// --- Sebeúcta a hodnota vlastní práce ---
+"Tvá hodnota není definována tvým posledním výsledkem.",
+"Kdo si váží vlastní práce, ji odvede lépe než ten, kdo v ní vidí jen povinnost.",
+"Sebeúcta se buduje tím, že dodržíš sliby, co dáváš sám sobě.",
+"Kdo se ke svým snům chová vážně, přiměje i ostatní, aby je brali vážně taky.",
+"Vlastní hodnota nezávisí na tom, co si o tobě myslí druzí. Závisí na tom, jak žiješ podle svých hodnot.",
+"Nejsilnější forma sebeúcty je dodržet slib, co jsi dal sám sobě, i když to nikdo nevidí.",
+"Kdo si neváží svého času, dovolí ostatním, aby si ho nevážili taky.",
+"Sebeúcta roste s každým rozhodnutím, co uděláš ve shodě se svými hodnotami.",
+"Tvá práce má hodnotu, i když ji zatím nikdo jiný neocenil.",
+"Kdo věří ve vlastní hodnotu, nepotřebuje neustálé potvrzení zvenčí.",
+
+// --- Trpělivost s procesem ---
+"Výsledky přicházejí těm, kdo věří procesu i ve chvíli, kdy výsledky ještě nejsou vidět.",
+"Kdo je netrpělivý s procesem, často vzdá těsně před tím, než by přišel průlom.",
+"Semínko taky neroste přes noc — dej svému snu čas, co potřebuje.",
+"Trpělivost s procesem není pasivita. Je to aktivní víra, že práce nakonec přinese ovoce.",
+"Nejlepší věci v životě potřebují čas, co se nedá uspěchat žádnou dávkou odhodlání.",
+"Kdo si dovolí být trpělivý, získá to, co netrpěliví vzdají příliš brzy.",
+"Proces je pomalejší, než by sis přál, ale rychlejší, než čekání bez akce.",
+"Trpělivost neznamená čekat nečinně. Znamená to pracovat důsledně, i když výsledky nejsou hned vidět.",
+"Kdo respektuje čas, co proces potřebuje, sklidí víc než ten, kdo hledá zkratky.",
+"Nejsilnější odhodlání je to, co vydrží i období, kdy se nic viditelného neděje.",
+
+// --- Odvaha jít vlastní cestou ---
+"Odvaha jít vlastní cestou znamená přijmout, že ne každý ji pochopí.",
+"Kdo se bojí jít proti proudu, nikdy nezažije, co je na druhé straně.",
+"Vlastní cesta je často osamělá, ale je to jediná cesta, co tě dovede tam, kam patříš.",
+"Odvaha být jiný je základ každého velkého příběhu, co kdy byl napsán.",
+"Kdo následuje jen dav, dojde tam, kam dojde dav — nikdy dál.",
+"Tvá cesta nemusí dávat smysl nikomu jinému, dokud dává smysl tobě.",
+"Odvaha jít vlastní cestou se buduje tichým odmítnutím přizpůsobit se, když to není správné.",
+"Nejsilnější lidé nešli cestou, co jim ukázal někdo jiný. Vytvořili si vlastní.",
+"Kdo se nebojí být jiný, otevírá dveře, co by jinak zůstaly zavřené.",
+"Originalita vyžaduje odvahu důvěřovat vlastnímu úsudku, i když je nepohodlný.",
+
+// --- Ranní odhodlání a nastavení dne ---
+"To, jak začneš ráno, ovlivní, jak zvládneš celý den.",
+"Kdo si stanoví záměr hned po probuzení, jde dnem s jasností, ne s náhodou.",
+"První myšlenka dne často určuje tón všech, co přijdou po ní.",
+"Ranní rituál odhodlání ti dá sílu, co potřebuješ, než den stihne klást otázky.",
+"Kdo vstane s jasným cílem, jde dnem cíleně, ne bezmyšlenkovitě.",
+"Nejlepší dny nezačínají náhodou. Začínají rozhodnutím, jak je chceš prožít.",
+"Ranní odhodlání je jako nastavení kompasu — určuje směr celého dne.",
+"Kdo si dá minutu ráno na připomenutí svého proč, jde dnem se silnější motivací.",
+"Ráno je čas, kdy máš nejvíc síly rozhodnout, jaký den chceš mít.",
+"Nejsilnější den začíná jasným záměrem, ne jen reakcí na to, co přijde.",
+
+// --- Poslední, souhrnné motivační ---
+"Kdo věří ve svůj sen víc než ve své pochybnosti, nakonec dojde tam, kam patří.",
+"Odhodlání je tichý společník, co tě nese i tehdy, když motivace dávno zmizela.",
+"Největší příběhy úspěchu začaly obyčejným rozhodnutím nevzdat se.",
+"Kdo si každý den připomene svůj cíl, nesejde z cesty, i když je dlouhá a klikatá.",
+"Tvá budoucnost se píše rozhodnutími, co děláš dnes, ne sny, co máš v hlavě.",
+"Nejsilnější motivace přichází zevnitř, ne z vnějšího potlesku.",
+"Kdo jde dál, i když je unavený, buduje charakter, co ho ponese celý zbytek života.",
+"Cesta k velkému cíli je dlážděná malými kroky, co se nezdají důležité, dokud se neohlédneš.",
+"Odhodlání se neztrácí neúspěchem. Ztrácí se jen tehdy, když se rozhodneš přestat zkoušet.",
+"Věř svému procesu, drž se svého proč, a jdi dál — zbytek přijde v pravý čas.",
+
+// --- Odvaha riskovat ---
+"Kdo nikdy neriskuje, nikdy neprohraje, ale taky nikdy pořádně nevyhraje.",
+"Riziko, co jsi dobře promyslel, je jiná hra než hazard bez plánu.",
+"Odvaha riskovat neznamená nebát se. Znamená to jednat i s tím strachem.",
+"Největší lítost v životě nepřichází z rizik, co jsi podstoupil, ale z těch, co jsi nikdy nezkusil.",
+"Kdo se bojí každého rizika, riskuje nakonec to největší — promarněný život.",
+"Odvážní lidé nejsou ti bez strachu. Jsou to ti, co se rozhodli, že cíl stojí za riziko.",
+"Bezpečná volba se občas zdá moudrá, ale často je to jen jiné jméno pro lítost později.",
+"Kdo riskuje s jasnou hlavou a otevřenýma očima, se učí rychleji než ten, kdo nikdy nezkusí nic nového.",
+"Odvaha jít do nejistoty je základ každého velkého příběhu, co kdy byl napsán.",
+"Riziko se vyplácí těm, kdo se na něj připraví, ne těm, kdo mu jen slepě věří.",
+
+// --- Síla malých návyků na cestě k velkým cílům ---
+"Malý návyk, opakovaný denně, tě dovede dál než velký plán, co provedeš jen jednou.",
+"Kdo si vybuduje jeden pevný návyk, si dá základ pro každý další, co přijde.",
+"Návyky jsou tichá architektura tvého budoucího já.",
+"Malé denní rozhodnutí, co se zdají nedůležitá, jsou přesně to, co za rok rozhoduje o výsledku.",
+"Kdo se soustředí na systém, ne jen na cíl, dosáhne výsledku přirozeněji.",
+"Návyk, co budueš dnes, je investice do verze sebe, co chceš být za rok.",
+"Nejsilnější lidé nemají víc vůle. Mají lepší návyky, co jim vůli šetří.",
+"Malé opakované akce jsou cihly, ze kterých se staví velké výsledky.",
+"Kdo si zvykne na malý denní pokrok, se za rok ohlédne a nepozná se.",
+"Konzistence v malých věcech buduje důvěru pro velké výzvy.",
+
+// --- Energie a nadšení pro život ---
+"Nadšení pro život není o tom mít vše dokonalé. Je to o tom vidět možnosti i uprostřed nedokonalosti.",
+"Kdo si udrží zvědavost, si udrží i chuť do života.",
+"Energie pro život roste s každým dnem, co prožiješ s vděčností, ne s očekáváním.",
+"Nadšení je nakažlivé — kdo ho v sobě pěstuje, ho šíří i kolem sebe.",
+"Kdo hledá radost v malých věcech, má víc energie na ty velké výzvy.",
+"Vitalita života nepřichází z okolností. Přichází z toho, jak se rozhodneš na ně reagovat.",
+"Nadšení pro to, co děláš, je palivo, co žádná únava plně nevyčerpá.",
+"Kdo si udrží dětskou zvědavost, objevuje kouzlo i v obyčejných dnech.",
+"Energie se neztrácí věkem. Ztrácí se ztrátou smyslu a nadšení.",
+"Život prožitý s nadšením je život prožitý naplno, ať přinese cokoliv.",
+
+// --- Sebedisciplína jako projev sebelásky ---
+"Disciplína není trest, co si dáváš. Je to láska, co projevuješ svému budoucímu já.",
+"Kdo si dovolí být disciplinovaný, si dovoluje i svobodu, co disciplína přináší.",
+"Sebekázeň je nejvyšší forma sebeúcty — je to způsob, jak říkáš sobě, že si zasloužíš lepší budoucnost.",
+"Disciplína dnes je dárek, co dáváš verzi sebe, co přijde za rok.",
+"Kdo si zvolí těžší cestu disciplíny, si zvolí i snazší cestu k výsledku.",
+"Sebeláska neznamená dělat si, co chceš. Znamená to dělat, co potřebuješ, i když se ti nechce.",
+"Disciplína je forma laskavosti k sobě, co se neprojeví hned, ale projeví se jistě.",
+"Kdo si vybuduje disciplínu, si vybuduje i svobodu volby, co bez ní nemá.",
+"Sebekázeň a sebeláska nejsou protiklady. Jsou to dvě strany stejné mince.",
+"Nejsilnější projev lásky k sobě je udělat to, co je správné, i když je to těžké.",
+
+// --- Moc jednoho rozhodnutí ---
+"Jedno rozhodnutí dokáže změnit směr celého tvého života — vybírej je vědomě.",
+"Kdo si uvědomí moc přítomného okamžiku, přestane čekat na budoucnost, aby začal žít.",
+"Každé velké rozhodnutí bylo kdysi malou myšlenkou, co se někdo rozhodl vzít vážně.",
+"Rozhodnutí, co uděláš dnes, je semínko výsledku, co uvidíš za měsíce nebo roky.",
+"Kdo si vezme odpovědnost za své rozhodnutí, si vezme i moc ho změnit.",
+"Nejmocnější slovo, co můžeš vyslovit, je 'rozhoduji se' — nahrazuje bezmoc akcí.",
+"Tvůj život je souhrn rozhodnutí, co jsi udělal — a další rozhodnutí ho může změnit hned teď.",
+"Kdo se rozhodne jednat, i s nejistotou, dostane se dál než ten, kdo čeká na jistotu.",
+"Jedna vteřina odvahy k rozhodnutí může změnit směr příštích deseti let.",
+"Rozhodnutí, co odkládáš, je taky rozhodnutí — jen ne to, co bys chtěl.",
+
+// --- Nikdy není pozdě ---
+"Nikdy není pozdě začít znovu, pokud máš důvod, proč to udělat.",
+"Věk není omezení pro sen — je to jen číslo, co si necháváš zastavit.",
+"Kdo si myslí, že je pozdě, se často mýlí víc, než si myslí.",
+"Nejlepší čas začít byl včera. Druhý nejlepší je přesně teď, bez ohledu na to, kolik ti je let.",
+"Historie je plná lidí, co dosáhli velkých věcí ve věku, kdy si ostatní mysleli, že je pozdě.",
+"Kdo čeká na 'správný věk' na sen, čeká na něco, co neexistuje.",
+"Nikdy není příliš pozdě stát se tím, kým jsi vždycky chtěl být.",
+"Cesta k cíli nemá časový limit, co bys musel dodržet, kromě toho, co si sám nastavíš.",
+"Kdo se bojí, že je pozdě, promarní čas, co mohl využít k začátku.",
+"Tvůj příběh se ještě nekončí — příští kapitola může začít přesně teď.",
+
+// --- Vděčnost jako palivo motivace ---
+"Vděčnost za to, co máš, ti dá sílu jít za tím, co chceš.",
+"Kdo si všímá, jak daleko už došel, najde sílu jít ještě dál.",
+"Vděčnost není opak ambice. Je to palivo, co ambici dělá udržitelnou.",
+"Ohlédni se za tím, co jsi zvládl — je to důkaz, že zvládneš i to, co je před tebou.",
+"Kdo si váží malých vítězství, si buduje motivaci pro ta velká.",
+"Vděčnost za cestu, i s jejími těžkostmi, dá smysl každému kroku, co jsi udělal.",
+"Nejsilnější motivace často přichází z vděčnosti za příležitost zkusit to znovu.",
+"Kdo je vděčný za to, co má, jde za dalším cílem s radostí, ne se zoufalstvím.",
+"Vděčnost mění pohled na cestu — z břemene na dobrodružství.",
+"Kdo si každý den připomene, za co je vděčný, najde i sílu jít za tím, co chce.",
+
+// --- Poslední, definitivní dávka ---
+"Kdo si věří a jde dál, i když to nikdo jiný nechápe, obvykle dojde tam, kam patří.",
+"Nejsilnější příběh, jaký kdy napíšeš, je ten o tom, jak jsi nevzdal, i když to bylo těžké.",
+"Odhodlání je tichý hrdina, co nikdo neuvidí, dokud se neprojeví ve výsledku.",
+"Kdo jde za svým snem navzdory všem pochybnostem, si zaslouží respekt, i kdyby to nevyšlo.",
+"Tvá budoucnost se nepíše okolnostmi. Píše se rozhodnutími, co uděláš navzdory nim.",
+"Tvrdohlavost jít za svým snem se jednou stane příběhem, co inspiruje ostatní.",
+"Nejlepší verze tebe existuje na druhé straně dnešního rozhodnutí nevzdat se.",
+"Kdo si udrží odhodnutí i po sto neúspěších, obvykle najde úspěch na sto prvním pokusu.",
+"Odvaha, vytrvalost a jasný cíl jsou tři pilíře, na kterých stojí každý velký příběh úspěchu.",
+"Věř si, jdi dál, a nech výsledky, ať mluví za tebe — čas ukáže, co všechno jsi dokázal.",
+
+// --- Poslední dávka před cílem ---
+"Kdo si dovolí snít velké sny a pracovat na nich malými kroky, dosáhne dál, než si myslel.",
+"Nejsilnější odhodlání se rodí ve chvíli, kdy si uvědomíš, že jiná cesta prostě není.",
+"Kdo jde za svým cílem s jasným proč, unese i dny, kdy motivace chybí.",
+"Tvá vytrvalost dnes je základ, na kterém stojí tvůj úspěch zítra.",
+"Kdo věří, že to zvládne, už udělal polovinu práce k tomu, aby to skutečně zvládl.",
+"Cesta k velkému cíli vyžaduje odvahu udělat první krok, i když nevidíš celou cestu.",
+"Nejtěžší část jakéhokoliv snu je začátek — jakmile začneš, hybná síla tě ponese dál.",
+"Kdo se nebojí selhat, se nebojí ani zkusit — a to je začátek každého úspěchu.",
+"Odhodlání roste s každým dnem, kdy se rozhodneš pokračovat, i když by bylo snazší přestat.",
+"Tvůj sen si zaslouží tvé nejlepší úsilí, ne jen tvůj volný čas.",
+"Kdo si stanoví jasný cíl a jde za ním s vytrvalostí, dosáhne dál, než si kdy myslel.",
+"Největší proměna se odehrává v tichu, kdy se nikdo nedívá a ty se stejně rozhodneš pokračovat.",
+"Kdo věří ve svou cestu, i když ji nikdo jiný nevidí, dojde tam, kam patří.",
+"Odhodlání je jako sval — čím víc ho používáš, tím silnější se stává.",
+"Kdo si dovolí být trpělivý se svým procesem, sklidí výsledky, co netrpěliví nikdy neuvidí.",
+"Tvá minulost neurčuje tvou budoucnost — určuje ji to, co se rozhodneš udělat dnes.",
+"Nejsilnější motivace přichází zevnitř a nepotřebuje potvrzení zvenčí.",
+"Kdo jde za svým snem s odhodláním, i přes všechny pochybnosti, si zaslouží respekt.",
+"Velké věci se nedějí náhodou. Dějí se rozhodnutím nevzdat se, když je to nejtěžší.",
+"Kdo věří ve svůj cíl víc než ve své strachy, nakonec dojde tam, kam si přeje.",
+
+// --- Definitivně poslední dávka ---
+"Kdo se rozhodne jít dál i po zklamání, buduje sílu, co ho ponese celý zbytek cesty.",
+"Nejsilnější lidé nejsou ti, co nikdy nepadli. Jsou to ti, co se pokaždé zase postavili.",
+"Tvůj sen nepotřebuje souhlas ostatních. Potřebuje jen tvé rozhodnutí ho neopustit.",
+"Kdo si udrží víru ve svůj cíl i v nejtemnějších chvílích, obvykle najde světlo na konci cesty.",
+"Odhodlání je nejtišší, ale nejmocnější síla, co v sobě neseš.",
+"Kdo jde za svým snem s celým srdcem, si zaslouží dojít tam, kam patří.",
+"Nikdy nepodceňuj sílu jednoho odhodlaného člověka, co se rozhodl nevzdat se.",
+"Tvá cesta možná nebude přímá, ale každý krok, i křivý, tě posouvá blíž.",
+"Kdo věří, že si zaslouží lepší budoucnost, začne pro ni pracovat už dnes.",
+"Odhodlání se nerodí z komfortu. Rodí se z rozhodnutí, že komfort už nestačí.",
+"Kdo se nebojí snít velké sny, si otevírá dveře k velkým možnostem.",
+"Nejsilnější motivace je ta, co přežije i dny, kdy se nic nedaří.",
+"Tvá vytrvalost dnes píše příběh, co jednou budeš vyprávět s hrdostí.",
+"Kdo jde za svým cílem i přes odpor okolí, buduje charakter, co ho ponese celý život.",
+"Věř, že to zvládneš — a pak udělej všechno pro to, aby se to stalo pravdou.",
+"Kdo si najde odvahu udělat první krok, obvykle najde i sílu udělat druhý.",
+"Nejkrásnější příběhy úspěchu začínají obyčejným rozhodnutím zkusit to, i když to bylo děsivé.",
+"Tvůj potenciál není omezen tím, kým jsi byl. Je omezen jen tím, čemu se rozhodneš věřit.",
+"Kdo jde za svým snem s trpělivostí a odhodláním, sklidí to, co zasel.",
+"Odhodlání dnes je základ příběhu, co jednou budeš vyprávět jako svůj největší úspěch.",
+
+// --- Úplně finální dávka ---
+"Kdo se nevzdá svého snu, i když cesta trvá déle, než čekal, nakonec dojde tam, kam patří.",
+"Největší dar, co si můžeš dát, je víra, že si zasloužíš jít za tím, po čem toužíš.",
+"Odhodlání se buduje jedno rozhodnutí za druhým, ne jedním velkým gestem.",
+"Kdo jde za svým cílem s láskou k procesu, ne jen k výsledku, vydrží déle a dosáhne víc.",
+"Tvůj příběh ještě není napsaný do konce — příští kapitola závisí na tom, co uděláš teď.",
+"Odvaha začít, vytrvalost pokračovat a víra dojít do cíle — to jsou tři pilíře každého velkého snu.",
+"Kdo se rozhodne věřit si, i když důkazy zatím chybí, obvykle je vytvoří svou vlastní prací.",
+"Nejsilnější motivace nepřichází z venku. Roste zevnitř, z rozhodnutí nevzdat se.",
+"Kdo jde za svým snem s odhodláním, se jednou ohlédne a bude hrdý na cestu, ne jen na cíl.",
+"Věř svému srdci, drž se svého cíle, a nech čas, ať ukáže, jak daleko můžeš dojít.",
+"Kdo si udrží naději i v nejtěžších chvílích, najde sílu jít dál, když ji nejvíc potřebuje.",
+"Odhodlání je poslední věc, co se vzdává — drž se ho, dokud výsledek nepřijde.",
+"Tvá cesta k úspěchu nemusí být rychlá. Musí být jen skutečná a nepřerušená.",
+"Kdo věří ve svůj potenciál víc než ve své limity, objeví, jak daleko skutečně může dojít.",
+"Na konci každé velké cesty čeká člověk, co se nevzdal — buď to ty.",
   ]},
-  family: { label:"Rodina a rovnováha", icon:"💛", quotes:[
-    "Úspěch bez lidí, které miluješ po boku, je jen prázdná místnost.",
-    "Nejcennější čas je ten, který věnuješ bez rozptýlení.",
-    "Rovnováha neznamená stihnout všechno, ale vybrat to důležité.",
-    "Domov není místo, je to pocit, že na tobě někomu záleží.",
-    "Malé společné chvíle se skládají ve velké vzpomínky.",
-    "Být přítomný je největší dar, který můžeš dát těm, které miluješ.",
-    "Práce počká. Dětství tvých dětí nepočká.",
-    "Nejlepší investice do vztahu je pozornost bez telefonu v ruce.",
-    "Rodina je místo, kde tě přijmou i v den, kdy se ti nedaří.",
-    "Rovnováha se nenajde jednou provždy — hledá se každý den znovu.",
-    "Sdílený smích váží víc než odškrtnutý úkol.",
-    "Kdo si nenajde čas na blízké, jednoho dne zjistí, že si ho nenašli ani oni.",
-    "Největší úspěchy se slaví lépe, když je s kým je slavit.",
-    "Vztahy rostou v maličkostech — v otázce „jak se máš?“, myšlené vážně.",
-    "Čas věnovaný rodině se nikdy nepočítá jako ztracený.",
-    "Někdy je nejproduktivnější věcí dne obyčejná večeře spolu.",
-    "Kořeny drží strom vzpřímený i ve větru — rodina je tvůj kořen.",
-    "Péče o sebe není sobectví — je to podmínka, abys mohl pečovat o druhé.",
-    "Nejkrásnější rozvrh má i políčko nadepsané „jen tak, spolu“.",
-    "Vzpomínky se netvoří o víkendech navíc, ale v obyčejných všedních dnech, kdy jsi byl tam.",
-    "Rovnováha je umění říct ne něčemu, abys mohl říct ano tomu, na čem záleží.",
-    "Milovaní lidé si nepamatují, kolik jsi vydělal, ale kolik jsi byl s nimi.",
-    "Nejsilnější tým, jaký kdy budeš mít, je ten u vás doma.",
-    "Klid v rodině je tichá, ale nejpevnější základna pro cokoliv venku.",
-    "Dnešní objetí navíc se počítá víc než zítřejší dokonalý plán.",
-    "Naslouchat beze spěchu je jeden z nejvzácnějších darů, co můžeš dát.",
-    "Nikdo si na smrtelné posteli nepřeje, aby strávil víc času v práci.",
-    "Rituály — nedělní snídaně, večerní pohádka — jsou tichým lepidlem rodiny.",
-    "I krátký telefonát mámě dokáže změnit barvu celého dne — jí i tobě.",
-    "Rovnováha nikdy nevypadá jako 50 na 50 — vypadá jako to, co dnes potřebují ti, na kterých ti záleží.",
+  rodina: { label:"Rodina", icon:"👨‍👩‍👧", quotes:[
+// --- Rodičovství ---
+"Být rodičem neznamená mít všechny odpovědi. Znamená to zůstat v místnosti, i když je otázka těžká.",
+"Děti si nepamatují, co jsi jim řekl. Pamatují si, jak ses na ně díval, když mluvily.",
+"Nejtěžší část rodičovství není naučit dítě chodit. Je to naučit se ho pustit, když už chodit umí samo.",
+"Miluješ své dítě nejvíc v tu chvíli, kdy si přejete být oba jinde a stejně zůstaneš.",
+"Rodič není ten, kdo nikdy nechybuje. Je to ten, kdo se za tebou vrátí, i když chybu udělal.",
+"Někdy je největší dar, co dítěti dáš, tvoje trpělivost v den, kdy jí máš nejmíň.",
+"Děti se neučí z toho, co jim přikážeš. Učí se z toho, co uděláš, když si myslíš, že se nedívají.",
+"Být dobrým rodičem neznamená ochránit dítě před každou bolestí. Znamená to být tam, když bolest přijde.",
+"Nikdo tě nepřipraví na to, jak moc bude bolet vidět dítě padat a nechat ho vstát samotné.",
+"Rodičovství je jediná práce, kde úspěch znamená, že tě jednou budou potřebovat čím dál míň.",
+"Tvoje dítě si nebude pamatovat perfektní večeři. Bude si pamatovat, že jsi u ní seděl.",
+"Někdy je nejlepší věc, kterou pro dítě uděláš, že mu dovolíš zažít vlastní zklamání.",
+"Láska k dítěti se nemě ří tím, kolik věcí mu dáš, ale kolik času mu věnuješ, aniž bys na hodinky.",
+"Být rodičem znamená naučit se milovat někoho víc, než jsi věděl, že je v tobě místa.",
+"Dítě nepotřebuje dokonalého rodiče. Potřebuje rodiče, který se umí omluvit.",
+"Každý den jako rodič je zkouška, na kterou ses neučil a přesto ji musíš složit.",
+"Nejkrásnější věta, kterou můžeš dítěti říct, není „jsem na tebe hrdý“. Je to „jsem tu“.",
+"Vychováváš dítě ne k tomu, aby bylo jako ty, ale k tomu, aby bylo sebou samým beze strachu.",
+"Rodičovství tě naučí, že bezmocnost a láska umí existovat ve stejné vteřině.",
+"Občas je největší láska ta, která mlčí a jen podá ruku.",
+"Nejsi špatný rodič, protože jsi unavený. Jsi rodič, který dává víc, než mu zbývá.",
+"Dítě nepotřebuje, abys znal odpověď na všechno. Potřebuje vědět, že se ptát je v pořádku.",
+"Chvíle, kdy tě dítě přestane potřebovat na všechno, je stejná chvíle, kdy si uvědomíš, jak moc jsi ho potřeboval ty.",
+"Vychovat dítě znamená dennodenně volit mezi tím, co je pohodlné, a tím, co je správné.",
+"Někdy je rodičovství jen o tom vydržet v místnosti o minutu déle, než chceš odejít.",
+"To, jak mluvíš k sobě, tě dítě uslyší dřív, než si to uvědomíš.",
+"Dát dítěti kořeny neznamená dát mu jistotu. Znamená to dát mu vědomí, kam se může vrátit.",
+"Někdy není úkolem rodiče problém vyřešit. Je to jen ho vydržet s dítětem sdílet.",
+"Dítě, které vidí rodiče se omlouvat, se učí, že síla a pokora nejsou protiklady.",
+"Není důležité, kolik hraček dítěti koupíš. Důležité je, kolikrát sis k němu sedl na zem.",
+"Rodičovství není o tom, abys vychoval dítě bez chyb. Je o tom vychovat dítě, co se chyb nebojí.",
+"Tvoje trpělivost dnes je základ, na kterém tvoje dítě jednou postaví svou vlastní.",
+"Někdy stačí říct dítěti jen tohle: vidím tě, slyším tě, jsem tady.",
+"Dítě si nezapamatuje slova výchovy. Zapamatuje si pocit, že bylo v bezpečí.",
+"Být rodičem znamená přijmout, že budeš milovat někoho víc, než on bude po dlouhou dobu milovat tebe.",
+
+// --- Dětství a vzpomínky ---
+"Dětství nekončí datem v kalendáři. Končí ve chvíli, kdy si poprvé uvědomíš, že rodiče taky mají strach.",
+"Nejšťastnější vzpomínky z dětství nejsou ty z dovolených. Jsou to obyčejné úterky, na které si nikdo jiný nevzpomene.",
+"Vůně z dětské kuchyně dokáže vrátit člověka domů rychleji než jakákoliv cesta.",
+"Dítě si pamatuje víc z tónu hlasu než z obsahu vět.",
+"Kdo si jako dítě mohl hrát bez dozoru, dostal dar, který dnešní děti často nemají — nudu, ze které se rodí fantazie.",
+"Domov z dětství nezmizí, jen se přestěhuje do vzpomínek.",
+"Nejkrásnější hračky dětství byly často ty nejlevnější — krabice, klacky, obyčejný písek.",
+"Dítě, které smělo dělat chyby bez výsměchu, vyroste v dospělého, co se nebojí zkoušet.",
+"Léto v dětství se zdálo nekonečné, protože jsme ještě nevěděli, jak rychle čas umí utíkat.",
+"Někdy se jako dospělí vracíme na místa z dětství jen proto, abychom se na chvíli cítili v bezpečí.",
+"Dítě nepotřebuje vědět všechno o světě. Potřebuje vědět, že má kam jít, když se bojí.",
+"Vzpomínky na dětství nejsou přesné fotografie. Jsou to pocity, které jsme si vybrali si nechat.",
+"To, jak jsme se cítili doma jako děti, formuje to, co si jako dospělí představujeme pod slovem domov.",
+"Kolo bez brzd, strom na lezení, klíč od domu na krku — svoboda dětství vypadala jednoduše.",
+"Někdy si na dětství vzpomeneme nejvíc přesně ve chvíli, kdy ho chceme dát vlastním dětem.",
+"Dětská nevinnost není hloupost. Je to schopnost věřit světu dřív, než nás naučí nevěřit.",
+"Kdo v dětství slyšel dost pohádek, nese si celý život vědomí, že příběhy dokážou zachránit.",
+"Nejcennější věc, kterou nám dětství dalo, nebyly věci. Byl to čas, kdy nás někdo měl rád bezpodmínečně.",
+
+// --- Prarodiče a moudrost generací ---
+"Babiččiny ruce znaly recepty nazpaměť, protože je vařila srdcem, ne z kuchařky.",
+"Prarodiče nás neučí, jak žít dokonale. Učí nás, jak žít dlouho a přitom zůstat laskaví.",
+"Někdy poznáme cenu chvíle s prarodiči, až když ta chvíle skončí.",
+"Dědečkovo mlčení uměl o důstojnosti a odpuštění víc, než dlouhé přednášky.",
+"Generace před námi nesly břemena, o kterých mluvily jen málokdy — a přesto nám umožnily jít lehčeji.",
+"Prarodiče mají čas, který rodiče často nemají — čas jen tak sedět a poslouchat.",
+"To, co babička nazývala moudrostí, jsme si mysleli, že je jen stará písnička — dokud jsme sami nezestárli.",
+"Někdy je největší dědictví jen věta, kterou babička řekla ve správnou chvíli.",
+"Prarodiče vidí ve svých vnoučatech budoucnost, kterou už sami neuvidí, a přesto ji milují stejně.",
+"Ruce, co nás jako děti hladily po hlavě, si dnes pamatujeme jasněji než jakoukoliv radu.",
+"Stáří rodičů nás učí trpělivosti, kterou od nás kdysi vyžadovali oni.",
+"Vyprávění prarodičů o minulosti není nostalgie. Je to most, po kterém se dostaneme k vlastním kořenům.",
+"Někdy je jediné, co pro stárnoucí rodiče můžeme udělat, sednout si vedle nich a nechat je mluvit.",
+"Prarodiče nás naučili, že láska nemusí být hlasitá, aby byla hluboká.",
+"To, jak se prarodiče chovali k nám jako dětem, je stopa, kterou neseme dál, i když si to neuvědomujeme.",
+"Někdy stačí jedno odpoledne s dědečkem na zahradě, aby dítě pochopilo víc o trpělivosti než z jakékoliv knihy.",
+"Moudrost prarodičů často nezněla jako rada. Zněla jako klidný hlas v době, kdy jsme paniku ve svém.",
+"Ztráta prarodiče je první chvíle, kdy dítě pochopí, že čas není nekonečný.",
+
+// --- Sourozenci ---
+"Sourozenec je jediný člověk, který zná tvůj příběh od úplného začátku.",
+"Hádky mezi sourozenci v dětství jsou často nácvikem na to, jak se jako dospělí umět smířit.",
+"Sourozenecké pouto nepotřebuje slova. Stačí vědět, že tam druhý je.",
+"Nikdo tě nezná tak dobře jako ten, s kým jsi vyrůstal ve stejném domě, ale jinak.",
+"Sourozenci si nemusí rozumět ve všem, aby se jeden pro druhého postavili, když je potřeba.",
+"To, jak se sourozenci hádali v dětství, je zapomenuto rychleji než to, jak se jeden pro druhého vraceli.",
+"Sourozenec je zrcadlo, které ti ukáže, kým jsi byl, než jsi se stal tím, kým jsi teď.",
+"Někdy sourozenci mluví spolu nejméně slov, a přesto si rozumí nejvíc.",
+"Bratr nebo sestra je jediný člověk na světě, co pamatuje tvé dětské jméno, které už nikdo jiný nepoužívá.",
+"Sourozenecká láska nemusí být dokonalá. Stačí, když je stálá.",
+"Vyrůstat se sourozencem znamená naučit se dělit dřív, než se to naučí kdokoliv jiný na světě.",
+"Sourozenci si často odpustí bez omluvy — stačí být zase spolu v jedné místnosti.",
+"To, co si jako děti brali sourozenci navzájem, jednou vymění za ochotu dát si cokoliv, co ten druhý potřebuje.",
+
+// --- Domov jako pocit ---
+"Domov není adresa. Je to místo, kde tvůj hlas zní jinak — klidněji.",
+"Někdy je domov jen vůně jídla, co ti připomene, že tě někdo čeká.",
+"Domov nepoznáš podle velikosti pokojů, ale podle toho, jak se v nich cítíš, když zhasneš světlo.",
+"Být doma neznamená být na jednom místě. Znamená to být tam, kde nemusíš nic předstírat.",
+"Domov si neseš v sobě dřív, než ho najdeš na mapě.",
+"Někdy je nejkrásnější definice domova jednoduchá věta: tam, kde na tebe čekají.",
+"Domov je místo, které tě přijme zpátky, i když jsi odešel v hádce.",
+"Dům se stává domovem ve chvíli, kdy v něm někdo na tebe čeká s večeří, ne s otázkami.",
+"Domov nepoznáš podle nábytku. Poznáš ho podle ticha, které v něm není trapné.",
+"Kdo má domov, má místo, kam se může vrátit, i když se celý svět změní.",
+"Domov je jediné místo na světě, kde smíš být unavený, smutný a nedokonalý zároveň.",
+"Někdy stačí jeden telefonát domů, aby se den, co se rozpadal, zase poskládal.",
+"Domov nemusí být velký. Musí být jen takový, kde tě mají rádi, i když jsi měl špatný den.",
+
+// --- Čas strávený spolu / přítomnost ---
+"Rodina není o velkých gestech. Je o tom, kdo s tebou sedí u stolu v obyčejné úterý.",
+"Nejvzácnější dar, co můžeš rodině dát, je tvoje nerozdělená pozornost.",
+"Čas strávený s rodinou se nedá dohnat. Dá se jen prožít, dokud ho máš.",
+"Někdy je největší láska jen sedět vedle sebe a nic neříkat.",
+"Společná večeře bez telefonů umí říct víc než hodinová rozprava.",
+"Přítomnost neznamená být v místnosti. Znamená to být v místnosti celý.",
+"Rodina si nepamatuje, kolik jsi vydělal. Pamatuje si, kolik jsi byl doma.",
+"Někdy stačí jedna neděle bez plánů, aby si rodina znovu připomněla, proč je rodinou.",
+"Čas, který dáš rodině dnes, je jediná investice, co se nikdy neznehodnotí.",
+"Není důležité, kam jedete na dovolenou. Důležité je, že jedete spolu.",
+"Nejcennější chvíle rodinného života se často odehrávají v kuchyni, ne u svátečního stolu.",
+"Přítomnost je nejvzácnější dárek, protože ho nejde koupit, jen darovat.",
+"Někdy je nejlepší večer ten, kdy se nic zvláštního nestalo, jen jste byli spolu.",
+"Rodina, co spolu jí bez spěchu, si toho řekne víc, než tuší.",
+"Chvíle strávené s rodinou se nezapisují do kalendáře. Zapisují se do paměti.",
+
+// --- Odpuštění a smíření ---
+"V rodině se neodpouští proto, že druhý má pravdu. Odpouští se proto, že láska je důležitější než mít pravdu.",
+"Nejtěžší slova v rodině nejsou „miluji tě“. Jsou to slova „promiň, měl jsi pravdu“.",
+"Odpuštění v rodině nezačíná zapomenutím. Začíná rozhodnutím zůstat.",
+"Někdy je smíření v rodině tichý telefonát, na který čekáte oba, ale žádný z vás nechce zavolat první.",
+"Rodinný spor, co trvá roky, obvykle není o tom, kdo měl pravdu, ale o tom, kdo se bál první promluvit.",
+"Odpustit rodiči neznamená říct, že bolest nebyla skutečná. Znamená to přestat nést váhu, co ti nepatří.",
+"Někdy je nejsilnější věta v rodině: já vím, že jsi to nemyslel zle.",
+"Smíření nepřichází vždy se slovy. Někdy přijde, když jeden z vás prostě zvedne telefon.",
+"V rodinách, co vydrží, se neodpouští jednou. Odpouští se pořád dokola, dokud to nezačne bolet míň.",
+"Odpuštění není o tom zapomenout křivdu. Je o tom nenechat ji řídit další roky.",
+
+// --- Ztráta, vzpomínky, odkaz ---
+"Když někoho z rodiny ztratíme, nezmizí. Přestěhuje se do všeho, co nás naučil.",
+"Truchlení v rodině nejde sdílet stejně. Ale sdílet ho spolu je jediný způsob, jak ho unést.",
+"Odkaz rodiče nejsou věci, co po sobě nechal. Je to způsob, jakým se díváš na svět.",
+"Ztratit rodiče znamená ztratit první publikum, co tě mělo rádo bezpodmínečně, i když jsi zklamal.",
+"Někdy nejvíc pláčeme ne kvůli tomu, co jsme řekli, ale kvůli tomu, co jsme neřekli včas.",
+"Vzpomínka na milovaného člověka nebolí proto, že byla špatná. Bolí proto, že byla vzácná.",
+"Rodina, co ztratila někoho blízkého, se nikdy nevrátí k tomu, jaká byla dřív. Naučí se jen být jinak celá.",
+"Ten, koho jsme ztratili, žije dál v tom, jak vaříme jeho recepty a opakujeme jeho věty.",
+"Smrt v rodině nás naučí, že čas, co jsme brali jako samozřejmost, byl vlastně největší dar.",
+"Někdy nejlepší způsob, jak uctít někoho, koho jsme ztratili, je žít tak, jak by si přál, abychom žili.",
+
+// --- Bezpodmínečná láska ---
+"Bezpodmínečná láska v rodině neznamená souhlasit se vším. Znamená to zůstat, i když nesouhlasíš.",
+"Rodina tě miluje ne za to, co jsi dokázal, ale za to, že jsi.",
+"Někdy je největší důkaz lásky mlčení, co nesoudí.",
+"Bezpodmínečná láska se nepozná podle slov. Pozná se podle toho, kdo zvedne telefon ve tři ráno.",
+"Rodina je místo, kde tě mají rádi i v den, kdy se sám sobě nelíbíš.",
+"Láska rodiče k dítěti nezná podmínky. Zná jen strach, že by se dítěti něco stalo.",
+"Skutečná rodinná láska přežije hádky, vzdálenost i čas — protože nikdy nebyla podmíněná výkonem.",
+"Nejhlubší láska v rodině se ukazuje nejvíc ve chvílích, kdy si ji nejmíň zasloužíš.",
+"Být milován bezpodmínečně znamená vědět, že tě neopustí, i když uděláš tu největší chybu.",
+"Rodina tě nemusí chápat, aby tě milovala. Stačí, že zůstane.",
+
+// --- Tradice a rituály ---
+"Rodinné tradice nejsou o dokonalosti. Jsou o opakování, co dává životu tvar.",
+"Vánoční ozdoby po babičce nejsou jen dekorace. Jsou to úlomky vzpomínek, co zdobí strom znovu každý rok.",
+"Nedělní oběd u jednoho stolu je tradice, co drží rodinu pohromadě víc, než si myslíme.",
+"Rodinné rituály dávají dětem pocit, že svět má řád, i když se všechno ostatní mění.",
+"Někdy je tradice jen to samé jídlo, co vaří babička, matka i dcera — a chuť spojuje tři generace.",
+"Rituály rodiny nejsou o tom, co děláte. Jsou o tom, že to děláte spolu, rok co rok.",
+"Tradice předávané z generace na generaci jsou tichým slibem, že něco vydrží, i když všechno ostatní je nejisté.",
+"Nejmenší rodinné rituály — dobrou noc, ranní kafe spolu — jsou často to, co dětem chybí nejvíc, když vyrostou.",
+
+// --- Rodina jako opora v těžkých časech ---
+"V nejtěžších chvílích života nepotřebuješ radu. Potřebuješ někoho z rodiny, kdo si k tobě sedne a zůstane.",
+"Rodina se nepozná v dobrých časech. Pozná se v tom, kdo přijde, když je nejhůř.",
+"Když se svět rozpadá, rodina je jediné místo, co drží pohromadě i tvoje kusy.",
+"Někdy je největší síla rodiny v tom, že nemusíš být silný, když jsi mezi nimi.",
+"V krizi nepotřebuješ, aby ti rodina vyřešila problém. Potřebuješ vědět, že v tom nejsi sám.",
+"Rodina, co drží pohromadě v těžkých časech, se nespoléhá na štěstí. Spoléhá se na slib, že zůstane.",
+"Někdy je jediná opora v nejtemnějším období hlas rodiče, co řekne: zvládneme to spolu.",
+"Rodinná podpora nejde poznat podle slov útěchy. Pozná se podle toho, kdo se ukáže, i když nic neřekne.",
+
+// --- Vděčnost za rodinu ---
+"Vděčnost za rodinu nepřichází ve velkých okamžicích. Přichází v obyčejných dnech, co si nevšimneš, dokud nezmizí.",
+"Někdy si vděčnost za rodinu uvědomíš až v okamžiku, kdy pomyslíš, jaké by to bylo bez ní.",
+"Být vděčný za rodinu znamená všimnout si malých věcí — hlasu v telefonu, objetí u dveří, večeře na stole.",
+"Nejvzácnější bohatství není na účtu. Je to rodina, co na tebe čeká doma.",
+"Vděčnost za rodinu roste s časem — čím víc stárneš, tím víc si uvědomuješ, co ti dala.",
+"Někdy stačí jeden těžký den, aby sis uvědomil, jak vzácné je mít se komu vrátit domů.",
+
+// --- Manželství / partnerství v rodinném kontextu ---
+"Manželství, co drží rodinu pohromadě, není o dokonalé lásce. Je o rozhodnutí zůstat, i když je to těžké.",
+"Dobré manželství neučí děti, jak vypadá dokonalý vztah. Učí je, jak vypadá odpuštění den co den.",
+"Partnerství v rodině znamená být tým i ve chvílích, kdy jste unavení a nesouhlasíte.",
+"Děti se neučí lásce z toho, co jim řeknete o manželství. Učí se z toho, jak se k sobě chováte, když si myslíte, že nikdo nekouká.",
+"Silné manželství není bez hádek. Je to manželství, co se po hádce vrátí zpátky k sobě.",
+
+// --- Rodiče a dospělé děti ---
+"Ve chvíli, kdy se z dítěte stane dospělý, se rodičovství nekončí. Jen mění tvar.",
+"Rodič dospělého dítěte se musí naučit novou dovednost — radit, jen když se ho někdo zeptá.",
+"Nejtěžší chvíle rodiče není, když dítě odejde z domu. Je to, když si uvědomí, že už ho nepotřebuje na všechno.",
+"Někdy je největší láska rodiče k dospělému dítěti mlčet a nechat ho udělat vlastní chybu.",
+"Dospělé dítě, co zavolá jen tak, bez důvodu, dá rodiči víc, než tuší.",
+"Rodiče stárnou tiše, ve chvílích, kdy si to jejich děti nevšimnou, protože mají vlastní životy.",
+"Někdy role otočíme — a dítě, co jsme kdysi nosili na rukou, teď nosí nás.",
+"Nejkrásnější znamení dospělosti dítěte je, když ti jednou samo nabídne pomoc, kterou jsi mu dřív nabízel ty.",
+"Rodiče, co pustí dospělé dítě bez výčitek, mu dají svobodu, kterou jim možná nikdo nedal.",
+"Být rodičem dospělého člověka znamená naučit se milovat na dálku, aniž bys přestal být blízko.",
+
+// --- Rodina a domácí atmosféra ---
+"Atmosféru domova netvoří nábytek. Tvoří ji tón hlasu, kterým se v něm mluví.",
+"Dům plný smíchu je bohatší než dům plný věcí.",
+"Někdy pozná dítě bezpečí domova dřív, než pozná slovo bezpečí.",
+"Rodinná atmosféra se nedá koupit. Dá se jen budovat, den za dnem, slovo za slovem.",
+"Klid v domě nezačíná tichem. Začíná tím, že se každý cítí vyslyšen.",
+"Domov, kde se smí plakat i smát nahlas, je domov, který dítě ponese v sobě navždy.",
+"Atmosféra rodiny se pozná podle toho, jak snadno se do ní vrací člověk, co odešel na léta.",
+
+// --- Rodičovská oběť a nesobeckost ---
+"Rodičovská láska se často pozná podle toho, čeho se rodič vzdal, aniž by o tom mluvil.",
+"Nikdo nespočítá, kolik snů rodiče odložili, aby jejich dítě mohlo svoje splnit.",
+"Oběť rodiče není v tom, co si odepře. Je v tom, že to udělá tak tiše, že si toho dítě nikdy nevšimne.",
+"Někdy je největší dar rodiče vlastní únava, kterou skryje, aby dítě nemuselo nést vinu.",
+"Rodiče nechtějí vděčnost. Chtějí jen vidět, že jejich dítě je šťastné.",
+"Nesobeckost v rodičovství znamená dát víc, než dostaneš, a nepočítat to.",
+
+// --- Rodina na dálku ---
+"Vzdálenost mezi členy rodiny se dá měřit kilometry, ale láska se měří jinak.",
+"Telefonát domů z daleka umí zkrátit vzdálenost na délku jedné věty: jak se máš?",
+"Rodina na dálku se nezmenšuje. Jen se učí nový jazyk blízkosti.",
+"Někdy jsou nejsilnější rodinná pouta ta, co přežijí roky bez fyzické blízkosti.",
+"I když jsi daleko, hlas rodiče v telefonu tě umí vrátit domů rychleji než letadlo.",
+"Rodina rozptýlená po světě zůstává rodinou, dokud si najde způsob, jak zůstat v kontaktu srdcem.",
+
+// --- Malé každodenní gesty ---
+"Rodina se neprojevuje ve velkých slovech. Projevuje se v malém gestu — v šálku kávy, co ti někdo bez ptaní připraví.",
+"Někdy je největší láska schovaná v obyčejné větě: dojedl jsi dobře?",
+"Malé každodenní laskavosti mezi členy rodiny se sčítají do celoživotního pocitu bezpečí.",
+"Rodina, co si všímá maličkostí — jak se máš, jak jsi spal — buduje lásku, co vydrží.",
+"Někdy stačí, že ti někdo z rodiny nechá vzkaz na lednici, a víš, že na tebe myslel.",
+"Nejmenší gesta — podržené dveře, uvařený čaj — jsou často ta, co si pamatujeme nejdéle.",
+
+// --- Růst a proměna rodiny v čase ---
+"Rodina se v průběhu let mění tvar, ale jádro — že si na sobě záleží — zůstává stejné.",
+"Rodina není statická. Je to živý organismus, co se učí, roste a někdy i bolí, aby mohl růst dál.",
+"Nová generace v rodině nepřináší konec staré. Přináší pokračování příběhu, co začal dávno předtím.",
+"Rodina, co se mění a přijímá změnu, přežije déle než ta, co se jí brání.",
+"Někdy rodina vypadá jinak, než jsme si představovali — a přesto je to pořád rodina, jen jiná.",
+"Rozšířená rodina — nevlastní rodiče, adoptivní děti, přátelé jako rodina — dokazuje, že láska nepotřebuje krev, jen rozhodnutí zůstat.",
+
+// --- Naslouchání a komunikace v rodině ---
+"Naslouchat v rodině neznamená čekat, až druhý domluví. Znamená to opravdu slyšet, co neřekl.",
+"Nejlepší rozhovory v rodině nezačínají otázkou co je nového, ale otázkou jak se cítíš.",
+"Rodina, co si umí naslouchat beze soudu, je rodina, kam se každý rád vrací.",
+"Někdy je ticho mezi členy rodiny hlasitější než jakákoliv hádka — a právě to ticho je potřeba prolomit jako první.",
+"Komunikace v rodině není o tom mít vždy pravdu. Je o tom být ochoten pravdu slyšet.",
+"Naslouchání dítěti bez přerušování mu řekne, že jeho slova mají váhu.",
+
+// --- Sílu dávat i přijímat pomoc v rodině ---
+"Rodina je jediné místo, kde je v pořádku říct, že to nezvládáš sám.",
+"Přijmout pomoc od rodiny není slabost. Je to důvěra, že tě nikdo nebude soudit.",
+"Někdy je nejtěžší část rodinného vztahu naučit se přijmout péči, ne jen ji dávat.",
+"Rodina, co si vzájemně pomáhá bez počítání, buduje pouto, co žádná krize nezlomí.",
+"Nabídnout pomoc členovi rodiny dřív, než o ni požádá, je jeden z nejtišších projevů lásky.",
+
+// --- Rodina a smích ---
+"Smích u rodinného stolu je zvuk, po kterém se stýská nejvíc, když ho na chvíli nemáme.",
+"Rodinné vtipy, kterým rozumí jen vy, jsou tajný jazyk, co vás spojuje napříč lety.",
+"Někdy je nejlepší lék na těžký den vzpomínka na to, jak se celá rodina smála u jednoho stolu.",
+"Humor v rodině není útěk před vážnými věcmi. Je to způsob, jak je unést společně.",
+"Rodina, co se spolu umí smát i sama sobě, má sílu, kterou vážnost nikdy nedá.",
+
+// --- Poslední citáty - shrnující, silné ---
+"Rodina není dokonalá skupina lidí. Je to nedokonalá skupina lidí, co se rozhodla zůstat spolu.",
+"Nikdo si nevybírá rodinu, do které se narodí. Ale každý den si vybírá, jak moc ji bude milovat.",
+"Rodina je jediná investice, u které návratnost neroste s penězi, ale s časem, co jí věnuješ.",
+"Když jednou spočítáš, co v životě mělo skutečně smysl, rodina bude na tom seznamu jako první i poslední.",
+"Někdy je celý smysl života schovaný v jedné větě: mít se kam vrátit a koho tam najít.",
+
+// --- Rodina a sebeobětování rodiče (jemné, hluboké) ---
+"Matka, co jí poslední kousek jídla schová dítěti, nikdy neřekne, že měla hlad.",
+"Otec, co si nikdy nekoupil nové boty, protože dítě potřebovalo víc, o tom nikdy nemluvil nahlas.",
+"Rodičovská láska se často pozná až zpětně — ve věcech, kterých sis nevšiml, dokud jsi sám nezestárl.",
+"Někdy dítě pochopí, kolik toho rodič obětoval, až ve chvíli, kdy samo začne obětovat pro svoje.",
+"Rodiče nechtějí, aby jejich děti věděly, jak moc se pro ně vzdaly. Chtějí jen, aby byly šťastné.",
+
+// --- Rodina jako učitel hodnot ---
+"Hodnoty se v rodině nepředávají přednáškou. Předávají se příkladem, co dítě vidí každý den.",
+"Dítě, co vidí rodiče pomáhat cizím lidem, se nemusí učit soucit ze slovníku.",
+"Poctivost, kterou dítě vidí doma, je silnější lekce než jakákoliv škola.",
+"Rodina, co žije to, co hlásá, vychová děti, co nepotřebují kázání.",
+"Nejsilnější hodnoty nejsou ty, co jsme dětem řekli. Jsou to ty, co jsme jim ukázali, aniž bychom čekali, že se dívají.",
+
+// --- Rodina a nové začátky (svatby, narození, stěhování) ---
+"Narození dítěte nezmění jen rodiče. Změní tvar celé rodiny, co se kolem něj semkne.",
+"Svatba nespojuje jen dva lidi. Spojuje dvě rodiny, co se od té chvíle učí být jednou.",
+"Nový člen rodiny — ať už narozením, sňatkem nebo adopcí — přináší lásku, na kterou nikdo nebyl úplně připravený, a přesto stačí.",
+"Stěhování rodiny do nového domova nezačíná vybalováním krabic. Začíná rozhodnutím, že domov je tam, kde jste spolu.",
+"Každý nový začátek v rodině — dítě, svatba, vnouče — je připomínka, že příběh rodiny nikdy nekončí, jen se rozšiřuje.",
+
+// --- Rodina a odpouštění sobě samému ---
+"Rodiče si často odpouštějí nejtěžeji ze všech — sobě samým za chyby, které udělali z lásky, ne ze zlé vůle.",
+"Být dobrým rodičem znamená taky odpustit si den, kdy jsi nebyl takový rodič, jakého sis přál.",
+"Nikdo tě nesoudí tak přísně jako ty sám za chvíle, kdy jsi rodině nedal, co jsi chtěl dát.",
+"Odpustit si vlastní rodičovské chyby je dar, který dáváš i svým dětem — ukazuješ jim, že chybovat je lidské.",
+
+// --- Rodina jako místo bezpečí pro zranitelnost ---
+"Rodina je jediné místo, kde smíš být slabý, aniž bys musel vysvětlovat proč.",
+"Plakat před rodinou není selhání. Je to důkaz, že jsi našel místo, kde nemusíš být silný.",
+"Zranitelnost před rodinou je nejvyšší forma důvěry, kterou člověk může dát.",
+"Někdy je největší úleva věta: nemusíš to přede mnou skrývat, jsme rodina.",
+"Rodina, co dovolí každému členu být zranitelný, buduje pouto, co žádná maska nepotřebuje.",
+
+// --- Rodina a čekání (na dítě, na návrat, na uzdravení) ---
+"Čekání na narození dítěte je čas, kdy se rodina učí lásce k někomu, koho ještě nikdy neviděla.",
+"Čekání na návrat blízkého z cesty, z nemocnice, z ciziny, je zkouška lásky, co netrpělivost neumí zkrátit.",
+"Někdy nejtěžší část rodinné lásky je čekat, aniž bys mohl cokoliv udělat, jen doufat.",
+"Rodina, co čeká spolu, ať už na dobré nebo špatné zprávy, sdílí tíhu, co by sama nikdo neunesl.",
+
+// --- Rodina, dospívání a hledání identity ---
+"Dospívající dítě nepotřebuje rodiče, co má na všechno odpověď. Potřebuje rodiče, co vydrží jeho hledání.",
+"Puberta v rodině není válka. Je to bolestivý, ale nutný proces, kdy se dítě učí být sám sebou.",
+"Někdy nejlepší věc, kterou rodič udělá pro dospívající dítě, je nechat ho udělat chybu a být tam, až přijde domů.",
+"Rodiče dospívajících dětí se musí naučit novou lásku — takovou, co dává prostor, ale nezmizí.",
+"Identita dítěte se netvoří proti rodičům, ale skrz ně — i tehdy, když to tak nevypadá.",
+
+// --- Poslední souhrnná várka - hluboké, univerzální ---
+"Rodina není tam, kde není nikdy konflikt. Je tam, kde se po konfliktu vždycky najde cesta zpátky.",
+"Někdy je největší láska v rodině ta, co se neprojevuje slovy, ale tím, kdo v noci nespí a čeká, až přijdeš domů.",
+"Rodina tě naučí, že láska není o tom být dokonalý jeden pro druhého. Je o tom být tam, i když dokonalí nejste.",
+"Kdo má rodinu, co ho podrží, nikdy není úplně sám, i když je sám v místnosti.",
+"Největší dědictví, co rodina předá dál, není majetek. Je to způsob, jak milovat, aniž byste to museli nahlas říkat.",
+"Rodina je jediné místo na světě, kde tě znají od narození a přesto tě mají rádi i po tom všem, co viděli.",
+"Někdy rodina neznamená dokonalou harmonii. Znamená to, že i v chaosu víš, kam patříš.",
+"Být součástí rodiny znamená nikdy nebýt sám ve chvílích, které bys sám neunesl.",
+"Rodina tě nenaučí, jak se vyhnout bolesti. Naučí tě, jak ji unést, když víš, že nejsi sám.",
+"Poslední věc, na kterou si člověk vzpomene, není práce ani úspěch. Je to tvář někoho z rodiny, co ho měl rád bezpodmínečně.",
+
+// --- Rodina a péče o stárnoucí rodiče ---
+"Přichází den, kdy se role otočí a dítě začne rodiči vracet péči, kterou kdysi dostalo.",
+"Pečovat o stárnoucího rodiče je poslední velký dar, který mu můžeš dát za všechno, co dal on tobě.",
+"Někdy je nejtěžší část stárnutí rodičů sledovat, jak silný člověk potřebuje pomoc s malými věcmi.",
+"Trpělivost, kterou měl rodič s tebou jako dítětem, je stejná trpělivost, co teď potřebuje on od tebe.",
+"Péče o stárnoucí rodiče není povinnost. Je to poslední kapitola lásky, co trvala celý život.",
+"Někdy stačí jen sedět vedle stárnoucího rodiče a držet ho za ruku — slova už nejsou potřeba.",
+"Vidět rodiče stárnout je připomínka, abychom si vážili každého společného dne, co ještě máme.",
+
+// --- Rodina a peníze/materiální věci (kontrast s láskou) ---
+"Děti si nepamatují, jaké dárky dostaly. Pamatují si, jestli s nimi rodiče byli, když je rozbalovaly.",
+"Bohatství rodiny se nepočítá na účtu. Počítá se v tom, kolik večerů strávili spolu u stolu.",
+"Nejdražší dárek, co můžeš rodině dát, nekoupíš v obchodě — je to tvůj čas a pozornost.",
+"Rodina, co má málo peněz, ale hodně lásky, je bohatší než ta, co má obojí obráceně.",
+"Někdy je největší chudoba mít všechno materiální a nikoho, s kým to sdílet.",
+
+// --- Rodina a naděje do budoucna ---
+"Rodiče nesází semínka pro sebe. Sází je pro stín, ve kterém jednou budou sedět jejich vnoučata.",
+"Naděje rodiče pro dítě není, aby bylo úspěšné. Je to, aby bylo šťastné a laskavé.",
+"Každý rodič v duchu doufá, že jeho dítě bude mít snazší život, než měl on — a pracuje na tom potichu celý život.",
+"Budoucnost rodiny se netvoří jen plány. Tvoří se láskou, co dnes dáváte dětem, i když si to neuvědomují.",
+"Rodina je jediný projekt, který nikdy nekončí — jen předává štafetu další generaci.",
+
+// --- Rodina a jednoduché radosti ---
+"Nejkrásnější rodinné chvíle se často odehrávají bez fotoaparátu — proto je nosíme jen v srdci.",
+"Procházka s rodinou bez cíle je někdy cennější než dovolená naplánovaná do minuty.",
+"Společné vaření v kuchyni, i když je nepořádek, buduje vzpomínky, co vydrží déle než čistá podlaha.",
+"Rodinná hra u stolu, co skončí smíchem, je večer, na který se vzpomíná roky.",
+"Někdy je největší radost rodiny jen společné mlčení u ohně, kdy nikdo nikam nespěchá.",
+
+// --- Rodina, čas a pomíjivost (memento) ---
+"Čas s rodinou nejde zastavit, ale dá se prožít tak, aby na něj nešlo zapomenout.",
+"Jednoho dne se ohlédneš a uvědomíš si, že poslední společná večeře byla poslední, aniž jsi to tehdy věděl.",
+"Nikdo neví, který rozhovor s rodičem bude poslední — proto má smysl mluvit s nimi, jako by mohl být.",
+"Čas, co máme s rodinou, je vypůjčený, ne vlastněný — proto ho nemá smysl odkládat na později.",
+"Někdy si pomíjivost času s blízkými uvědomíme až tehdy, když nám čas dojde.",
+
+// --- Rodina a osobní růst skrz vztahy ---
+"Rodina tě nutí růst rychleji než cokoliv jiného, protože v ní nemůžeš utéct sám před sebou.",
+"Nejvíc se o sobě dozvíš právě ve vztazích s rodinou — tam, kde masky padají samy.",
+"Rodina tě naučí trpělivosti, kterou by ses jinde nikdy nenaučil.",
+"Skrz konflikty s rodinou se učíme, jak milovat někoho i tehdy, když s ním nesouhlasíme.",
+"Nejvíc jsme testováni v lásce právě těmi, které milujeme nejvíc — a to je rodina.",
+
+// --- Rodina a rozmanitost forem (adoptivní, nevlastní, zvolená rodina) ---
+"Rodina není vždy o krvi. Někdy je to o lidech, co si tě vybrali, i když nemuseli.",
+"Adoptivní rodič nemiluje míň jen proto, že dítě nenosil pod srdcem — nosí ho v srdci jinak, ale stejně silně.",
+"Nevlastní rodič, co se nikdy nevzdal, dokazuje, že rodina je rozhodnutí, ne jen genetika.",
+"Zvolená rodina — přátelé, co se stanou rodinou — ukazuje, že láska si nevybírá jen podle rodokmenu.",
+"Rodina má mnoho tvarů, ale jeden společný základ — někoho, kdo zůstane, i když může odejít.",
+
+// --- Poslední hluboké, básnické zakončení ---
+"Až jednou nebudeš moct vzpomínat na nic jiného, budeš si pamatovat, kdo tě měl rád, i když jsi to nezasloužil.",
+"Rodina je jediný příběh, který nepíšeš sám — píšou ho s tebou všichni, koho jsi kdy pustil blízko.",
+"Na konci všech dnů nezůstane nic než jména těch, které jsi miloval, a vzpomínka na to, jak moc.",
+"Někdy je celá moudrost o rodině v jedné jednoduché pravdě: nikdy nevíš, kolik času máte, tak ho nepromarni.",
+"Rodina není to, co tě čeká na konci cesty. Je to ruka, co tě drží po celou dobu, co jdeš.",
+"Když zestárneš a ohlédneš se, nebudeš počítat úspěchy. Budeš počítat večery strávené s těmi, na kterých záleželo.",
+"Kdo dá rodině svůj čas, dostane zpátky něco, co se penězi koupit nedá — pocit, že nikdy nebyl sám.",
+"Rodina je kotva, co tě drží na místě, i když bouře venku zuří sebevíc.",
+"Nejdelší vztah tvého života nebude s partnerem ani s přítelem. Bude to vztah s rodinou, co tě zná od prvního nádechu.",
+"Až budeš na konci svého příběhu, jediná otázka, na které bude záležet, zní: byl jsi tam pro ty, které jsi miloval?",
+
+// --- Doplňující jemné odstíny (dokončení na 365) ---
+"Rodina tě naučí, že být silný občas znamená přiznat, že potřebuješ pomoc.",
+"Někdy je nejkrásnější věta v rodině: nemusíš to vysvětlovat, já to chápu.",
+"Rodinná láska nepotřebuje důkazy. Potřebuje jen čas, aby se ukázala sama.",
+"Ten, kdo tě zná od dětství, vidí tě takového, jaký doopravdy jsi, ne takového, jakým se snažíš být.",
+"Rodina je jediné místo, kde neúspěch neznamená konec, jen další pokus, o který se s tebou podělí.",
+"Někdy stačí vědět, že na druhém konci telefonu je někdo z rodiny, aby se den zdál lehčí.",
+"Rodina se nepozná podle toho, jak vypadá na fotkách. Pozná se podle toho, jak se chová, když fotoaparát zmizí.",
+"Nejcennější dědictví, které dítě dostane, není jméno ani majetek. Je to vzor, jak zvládat těžké dny.",
+"Rodina, co se umí spolu ztišit, aniž by to bylo trapné, dosáhla vzácné blízkosti.",
+"Někdy je největší projev lásky v rodině trpělivost s někým, kdo se mění pomaleji, než bys chtěl.",
+"Domov, kam se vždycky vracíš, není definován adresou, ale tím, kdo na tebe čeká za dveřmi.",
+"Rodina ti dá kořeny, aby ses cítil pevně, a křídla, abys věděl, že smíš letět.",
+"Někdy je jediný lék na osamělost hlas někoho z rodiny, co zvedne telefon uprostřed noci.",
+"Rodina tě naučí, že láska není o dokonalosti, ale o tom zůstat i přes nedokonalost.",
+"Nejsilnější rodiny nejsou ty bez problémů. Jsou to ty, co problémy řeší spolu, ne proti sobě.",
+"Někdy stačí jedno objetí od někoho z rodiny, aby se rozpadající se den zase složil.",
+"Rodina je vzpomínka, co se tvoří každý den, aniž si to uvědomuješ, dokud se k ní jednou nevrátíš.",
+"Být součástí rodiny znamená mít svědky vlastního života — lidi, co viděli, jak jsi rostl.",
+"Rodinná láska nepotřebuje velká gesta. Stačí, když je stálá jako ranní slunce.",
+"Někdy je největší útěcha vědět, že i když svět nerozumí, rodina rozumí vždy.",
+"Rodina tě nenutí být dokonalý. Nutí tě být upřímný.",
+"Nejhlubší pouta v rodině vznikají ne ve chvílích štěstí, ale ve chvílích, kdy jste si navzájem pomohli vstát.",
+"Rodina je jediný tým, ve kterém prohra jednoho znamená, že ostatní přiběhnou pomoct, ne odejít.",
+"Někdy je celé bohatství člověka schované ve jménech lidí, kterým může zavolat o půlnoci.",
+"Láska rodiny se nezmenšuje vzdáleností. Jen se učí nový způsob, jak se projevit.",
+"Rodina, co si dovolí být zranitelná spolu, buduje sílu, kterou nic zvenčí nerozbije.",
+"Někdy je nejkrásnější odkaz, co po sobě necháš, jen to, jak ses smál u rodinného stolu.",
+"Rodina tě naučí, že odpuštění není slabost, ale nejvyšší forma lásky.",
+"Být milován rodinou znamená mít místo, kam patříš, i když se cítíš, že nikam nepatříš.",
+"Nejtišší láska bývá ta nejhlubší — láska rodiče, co nikdy nepotřeboval slova, aby ji dokázal.",
+"Rodina je jediná jistota v životě, kde se nikdy nemusíš ptát, jestli tě budou mít rádi zítra.",
+"Někdy je útěcha jen vědomí, že i když uděláš chybu, rodina tě nepřestane milovat.",
+"Rodinná blízkost se neměří počtem společných let, ale hloubkou důvěry, co jste si vybudovali.",
+"Kdo má rodinu, co ho podporuje v jeho snech, má víc, než si kdy uvědomí.",
+"Někdy je největší radost rodiny jen vidět jeden druhého šťastného, bez ohledu na vlastní touhy.",
+"Rodina tě naučí, že sdílet bolest ji zmenšuje a sdílet radost ji zdvojnásobuje.",
+"Nejkrásnější rodinný okamžik je ten, kdy si uvědomíš, že jsi přesně tam, kde chceš být.",
+"Rodina je jediné místo, kde tě někdo miluje za to, kým jsi, ne za to, co dokážeš.",
+"Někdy je největší láska ta, co tiše čeká, až budeš připravený promluvit.",
+"Rodinná pouta jsou neviditelná nit, co tě drží i tehdy, když si myslíš, že jsi úplně sám.",
+"Být rodinou znamená sdílet nejen krev nebo jméno, ale i naději, že to spolu vždycky nějak zvládnete.",
+"Nejsilnější slovo v rodině není láska. Je to slovo my.",
+"Někdy je největší dar rodiny prostá věta: ať se stane cokoliv, jsme tu jeden pro druhého.",
+"Na konci dne, na konci roku, na konci života — rodina je to, co zbývá, když všechno ostatní ztichne.",
+  ]},
+  vztahy: { label:"Vztahy", icon:"💞", quotes:[
+// --- Naslouchání a porozumění ---
+"Naslouchat neznamená čekat, až druhý domluví. Znamená to opravdu slyšet, co říká.",
+"Nejcennější dar, co můžeš dát druhému, je tvá plná pozornost bez rozptýlení.",
+"Kdo naslouchá beze soudu, dostane víc upřímnosti než ten, kdo hned hodnotí.",
+"Porozumění nezačíná souhlasem. Začíná ochotou pochopit, proč druhý cítí to, co cítí.",
+"Nejlepší rozhovory nejsou o tom mít pravdu. Jsou o tom pochopit se navzájem.",
+"Kdo se naučí naslouchat i tomu, co není řečeno, rozumí vztahům hlouběji.",
+"Naslouchání je forma lásky, co nepotřebuje slova, jen přítomnost.",
+"Nejsilnější spojení mezi lidmi vzniká, když se jeden cítí opravdu vyslyšen druhým.",
+"Kdo přeruší, aby řekl svůj názor, ztrácí příležitost pochopit ten druhý.",
+"Naslouchat s otevřeným srdcem je vzácnější dovednost, než by se zdálo.",
+
+// --- Komunikace a upřímnost ---
+"Upřímnost bolí méně než dlouhodobé nedorozumění, co roste v tichu.",
+"Kdo řekne pravdu s laskavostí, buduje důvěru, co lež nikdy nedá.",
+"Nejtěžší rozhovory jsou často ty nejdůležitější — neodkládej je zbytečně dlouho.",
+"Komunikace není o tom mluvit víc. Je to o tom mluvit jasně a naslouchat stejně tak.",
+"Kdo mlčí o tom, co ho trápí, nechá to hnisat, dokud se to nerozroste do většího problému.",
+"Otevřenost ve vztahu vyžaduje odvahu, ale buduje důvěru, co nic jiného nenahradí.",
+"Nejlepší vztahy nejsou bez konfliktů. Jsou to ty, co si umí konflikt vyříkat a jít dál.",
+"Kdo mluví z místa zranitelnosti, ne obrany, otevírá dveře ke skutečnému spojení.",
+"Upřímný rozhovor dnes ušetří roky odcizení zítra.",
+"Komunikace se buduje praxí — čím víc mluvíte otevřeně, tím snazší to je příště.",
+
+// --- Důvěra a její budování ---
+"Důvěra se buduje pomalu, cihlu po cihle, a může se zbořit jedním špatným rozhodnutím.",
+"Kdo dodrží malé sliby, buduje důvěru pro velké chvíle, kdy na ní bude záležet nejvíc.",
+"Důvěra není samozřejmost. Je to dar, co si zaslouží péči a respekt.",
+"Nejpevnější vztahy stojí na důvěře, co byla testována a obstála.",
+"Kdo poruší důvěru jednou, musí ji budovat znovu mnohem déle, než ji ztratil.",
+"Důvěra roste s každou chvílí, kdy jsi tam byl, když jsi řekl, že budeš.",
+"Vztah bez důvěry je jako dům bez základů — vypadá dobře, dokud nepřijde bouře.",
+"Kdo si zaslouží důvěru svými činy, ne jen slovy, buduje vztah, co vydrží.",
+"Důvěra se neobnovuje omluvou. Obnovuje se novým vzorcem chování, co omluvu potvrdí.",
+"Nejsilnější vztahy jsou ty, kde si oba věří, i když se zrovna nevidí.",
+
+// --- Odpuštění ve vztazích ---
+"Odpuštění není o tom říct, že se nic nestalo. Je to rozhodnutí nenechat minulost řídit budoucnost.",
+"Kdo neodpustí, nese břemeno, co ubližuje jemu víc než tomu druhému.",
+"Odpuštění není pro toho druhého. Je to dar, co dáváš sám sobě.",
+"Nejtěžší odpuštění je to, co dáváš, aniž bys dostal omluvu.",
+"Kdo se naučí odpouštět rychleji, žije s lehčím srdcem.",
+"Odpuštění neznamená zapomenout. Znamená to přestat nechat vzpomínku bolet tak moc.",
+"Vztahy, co přežijí, nejsou ty bez chyb. Jsou to ty, co se naučily odpouštět.",
+"Kdo čeká na perfektní omluvu, než odpustí, možná čeká věčně.",
+"Odpuštění je proces, ne jednorázový akt — dej si na něj čas, co potřebuješ.",
+"Nejsilnější vztahy mají historii chyb i odpuštění, co je spojuje pevněji než dokonalost.",
+
+// --- Empatie a soucit ---
+"Empatie znamená vidět svět očima druhého, i když s ním nesouhlasíš.",
+"Kdo se snaží pochopit, proč druhý jedná, jak jedná, méně soudí a víc chápe.",
+"Soucit není slabost. Je to síla vidět bolest druhého a nebát se jí dotknout.",
+"Nejhlubší spojení mezi lidmi vzniká, když se jeden cítí pochopen, ne posuzován.",
+"Empatie je most, co spojuje i lidi s naprosto odlišnými zkušenostmi.",
+"Kdo si najde chvíli představit si, jaké to je být v kůži druhého, jedná laskavěji.",
+"Soucit k druhým začíná soucitem k sobě — kdo je k sobě tvrdý, bývá tvrdý i k ostatním.",
+"Nejsilnější lidé nejsou ti bez emocí, ale ti, co umí cítit s druhými a přesto zůstat pevní.",
+"Empatie neznamená souhlasit se vším. Znamená to respektovat, že druhý cítí jinak.",
+"Kdo naslouchá s empatií, buduje vztahy, co vydrží i těžké chvíle.",
+
+// --- Kvalitní čas a přítomnost ve vztahu ---
+"Kvalitní čas s někým neznamená být ve stejné místnosti. Znamená to být tam celý.",
+"Nejcennější dar, co můžeš dát vztahu, je nerozdělená pozornost.",
+"Kdo odloží telefon, aby byl plně přítomný, dává jasný signál, že na tom vztahu záleží.",
+"Přítomnost je nejvzácnější měna lásky — nedá se koupit, jen darovat.",
+"Vztahy nerostou z množství času spolu, ale z kvality pozornosti, co si věnujete.",
+"Kdo si najde čas na druhého uprostřed shonu, ukazuje, na čem mu skutečně záleží.",
+"Nejkrásnější vzpomínky ve vztazích nevznikají z velkých gest, ale z obyčejných chvil plné přítomnosti.",
+"Vztah, co dostane tvůj čas, roste. Vztah, co ho nedostane, chřadne, i když na něm záleží.",
+"Kdo je přítomný v malých chvílích, buduje důvěru pro ty velké.",
+"Přítomnost ve vztahu znamená odložit vlastní myšlenky a být tam pro druhého naplno.",
+
+// --- Hranice ve vztazích ---
+"Zdravé hranice nejsou zeď proti lásce. Jsou to dveře, co umožňují lásce vstoupit bezpečně.",
+"Kdo si nestanoví hranice, nechá ostatní, aby je stanovili za něj.",
+"Hranice nejsou o odmítání druhých. Jsou o respektu k sobě samému.",
+"Nejzdravější vztahy mají jasné hranice, co oba respektují.",
+"Kdo se bojí říct ne, ztrácí sám sebe ve snaze vyhovět všem ostatním.",
+"Hranice chrání vztah stejně jako lidi v něm — bez nich vztah často zhořkne v odpor.",
+"Říct ne něčemu je často stejně důležité jako říct ano něčemu jinému.",
+"Kdo respektuje hranice druhého, buduje vztah založený na vzájemném respektu.",
+"Zdravá hranice není trest. Je to informace o tom, co potřebuješ, aby vztah fungoval.",
+"Nejsilnější vztahy nejsou bez hranic. Jsou to ty, kde obě strany hranice respektují.",
+
+// --- Konflikty a jejich řešení ---
+"Konflikt není konec vztahu. Je to příležitost pochopit se hlouběji.",
+"Kdo se hádá s cílem vyhrát, prohrává vztah. Kdo se hádá s cílem pochopit, ho posiluje.",
+"Nejzdravější páry se nehádají méně. Umí se hádat lépe.",
+"Konflikt řešený s respektem buduje důvěru. Konflikt řešený útokem ji ničí.",
+"Kdo se naučí říct 'promiň, měl jsi pravdu', buduje vztah silnější, než by dala jakákoliv výhra v hádce.",
+"Hádka není o tom, kdo křičí hlasitěji. Je to o tom, kdo je ochotný naslouchat víc.",
+"Nejlepší způsob, jak vyřešit konflikt, je zaměřit se na problém, ne na útok na osobu.",
+"Kdo se umí omluvit bez výmluv, buduje respekt, co žádná hádka nezničí.",
+"Konflikt, co se řeší otevřeně, posiluje vztah. Konflikt, co se ignoruje, ho pomalu ničí.",
+"Nejsilnější vztahy nemají méně konfliktů. Mají lepší způsob, jak je řešit.",
+
+// --- Přátelství a jeho hodnota ---
+"Skutečný přítel je ten, kdo tě zná v nejhorší verzi a zůstává i tak.",
+"Kdo má jednoho skutečného přítele, má víc, než kdo má stovku povrchních známých.",
+"Přátelství se nepozná v dobrých časech. Pozná se v tom, kdo zůstane ve zlých.",
+"Nejsilnější přátelství přežijí ticho, vzdálenost i čas — a přesto se vrátí, jako by nic nebylo.",
+"Kdo investuje do přátelství čas a pozornost, sklidí podporu, co peníze nekoupí.",
+"Přítel, co ti řekne pravdu, i když bolí, tě miluje víc než ten, kdo ti jen říká, co chceš slyšet.",
+"Skutečné přátelství nepočítá, kdo dal víc. Jen se stará jeden o druhého.",
+"Kdo si udržuje přátelství i přes nabitý život, buduje síť podpory, co se vyplatí v těžkých chvílích.",
+"Přátelství, co roste s věkem, je jeden z nejvzácnějších darů v životě.",
+"Nejlepší přátelé nejsou ti, co jsou vždycky poblíž, ale ti, co jsou tu, když na tom nejvíc záleží.",
+
+// --- Láska a partnerství ---
+"Láska není o tom najít dokonalého partnera. Je to o tom vidět nedokonalého partnera dokonale.",
+"Kdo miluje beze strachu ze ztráty, miluje nejsvobodněji.",
+"Nejsilnější partnerství nejsou bez problémů. Jsou to ta, co problémy řeší jako tým.",
+"Láska se neprojevuje jen slovy, ale v tom, jak se chováš, když je den těžký.",
+"Kdo si vybere partnera pro charakter, ne jen pro chemii, buduje vztah, co vydrží roky.",
+"Partnerství znamená růst spolu, ne zůstat stejný a čekat, že ten druhý se přizpůsobí.",
+"Láska, co roste, se stará o vztah každý den, ne jen ve výjimečných chvílích.",
+"Nejzdravější láska dává prostor oběma růst, ne jen splynout v jedno.",
+"Kdo si udrží zvědavost o svém partnerovi i po letech, udrží si i jiskru mezi nimi.",
+"Skutečná láska není o tom cítit se dokonale šťastný pořád. Je to o tom zůstat, i když to není dokonalé.",
+
+// --- Zranitelnost ve vztazích ---
+"Zranitelnost není slabost. Je to odvaha ukázat se takový, jaký doopravdy jsi.",
+"Kdo se bojí ukázat svou zranitelnost, brání i skutečné blízkosti, po které touží.",
+"Nejhlubší spojení mezi lidmi vzniká tam, kde se oba odváží být zranitelní.",
+"Zranitelnost je most k důvěře — bez ní zůstávají vztahy povrchní.",
+"Kdo dovolí druhému vidět své slabosti, dává mu i důvod věřit své síle.",
+"Otevřít se druhému je riziko, ale je to riziko, co buduje nejhlubší vztahy.",
+"Zranitelnost není o tom sdílet všechno se všemi. Je to o tom sdílet pravdu s těmi, kterým důvěřuješ.",
+"Kdo skrývá svou bolest za maskou síly, brání ostatním, aby mu skutečně pomohli.",
+"Nejsilnější vztahy vznikají tam, kde je bezpečné být zranitelný beze strachu ze soudu.",
+"Odvaha být zranitelný je základ každého hlubokého a upřímného vztahu.",
+
+// --- Respekt a rovnocennost ---
+"Respekt ve vztahu neznamená souhlasit se vším. Znamená to vážit si názoru druhého, i když je jiný.",
+"Kdo respektuje partnera jako rovnocenného, buduje vztah bez mocenských her.",
+"Nejzdravější vztahy jsou ty, kde se oba cítí vyslyšeni a respektováni stejně.",
+"Respekt se neprojevuje ve velkých gestech. Projevuje se v drobnostech každodenního chování.",
+"Kdo mluví o druhém s respektem i v jeho nepřítomnosti, buduje vztah na pevném základě.",
+"Vztah bez vzájemného respektu se dřív nebo později rozpadne, i kdyby v něm byla láska.",
+"Respekt znamená vážit si hranic, potřeb a názorů druhého, i když se s nimi neztotožňuješ.",
+"Nejsilnější partnerství jsou ta, kde ani jeden nestojí nad druhým.",
+"Kdo si váží svého partnera jako sebe rovného, buduje vztah, co roste, ne který dusí.",
+"Respekt je základ, na kterém stojí každá zdravá forma lásky.",
+
+// --- Vděčnost ve vztazích ---
+"Vděčnost za lidi kolem tebe roste, když si uvědomíš, jak snadno by mohli chybět.",
+"Kdo poděkuje partnerovi za obyčejné věci, buduje vztah plný vzájemného uznání.",
+"Vděčnost za vztah neznamená přehlížet jeho problémy. Znamená to vážit si toho, co funguje.",
+"Nejsilnější vztahy jsou ty, kde si oba všímají a oceňují úsilí toho druhého.",
+"Kdo si nevšímá dobrého ve vztahu, si všimne až toho, co chybí, když je pozdě.",
+"Vděčnost vyjádřená nahlas posiluje vztah víc, než si uvědomujeme.",
+"Malé poděkování za každodenní gesta buduje atmosféru vzájemné úcty.",
+"Kdo si každý den připomene, za co je ve vztahu vděčný, vidí ho v lepším světle.",
+"Vděčnost za blízké lidi roste s věkem — nečekej na moudrost stáří, abys ji cítil už teď.",
+"Nejkrásnější vztahy jsou ty, kde vděčnost proudí oběma směry.",
+
+// --- Odloučení, vzdálenost a jejich zvládání ---
+"Vzdálenost testuje vztahy, ale ty nejsilnější ji jen posílí.",
+"Kdo udrží spojení i na dálku, dokazuje, že vztah není o blízkosti, ale o úmyslu.",
+"Odloučení bolí víc, když víš, jak vzácný je čas, co jste spolu měli.",
+"Vztah na dálku vyžaduje víc komunikace, ne méně, aby přežil.",
+"Kdo si najde způsob, jak zůstat blízko i na dálku, buduje vztah, co překoná kilometry.",
+"Vzdálenost neničí lásku — ničí ji jen mlčení a nedostatek úsilí udržet spojení.",
+"Nejsilnější vztahy na dálku jsou ty, kde oba věří, že to stojí za čekání.",
+"Kdo se naučí ocenit i krátký telefonát, když je daleko, si udrží pouto silnější, než by čekal.",
+"Odloučení může prohloubit vztah, pokud oba pracují na tom zůstat spojení.",
+"Vzdálenost je jen fyzická — pouto, co je skutečné, ji dokáže překonat.",
+
+// --- Sebeúcta ve vztahu ---
+"Kdo ztratí sám sebe ve snaze udržet vztah, nakonec nemá co nabídnout ani sobě, ani druhému.",
+"Zdravý vztah tě nedělá menším. Dělá tě větším, když jsi sám sebou.",
+"Sebeúcta ve vztahu znamená vědět, kdy říct dost, i když to bolí.",
+"Kdo si udrží vlastní identitu i ve vztahu, buduje partnerství dvou celých lidí, ne dvou polovin.",
+"Vztah, co vyžaduje, abys přestal být sám sebou, není vztah, co si zasloužíš.",
+"Sebeúcta znamená vědět, že si zasloužíš být milován takový, jaký jsi, ne jaký by ses měl stát.",
+"Kdo respektuje sám sebe, přiměje i ostatní, aby ho respektovali stejně.",
+"Nejzdravější vztahy jsou ty, kde si oba udrží svou identitu i svou spojenost.",
+"Sebeúcta ve vztahu není sobeckost. Je to základ, bez kterého vztah nemůže být zdravý.",
+"Kdo miluje sám sebe dostatečně, nepřijme míň, než si zaslouží od druhých.",
+
+// --- Loajalita a věrnost ---
+"Loajalita se nepozná ve chvílích, kdy je vše snadné. Pozná se, když je těžké zůstat.",
+"Kdo mluví za tvými zády s respektem, dokazuje loajalitu, co má hodnotu.",
+"Věrnost není jen o fyzické přítomnosti. Je to o věrnosti hodnotám, co jste si spolu vybudovali.",
+"Nejsilnější vztahy stojí na loajalitě, co se nezakolísá v obtížných chvílích.",
+"Kdo brání svého partnera nebo přítele, i když to není populární, dokazuje skutečnou loajalitu.",
+"Loajalita se buduje roky důsledného chování, ne jedním velkým gestem.",
+"Věrnost vztahu znamená dát mu prioritu i tehdy, když je to nepohodlné.",
+"Kdo zůstává loajální i v těžkých časech, buduje důvěru, co žádná krize nezlomí.",
+"Loajalita bez upřímnosti je prázdná — skutečná věrnost zahrnuje i odvahu říct nepříjemnou pravdu.",
+"Nejhlubší vztahy jsou postaveny na vzájemné, prokázané loajalitě.",
+
+// --- Sdílené hodnoty a směřování ---
+"Vztah funguje nejlépe, když oba míří stejným směrem, i když jdou jinou rychlostí.",
+"Kdo sdílí základní hodnoty s partnerem, řeší méně zásadních konfliktů.",
+"Sdílená vize budoucnosti drží vztah pohromadě i v obtížných obdobích.",
+"Kdo si najde partnera se stejnými hodnotami, buduje vztah na pevnějším základě.",
+"Rozdílné zájmy ve vztahu obohacují. Rozdílné hodnoty ho často rozdělují.",
+"Sdílené cíle dávají vztahu směr, co ho provede i nejistými časy.",
+"Kdo mluví otevřeně o svých hodnotách na začátku vztahu, ušetří si zklamání později.",
+"Vztah roste, když oba věří ve stejné základní principy, i když se v detailech liší.",
+"Sdílená hodnota rodiny, poctivosti nebo růstu dá vztahu pevný kompas.",
+"Kdo si vybírá partnera podle hodnot, ne jen podle přitažlivosti, buduje vztah na roky.",
+
+// --- Podpora v těžkých chvílích ---
+"Skutečná podpora není v tom vyřešit problém druhého. Je v tom být tam, dokud ho vyřeší sám.",
+"Kdo je nablízku v nejtěžších chvílích, ukazuje víc lásky než tisíc slov v dobrých časech.",
+"Podpora znamená naslouchat bez rady, pokud o ni druhý nepožádá.",
+"Nejsilnější vztahy jsou testovány krizí — a ty nejlepší z ní vyjdou silnější.",
+"Kdo drží ruku v temných chvílích, buduje pouto, co světlé časy nikdy nevytvoří.",
+"Podpora ve vztahu neznamená mít vždy odpověď. Znamená to být tam, i bez ní.",
+"Ten, kdo tě podrží, když padáš, ti dá víc, než kdy pochopíš v tu chvíli.",
+"Kdo nabídne pomoc dřív, než o ni druhý požádá, ukazuje pozornost, co buduje důvěru.",
+"Vzájemná podpora v těžkých časech je test, co ukáže sílu každého vztahu.",
+"Nejcennější dar v krizi není rada, ale přítomnost někoho, kdo neodejde.",
+
+// --- Toxické vztahy a jejich rozpoznání ---
+"Vztah, co tě vyčerpává víc, než dobíjí, si zaslouží přehodnocení.",
+"Kdo tě nutí zmenšovat se, abys mu nekonkuroval, tě nemiluje — kontroluje tě.",
+"Nejtěžší, ale nejzdravější rozhodnutí je odejít ze vztahu, co ti ubližuje.",
+"Toxický vztah se nepozná hned. Pozná se postupně, ve způsobu, jak se cítíš po každém setkání.",
+"Kdo tě neustále kritizuje a nikdy nechválí, ti neukazuje lásku, ale kontrolu.",
+"Zdravý vztah tě posiluje. Toxický vztah tě postupně ničí, aniž bys to hned poznal.",
+"Kdo respektuje tvé hranice jen občas, ve skutečnosti nerespektuje žádné.",
+"Nejsilnější znamení toxického vztahu je pocit, že musíš být pořád ve střehu.",
+"Odejít z toxického vztahu není selhání. Je to akt sebeúcty.",
+"Kdo si zaslouží tvou lásku, ti ji nebude muset vytrhávat manipulací.",
+
+// --- Nové vztahy a seznamování ---
+"Nový vztah nezačíná dokonalostí. Začíná ochotou být zranitelný před cizím člověkem.",
+"Kdo se bojí ukázat, kým skutečně je, na začátku vztahu, buduje ho na nepravdivém základě.",
+"Nejzdravější začátky vztahů jsou ty, kde je od začátku prostor pro upřímnost.",
+"Seznámení nezačíná dojmem. Začíná ochotou poznat druhého takového, jaký skutečně je.",
+"Kdo hledá partnera pro to, kým je, ne pro to, co může nabídnout, buduje vztah na pravdě.",
+"Nový vztah potřebuje čas na to, aby se ukázalo, kdo skutečně jste oba.",
+"Nejlepší začátky vztahů nejsou ty nejromantičtější, ale ty nejupřímnější.",
+"Kdo si dá čas poznat druhého, než mu dá celé srdce, chrání se i buduje pevnější základ.",
+"Chemie přitahuje na začátku, ale charakter drží vztah pohromadě dlouhodobě.",
+"Nejzdravější vztahy začínají přátelstvím, co postupně roste do něčeho hlubšího.",
+
+// --- Žárlivost a nejistota ve vztazích ---
+"Žárlivost není důkaz lásky. Je to důkaz nejistoty, co potřebuje péči.",
+"Kdo věří partnerovi, žije s klidnějším srdcem než ten, kdo neustále pochybuje.",
+"Nejistota ve vztahu se neřeší kontrolou druhého, ale prací na vlastní sebedůvěře.",
+"Žárlivost, co se neřeší, otráví i ten nejzdravější vztah.",
+"Kdo si důvěřuje sám sobě, méně žárlí na partnera, protože neví o co přijít.",
+"Nejzdravější vztahy jsou postaveny na důvěře, ne na kontrole a podezírání.",
+"Žárlivost pramení často z vlastní minulosti, ne z chování současného partnera.",
+"Kdo pracuje na vlastní nejistotě, místo aby vinil partnera, buduje zdravější vztah.",
+"Důvěra je protijed na žárlivost — bez ní žádný vztah dlouhodobě nefunguje.",
+"Nejsilnější láska nepotřebuje kontrolovat. Potřebuje jen věřit.",
+
+// --- Ztráta vztahu a rozchod ---
+"Konec vztahu nebolí proto, že byl špatný. Bolí proto, že byl vzácný.",
+"Kdo se poučí z rozchodu, místo aby ho jen přežil, roste ze zkušenosti.",
+"Ztráta vztahu není vždycky selhání. Někdy je to nutná cesta k něčemu lepšímu.",
+"Truchlení po ztraceném vztahu je stejně reálné jako truchlení po jiné ztrátě.",
+"Kdo si dovolí cítit bolest z rozchodu, se uzdraví úplněji než ten, kdo ji potlačí.",
+"Konec jednoho vztahu často otevírá prostor pro ten, co skutečně patří do tvého života.",
+"Ztráta vztahu tě nedefinuje. Definuje tě to, jak se z ní poučíš a jdeš dál.",
+"Kdo se naučí odpustit i sobě po rozchodu, se uzdraví rychleji.",
+"Bolest z rozchodu je cena za to, že jsi miloval naplno — a to nikdy není chyba.",
+"Čas neléčí všechny rány stejně rychle, ale s péčí a trpělivostí se hojí i ty nejhlubší.",
+
+// --- Sdílený smích a radost ---
+"Smích sdílený s druhým je jeden z nejrychlejších způsobů, jak si vybudovat blízkost.",
+"Kdo se umí smát sám sobě před druhým, buduje bezpečí, co slova nikdy nedají.",
+"Nejkrásnější vztahy jsou ty, kde se dá smát i uprostřed obyčejného dne.",
+"Radost sdílená s druhým se zdvojnásobí. Bolest sdílená se zmenší.",
+"Kdo najde humor i v těžkých chvílích s partnerem, buduje odolnost, co vztah potřebuje.",
+"Společný smích je lepidlo, co drží vztahy pohromadě i v těžkých obdobích.",
+"Nejsilnější pouto mezi lidmi často vzniká přes sdílený vtip, co nikdo jiný nepochopí.",
+"Kdo se dokáže smát s partnerem i sám sobě, buduje lehkost, co vztah potřebuje.",
+"Radost, co sdílíš s blízkými, má větší hodnotu než radost prožitá sám.",
+"Smích je jazyk, kterému rozumí každý vztah, i ten nejsložitější.",
+
+// --- Kolegové a pracovní vztahy ---
+"Dobré pracovní vztahy nejsou o přátelství. Jsou o vzájemném respektu a spolehlivosti.",
+"Kdo se chová ke kolegům s respektem, buduje reputaci, co ho předchází.",
+"Nejsilnější týmy nejsou ty bez konfliktů. Jsou to ty, co konflikty řeší profesionálně.",
+"Pracovní vztahy fungují nejlépe, když jsou postavené na jasné komunikaci, ne na domněnkách.",
+"Kdo pomáhá kolegům bez očekávání odměny, buduje síť podpory, co se vyplatí v budoucnu.",
+"Respekt na pracovišti se buduje činy, ne tituly.",
+"Nejlepší pracovní vztahy jsou ty, kde si obě strany věří a spolupracují jako tým.",
+"Kdo umí oddělit pracovní neshody od osobního respektu, udrží si zdravé vztahy s kolegy.",
+"Profesionální vztahy potřebují stejnou péči a upřímnost jako osobní.",
+"Dobrý vztah s kolegy dělá práci snesitelnější i v náročných obdobích.",
+
+// --- Vzájemný růst ve vztahu ---
+"Nejsilnější vztahy jsou ty, kde oba partneři rostou spolu, ne od sebe.",
+"Kdo podporuje růst druhého, i když ho to může vzdálit, miluje ho skutečně.",
+"Vztah, co brzdí tvůj růst, není vztah, co si zasloužíš.",
+"Nejzdravější láska chce, abys byl lepší, ne menší.",
+"Kdo roste spolu s partnerem, buduje vztah, co se s časem prohlubuje, ne stagnuje.",
+"Podpora snů druhého je jeden z nejsilnějších projevů lásky.",
+"Vzájemný růst znamená slavit úspěchy druhého jako své vlastní.",
+"Kdo se bojí, že partner předčí jeho úspěchy, nemiluje ho plně.",
+"Nejsilnější páry jsou ty, kde jeden povzbuzuje druhého jít za jeho sny.",
+"Růst spolu neznamená být stejní. Znamená to podporovat se v tom, kým se každý stává.",
+
+// --- Oceňování a chvála ---
+"Slova uznání, řečená nahlas, budují vztah víc, než by sis myslel.",
+"Kdo si všimne a ocení úsilí druhého, buduje atmosféru vzájemné vděčnosti.",
+"Nejjednodušší způsob, jak posílit vztah, je říct nahlas, co na druhém oceňuješ.",
+"Chvála není lichotka. Je to uznání skutečné hodnoty toho, co druhý dělá.",
+"Kdo šetří chválou, nechává druhého pochybovat, jestli si ho vůbec všímá.",
+"Malé slovo uznání dokáže změnit náladu celého dne.",
+"Nejsilnější vztahy jsou plné vzájemného uznání, ne mlčení, co se bere jako samozřejmost.",
+"Kdo oceňuje partnera nahlas, buduje jistotu, co vztah potřebuje.",
+"Ocenění, co přijde neočekávaně, má často větší váhu než to, co se čeká.",
+"Vztah, kde se oba navzájem chválí, roste s větší lehkostí než ten, kde chvála chybí.",
+
+// --- Sousedské a komunitní vztahy ---
+"Dobré sousedské vztahy dělají domov bezpečnějším místem pro všechny.",
+"Kdo se zajímá o své okolí, buduje komunitu, co se postará i o něj, když bude potřeba.",
+"Malá laskavost k sousedovi buduje důvěru, co se hodí, když přijde krize.",
+"Komunita, co si navzájem pomáhá, je silnější než jednotlivci, co žijí izolovaně.",
+"Kdo pozdraví souseda s úsměvem, buduje atmosféru vzájemné vstřícnosti v celém okolí.",
+"Sousedské vztahy jsou často podceňovaná síť podpory, co funguje, když ji nejvíc potřebuješ.",
+"Komunita se buduje malými gesty — pomocnou rukou, zájmem, ochotou naslouchat.",
+"Kdo investuje do vztahů se svým okolím, žije s větším pocitem sounáležitosti.",
+"Dobré vztahy s lidmi kolem tebe dělají každodenní život snazším a příjemnějším.",
+"Sousedství, kde si lidé navzájem pomáhají, je vzácný a cenný dar.",
+
+// --- Autenticita a být sám sebou ve vztahu ---
+"Nejzdravější vztahy jsou ty, kde nemusíš předstírat, že jsi někdo jiný.",
+"Kdo se skrývá za maskou, aby byl milován, se nikdy nedozví, jestli by ho milovali za to, kým skutečně je.",
+"Autenticita ve vztahu buduje spojení, co žádné předstírání nedokáže napodobit.",
+"Nejsilnější pouto vzniká, když se oba ukážou takoví, jací skutečně jsou.",
+"Kdo je sám sebou od začátku, přitahuje lidi, co skutečně patří do jeho života.",
+"Vztah založený na předstírání se dřív nebo později zhroutí pod vahou vlastní nepravdy.",
+"Autentičnost znamená riskovat odmítnutí za cenu skutečného spojení.",
+"Kdo si dovolí být zranitelně upřímný, najde vztahy, co jsou skutečné, ne jen povrchní.",
+"Nejhlubší vztahy jsou ty, kde tě druhý zná a přesto zůstává.",
+"Být sám sebou je nejrychlejší způsob, jak najít lidi, co tě skutečně ocení.",
+
+// --- Sdílené vzpomínky a historie ---
+"Sdílené vzpomínky jsou tkanivo, co drží dlouhodobé vztahy pohromadě.",
+"Kdo si spolu s partnerem buduje společnou historii, buduje i pouto, co roky posilují.",
+"Nejcennější poklad dlouhého vztahu nejsou věci, ale vzpomínky, co jste spolu vytvořili.",
+"Společná historie dá vztahu hloubku, co žádný nový vztah nemá hned od začátku.",
+"Kdo si připomíná společné vzpomínky, oživuje pouto, co čas může oslabit.",
+"Vzpomínky na společně překonané těžkosti budují pouto silnější než vzpomínky na snadné časy.",
+"Nejsilnější vztahy mají bohatou historii sdílených okamžiků, radostí i výzev.",
+"Kdo si váží společné minulosti, staví na pevném základu pro společnou budoucnost.",
+"Sdílený smích, sdílené slzy, sdílené úspěchy — to je látka, ze které se tká trvalý vztah.",
+"Historie vztahu není jen minulost. Je to základ, na kterém stojí přítomnost.",
+
+// --- Obnova a údržba vztahu ---
+"Vztah nepotřebuje záchranu jen v krizi. Potřebuje průběžnou péči, aby do krize vůbec nedošel.",
+"Kdo pečuje o vztah pravidelně, nemusí ho zoufale zachraňovat, když přijde bouřka.",
+"Údržba vztahu znamená malé pravidelné investice, ne velké gesto jednou za rok.",
+"Nejsilnější vztahy se nebudují náhodou. Budují se vědomou, pravidelnou péčí.",
+"Kdo si najde čas na vztah i v nabitém životě, ukazuje, na čem mu skutečně záleží.",
+"Vztah, co dostane pozornost jen v krizi, chřadne v obyčejných dnech mezi tím.",
+"Pravidelné rande, rozhovory a společný čas jsou údržba, co vztah potřebuje k přežití.",
+"Kdo zanedbá malé věci ve vztahu, se jednou diví, proč se rozpadly ty velké.",
+"Obnova vztahu začíná rozhodnutím věnovat mu znovu pozornost, co si zaslouží.",
+"Nejzdravější vztahy jsou ty, co dostávají péči i tehdy, když je vše zdánlivě v pořádku.",
+
+// --- Malá gesta lásky ---
+"Malé gesto lásky, opakované denně, buduje vztah silněji než velké gesto jednou za rok.",
+"Kdo si všímá malých potřeb druhého, ukazuje lásku, co slova nikdy plně nevyjádří.",
+"Šálek kávy připravený beze slov je někdy silnější vyznání lásky než celá básnická sbírka.",
+"Nejsilnější vztahy jsou plné malých, obyčejných gest, co si nikdo jiný nevšimne.",
+"Kdo si pamatuje maličkosti, co má druhý rád, ukazuje pozornost, co buduje hlubokou blízkost.",
+"Láska se neprojevuje jen ve velkých okamžicích. Žije v drobnostech každého dne.",
+"Malé překvapení bez důvodu říká víc než darček k výročí.",
+"Kdo se stará o pohodlí druhého v maličkostech, buduje vztah plný tiché péče.",
+"Nejkrásnější vztahy jsou tkané z tisíce malých gest lásky, ne z jednoho velkého prohlášení.",
+"Objetí, co přijde bez důvodu, je někdy přesně to, co vztah potřebuje.",
+
+// --- Ticho a klid ve vztahu ---
+"Nejsilnější vztahy umí být spolu v tichu, aniž by to bylo trapné.",
+"Kdo se cítí dobře i mlčet vedle druhého, našel vzácnou formu blízkosti.",
+"Ticho ve vztahu není vždycky problém. Někdy je to nejhlubší forma pohodlí.",
+"Kdo nepotřebuje pořád mluvit, aby se cítil spojený s druhým, má vzácný vztah.",
+"Klidné soužití beze slov je často důkaz hlubší důvěry než jakýkoliv rozhovor.",
+"Nejzdravější vztahy mají prostor pro ticho, co není trapné, jen pohodlné.",
+"Kdo umí sdílet ticho s druhým, sdílí i vzácnou formu intimity.",
+"Klid ve vztahu neznamená nudu. Znamená to bezpečí být spolu beze slov.",
+"Vztah, kde je ticho pohodlné, je vztah, kde je důvěra hluboká.",
+"Nejkrásnější chvíle ve vztahu nejsou vždy plné slov — někdy stačí jen být vedle sebe.",
+
+// --- Definitivně poslední dávka ---
+"Vztahy jsou zrcadlo, co ti ukáže, kým skutečně jsi, i to, kým se ještě potřebuješ stát.",
+"Kdo investuje do vztahů čas a pozornost, sklidí bohatství, co peníze nekoupí.",
+"Nejcennější věc, co můžeš druhému dát, není věc — je to tvá plná přítomnost.",
+"Vztahy, co si zaslouží tvůj čas, ti to vrátí radostí, podporou a smyslem.",
+"Kdo si buduje síť podpůrných vztahů, nikdy není opravdu sám, i když je sám v místnosti.",
+"Nejsilnější pouto mezi lidmi vzniká z opakované volby zůstat, i když by bylo snazší odejít.",
+"Kdo se naučí milovat bez podmínek, miluje nejhlouběji a nejsvobodněji.",
+"Vztahy nejsou o dokonalosti. Jsou o ochotě růst spolu i přes nedokonalost.",
+"Kdo si váží lidí kolem sebe, dokud je má, žije s méně lítosti, až jednou budou chybět.",
+"Nejkrásnější dar, co můžeš druhému dát, je pocit, že na něm skutečně záleží.",
+"Vztahy budují smysl života víc než jakýkoliv úspěch nebo majetek.",
+"Kdo pečuje o vztahy stejně jako o kariéru, žije s hlubší rovnováhou a štěstím.",
+"Nejsilnější lidé nejsou ti bez vztahů. Jsou to ti, co si vybudovali síť lidí, na které se mohou spolehnout.",
+"Vztah, co roste s láskou, trpělivostí a respektem, přežije i nejtěžší bouře.",
+"Kdo dá vztahu svůj čas, pozornost a upřímnost, dostane zpátky víc, než dal.",
+"Nejhlubší spojení mezi lidmi vzniká tam, kde je bezpečné být zranitelný a přesto milovaný.",
+"Vztahy jsou nejtrvalejší dědictví, co po sobě zanecháme — víc než jakýkoliv majetek.",
+"Kdo si udrží otevřené srdce i po zklamání, si udrží schopnost milovat naplno znovu.",
+"Nejsilnější vztahy nejsou postavené na dokonalosti, ale na ochotě vracet se k sobě znovu a znovu.",
+"Na konci života si nebudeš pamatovat věci, které jsi vlastnil. Budeš si pamatovat lidi, které jsi miloval.",
+"Kdo se stará o vztahy s láskou a trpělivostí, buduje bohatství, co žádná krize nevezme.",
+"Vztahy jsou zahrada — potřebují pravidelnou péči, aby mohly kvést.",
+"Kdo respektuje čas druhého, ukazuje respekt, co slova nikdy plně nevyjádří.",
+"Nejkrásnější vztahy jsou ty, co ti dovolí být sám sebou a přesto tě milují.",
+"Kdo miluje druhého bez očekávání změny, miluje ho takového, jaký skutečně je.",
+"Vztahy se neměří délkou, ale hloubkou spojení, co mezi lidmi vznikne.",
+"Nejsilnější lidé v tvém životě jsou ti, co zůstali, i když bylo snazší odejít.",
+"Kdo si buduje vztahy na důvěře a respektu, buduje základ pro celoživotní štěstí.",
+"Vzájemná péče, ne dokonalost, je to, co dělá vztah trvalým.",
+"Nejcennější investice, jakou můžeš udělat, je investice do lidí, na kterých ti záleží.",
+"Kdo si udrží vděčnost za vztahy, co má, žije s hlubším pocitem naplnění.",
+"Vztahy tě naučí víc o sobě samém než jakákoliv kniha nebo kurz.",
+"Kdo miluje s otevřeným srdcem, riskuje bolest, ale získává i nejhlubší radost, jakou život nabízí.",
+"Nejsilnější spojení mezi lidmi přežije čas, vzdálenost i změnu, pokud je založené na skutečné lásce.",
+"Vztahy jsou zrcadlo naší duše — ukazují nám, kde jsme silní a kde potřebujeme růst.",
+"Kdo dá vztahu prostor růst přirozeně, bez tlaku, buduje pouto, co vydrží.",
+"Nejhlubší lidská potřeba je být viděn, slyšen a milován takový, jaký jsi.",
+"Vztahy, co si vybudujeme s láskou a trpělivostí, jsou nejtrvalejším bohatstvím života.",
+"Kdo se stará o druhé s upřímným srdcem, dostane zpátky lásku, co žádné peníze nekoupí.",
+"Na konci dne, na konci roku, na konci života — vztahy jsou to, co dává všemu smysl.",
+"Kdo miluje, riskuje, ale kdo nikdy nemiluje, ztrácí víc, než by kdy ztratil srdcem otevřeným.",
+"Nejkrásnější příběh, jaký kdy napíšeš, bude o lidech, které jsi miloval a kteří milovali tebe.",
+"Vztahy nejsou vedlejší produkt dobrého života. Jsou jeho samotnou podstatou.",
+"Kdo si dnes najde čas na někoho, koho miluje, investuje do toho, co má v životě skutečnou hodnotu.",
+"Nejdůležitější otázka na konci života nezní, co jsi měl, ale koho jsi miloval a kdo miloval tebe.",
   ]},
 };
 function dailyQuote(personalityKey){
-  const p = PERSONALITIES[personalityKey] || PERSONALITIES.mindfulness;
+  const p = PERSONALITIES[personalityKey] || PERSONALITIES.zdravi;
   return p.quotes[TODAY_DOY % p.quotes.length];
 }
 
@@ -1273,7 +3319,7 @@ function seedMeals(){
 }
 function defaultState(){
   return {
-    personality: "mindfulness",
+    personality: "zdravi",
     workspaces: defaultWorkspaces(),
     activeWorkspaceId: "personal",
     tasks: seedTasks(),
@@ -1349,7 +3395,7 @@ function loadState(){
     // Backfill fields that may not exist in data saved by an older version of the app,
     // so upgrading never crashes and never silently drops the user's existing tasks.
     const safe = {
-      personality: parsed.personality || "mindfulness",
+      personality: (parsed.personality && PERSONALITIES[parsed.personality]) ? parsed.personality : "zdravi",
       workspaces: parsed.workspaces.map(w => ({
         id: w.id, name: w.name || "Kalendář", emoji: w.emoji || "🏡",
         accent: w.accent || ACCENTS[0], theme: w.theme || "light", customBg: w.customBg || null,
@@ -5060,12 +7106,30 @@ function syncSharedCompletionIfNeeded(item, doneField){
 
 // ---------- Generic sharing for meals & workouts (same reliable engine as
 // tasks — same retry-hardened network calls, same shareId/status tracking).
+// Centrální registr, díky kterému funguje sdílení stejně pro všechny typy —
+// stačí přidat sem jeden řádek pro nový typ, zbytek systému (odkaz, stav
+// přijetí, dokončení) funguje automaticky.
+const SHAREABLE_STORES = {
+  meal: { get: () => state.meals, set: (a) => state.meals = a, icon:"🍽️", label:"jídlo" },
+  workout: { get: () => state.workouts, set: (a) => state.workouts = a, icon:"🏋️", label:"trénink" },
+  recipe: { get: () => state.recipes, set: (a) => state.recipes = a, icon:"🍳", label:"recept" },
+  medication: { get: () => state.medications, set: (a) => state.medications = a, icon:"💊", label:"doplněk" },
+  document: { get: () => state.documents, set: (a) => state.documents = a, icon:"📁", label:"dokument" },
+  note: { get: () => state.tasks, set: (a) => state.tasks = a, icon:"📝", label:"poznámku" },
+};
+function findShareableItem(itemType, id){
+  const store = SHAREABLE_STORES[itemType]; if(!store) return null;
+  return store.get().find(x => x.id === id) || null;
+}
+function patchShareableItem(itemType, id, patch){
+  const store = SHAREABLE_STORES[itemType]; if(!store) return;
+  store.set(store.get().map(x => x.id===id ? {...x, ...patch} : x));
+}
 async function ensureItemShareId(item, itemType){
   if(item.shareId) return item.shareId;
-  const id = await createShareStatusRecord({ itemTitle: item.title, itemType, status:"sent" });
+  const id = await createShareStatusRecord({ itemTitle: item.title || item.name, itemType, status:"sent" });
   if(id){
-    if(itemType === "meal") state.meals = state.meals.map(m => m.id===item.id ? {...m, shareId:id, sharedStatus:"sent"} : m);
-    else if(itemType === "workout") state.workouts = state.workouts.map(w => w.id===item.id ? {...w, shareId:id, sharedStatus:"sent"} : w);
+    patchShareableItem(itemType, item.id, { shareId:id, sharedStatus:"sent" });
     saveState();
   }
   return id;
@@ -5087,6 +7151,28 @@ function encodeItemShare(item, itemType){
       checklist: (item.checklist||[]).map(c => ({text:c.text, minutes:c.minutes})),
       shareId: item.shareId || null,
     };
+  } else if(itemType === "recipe"){
+    payload = {
+      v:1, itemType:"recipe", title:item.title, emoji:item.emoji||"🍽️", servings:item.servings||"", notes:item.notes||"",
+      sections: (item.sections||[]).map(s => ({ name:s.name, isIngredients:!!s.isIngredients, items:(s.items||[]).map(i=>({text:i.text||i})) })),
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "medication"){
+    payload = {
+      v:1, itemType:"medication", name:item.name, dosage:item.dosage||"", category:item.category||"", notes:item.notes||"", date:item.date,
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "document"){
+    payload = {
+      v:1, itemType:"document", title:item.title, content:item.content||"",
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "note"){
+    payload = {
+      v:1, itemType:"note", title:item.title, content:item.content||"",
+      checklist: (item.checklist||[]).map(c => c.text),
+      shareId: item.shareId || null,
+    };
   }
   return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
 }
@@ -5097,8 +7183,9 @@ function buildItemShareURL(item, itemType){
 }
 function itemShareMessageText(item, itemType, friend){
   const greet = friend ? `Ahoj ${friend.name}! ` : "";
-  const emoji = itemType==="meal" ? "🍽️" : "🏋️";
-  return `${greet}${emoji} ${item.title}\n📅 ${item.date}\n\nPosílám ti ${itemType==="meal"?"jídlo":"trénink"} z Vibe Calendar — klikni na odkaz, uvidíš ho i bez instalace appky, a jedním klikem si ho můžeš přidat:`;
+  const meta = SHAREABLE_STORES[itemType] || {icon:"📤", label:"položku"};
+  const dateLine = item.date ? `\n📅 ${item.date}` : "";
+  return `${greet}${meta.icon} ${item.title||item.name}${dateLine}\n\nPosílám ti ${meta.label} z Vibe Calendar — klikni na odkaz, uvidíš ho i bez instalace appky, a jedním klikem si ho můžeš přidat:`;
 }
 async function shareItemToContact(item, itemType, contactId){
   if(!item){ showToast("Položka nebyla nalezena."); return; }
@@ -5106,7 +7193,7 @@ async function shareItemToContact(item, itemType, contactId){
   const realId = contactId.slice(2);
   const friend = isFriend ? friendById(realId) : null;
   await ensureItemShareId(item, itemType);
-  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===item.id) || item;
+  const fresh = findShareableItem(itemType, item.id) || item;
   const url = buildItemShareURL(fresh, itemType);
   const text = itemShareMessageText(fresh, itemType, friend);
   if(friend && friend.phone){
@@ -5121,24 +7208,24 @@ async function shareItemToContact(item, itemType, contactId){
 async function shareItemGeneric(item, itemType, text, url){
   if(!item){ showToast("Položka nebyla nalezena."); return; }
   await ensureItemShareId(item, itemType);
-  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===item.id) || item;
+  const fresh = findShareableItem(itemType, item.id) || item;
   text = text || itemShareMessageText(fresh, itemType, null);
   url = url || buildItemShareURL(fresh, itemType);
   if(navigator.share){
-    try{ await navigator.share({ title: fresh.title, text, url }); return; }
+    try{ await navigator.share({ title: fresh.title || fresh.name, text, url }); return; }
     catch(e){ /* cancelled — fall through */ }
   }
   window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
 }
 async function shareItemVia(itemId, itemType, channel){
-  const item = (itemType==="meal" ? state.meals : state.workouts).find(x => x.id === itemId);
+  const item = findShareableItem(itemType, itemId);
   if(!item){ showToast("Položka nebyla nalezena."); return; }
   await ensureItemShareId(item, itemType);
-  const fresh = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===itemId) || item;
+  const fresh = findShareableItem(itemType, itemId) || item;
   const url = buildItemShareURL(fresh, itemType);
   const text = itemShareMessageText(fresh, itemType, null);
   if(channel === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
-  else if(channel === "email") window.open(`mailto:?subject=${encodeURIComponent("Z Vibe Calendar: "+fresh.title)}&body=${encodeURIComponent(text+"\n\n"+url)}`, "_blank");
+  else if(channel === "email") window.open(`mailto:?subject=${encodeURIComponent("Z Vibe Calendar: "+(fresh.title||fresh.name))}&body=${encodeURIComponent(text+"\n\n"+url)}`, "_blank");
   else if(channel === "sms") window.open(`sms:?body=${encodeURIComponent(text+"\n"+url)}`, "_blank");
   else if(channel === "copy"){
     try{ await navigator.clipboard.writeText(text+"\n"+url); showToast("Odkaz zkopírován ✓"); }
@@ -5147,18 +7234,18 @@ async function shareItemVia(itemId, itemType, channel){
   if(currentModal) renderModals();
 }
 function shareItemModalHTML(itemId, itemType){
-  const item = (itemType==="meal" ? state.meals : state.workouts).find(x => x.id === itemId);
+  const item = findShareableItem(itemType, itemId);
   if(!item) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
   const contacts = allShareableContacts();
-  const label = itemType==="meal" ? "jídlo" : "trénink";
+  const label = (SHAREABLE_STORES[itemType]||{}).label || "položku";
   return `
     <div class="modal-overlay" data-action="close-modal-bg">
       <div class="modal-panel" style="max-width:380px">
         <div class="row between" style="margin-bottom:10px">
-          <h3 style="margin:0;font-size:18px;color:#334155">${itemType==="meal"?"🍽️":"🏋️"} Sdílet ${label}</h3>
+          <h3 style="margin:0;font-size:18px;color:#334155">${(SHAREABLE_STORES[itemType]||{}).icon||"📤"} Sdílet ${label}</h3>
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
-        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(item.title)}</p>
+        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(item.title||item.name||"")}</p>
         ${item.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:8px 10px;margin-bottom:12px" class="text-xs" style="color:#059669">${shareStatusLabel(item.sharedStatus, item.sharedAccepterName)}</div>` : ""}
 
         <p class="text-xs font-semi muted" style="margin:0 0 6px">Poslat konkrétní osobě</p>
@@ -5312,6 +7399,10 @@ async function importSharedTask(){
   const itemType = p.itemType || "task";
   if(itemType === "meal"){ await importSharedMeal(); return; }
   if(itemType === "workout"){ await importSharedWorkout(); return; }
+  if(itemType === "recipe"){ await importSharedRecipe(); return; }
+  if(itemType === "medication"){ await importSharedMedication(); return; }
+  if(itemType === "document"){ await importSharedDocument(); return; }
+  if(itemType === "note"){ await importSharedNote(); return; }
   const ws = getWorkspace();
   const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený úkol";
   const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
@@ -5458,6 +7549,96 @@ async function importSharedWorkout(){
     const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
     if(ok) showToast("Odesílatel uvidí, že jsi trénink přijal/a ✓");
     else showToast("⚠️ Trénink máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedRecipe(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený recept";
+  const newRecipe = {
+    id: "rc"+uid(), title: safeTitle, emoji: p.emoji||"🍽️", servings: p.servings||"", notes: typeof p.notes==="string"?p.notes.slice(0,2000):"",
+    coverImage:null, gallery:[], categoryId:null,
+    sections: (Array.isArray(p.sections)?p.sections:[]).slice(0,20).map(s => ({
+      id:"s"+uid(), name:String(s.name||"Sekce").slice(0,60), isIngredients:!!s.isIngredients,
+      items:(Array.isArray(s.items)?s.items:[]).slice(0,100).map(i=>({id:uid(), text:String(i.text||i||"").slice(0,200)})),
+    })),
+  };
+  state.recipes = [...state.recipes, newRecipe];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "recipes"; openRecipeId = newRecipe.id;
+  saveState(); renderAll();
+  showToast("Recept přidán do tvé sbírky ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi recept přijal/a ✓");
+    else showToast("⚠️ Recept máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedMedication(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeName = (typeof p.name === "string" && p.name.trim()) ? p.name.trim().slice(0,200) : "Sdílený doplněk";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newMed = {
+    id: uid(), type:"medication", name: safeName, dosage: typeof p.dosage==="string"?p.dosage.slice(0,100):"",
+    category: typeof p.category==="string"?p.category.slice(0,60):"", notes: typeof p.notes==="string"?p.notes.slice(0,1000):"",
+    date: safeDate, time:"08:00", taken:false, reminder:null, reminderBaseTime:null, deletedAt:null,
+  };
+  state.medications = [...state.medications, newMed];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "medications";
+  saveState(); renderAll();
+  showToast("Doplněk přidán do tvého seznamu ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi doplněk přijal/a ✓");
+    else showToast("⚠️ Doplněk máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedDocument(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený dokument";
+  const newDoc = {
+    id: uid(), type:"document", title: safeTitle, content: typeof p.content==="string"?p.content.slice(0,10000):"", date: todayISO,
+    checklist:[], images:[], files:[], drawing:null, drawings:[], audioId:null, audioIds:[], deletedAt:null,
+  };
+  state.documents = [...state.documents, newDoc];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "documents"; openDocumentId = newDoc.id;
+  saveState(); renderAll();
+  showToast("Dokument přidán ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi dokument přijal/a ✓");
+    else showToast("⚠️ Dokument máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedNote(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const ws = getWorkspace();
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílená poznámka";
+  const newNote = {
+    id: uid(), workspaceId: state.activeWorkspaceId, listId: ws.lists[0]?.id, categoryId: ws.categories[0]?.id,
+    title: safeTitle, content: typeof p.content==="string"?p.content.slice(0,2000):"", date: todayISO, priority:5,
+    type:"note", done:false, image:null, drawing:null, audioId:null,
+    checklist: (Array.isArray(p.checklist)?p.checklist:[]).slice(0,100).map(text=>({id:uid(), text:String(text).slice(0,200), done:false})),
+    friendIds:[], reminder:null, deletedAt:null,
+  };
+  state.tasks = [...state.tasks, newNote];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "notes"; openNoteId = newNote.id;
+  saveState(); renderAll();
+  showToast("Poznámka přidána ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi poznámku přijal/a ✓");
+    else showToast("⚠️ Poznámka máš uložená, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
   }
 }
 function downloadSharedICS(){
@@ -6198,7 +8379,10 @@ function renderRecipeDetail(){
       <div class="card-pad" style="${r.coverImage?'padding-top:14px':'padding-top:0'}">
         <div class="row between" style="margin-bottom:8px">
           <p class="text-xs font-semi muted" style="margin:0">🍳 Recept</p>
-          <button class="icon-btn-sm" data-action="close-recipe-detail" title="Zavřít">✕</button>
+          <div class="row gap-1">
+            <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${r.id}" data-sub="recipe" title="Sdílet recept">↗️</button>
+            <button class="icon-btn-sm" data-action="close-recipe-detail" title="Zavřít">✕</button>
+          </div>
         </div>
         <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
           <span style="font-size:30px">${r.emoji}</span>
@@ -7519,7 +9703,10 @@ function renderNoteDetail(){
     <div class="card card-pad" style="margin-bottom:14px">
       <div class="row between" style="margin-bottom:10px">
         <p class="text-xs font-semi muted" style="margin:0">📝 Poznámka</p>
-        <button class="icon-btn-sm" data-action="close-note-detail" title="Zavřít">✕</button>
+        <div class="row gap-1">
+          <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${n.id}" data-sub="note" title="Sdílet poznámku">↗️</button>
+          <button class="icon-btn-sm" data-action="close-note-detail" title="Zavřít">✕</button>
+        </div>
       </div>
       <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
         <span style="font-size:24px">📝</span>
@@ -7804,7 +9991,10 @@ function renderDocumentDetail(){
     <div class="card card-pad" style="margin-bottom:14px">
       <div class="row between" style="margin-bottom:10px">
         <p class="text-xs font-semi muted" style="margin:0">📁 Dokument</p>
-        <button class="icon-btn-sm" data-action="close-document-detail" title="Zavřít">✕</button>
+        <div class="row gap-1">
+          <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${d.id}" data-sub="document" title="Sdílet dokument">↗️</button>
+          <button class="icon-btn-sm" data-action="close-document-detail" title="Zavřít">✕</button>
+        </div>
       </div>
       <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
         <span style="font-size:24px">📁</span>
@@ -8068,6 +10258,7 @@ function medicationCardHTML(m){
         ${rSum ? `<p class="text-xs" style="margin:2px 0 0;color:#f59e0b;font-weight:600">${rSum}</p>` : ""}
         ${m.recurrenceGroupId ? `<button data-action="delete-medication-series" data-id="${m.recurrenceGroupId}" class="text-xs" style="color:#fb7185;font-weight:600;margin-top:4px">🔁 Smazat celou sérii opakování</button>` : ""}
       </div>
+      <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${m.id}" data-sub="medication" title="Sdílet doplněk">↗️</button>
       <button class="icon-btn-sm shrink0" data-action="edit-medication" data-id="${m.id}">✏️</button>
       <button class="icon-btn-sm shrink0" data-action="delete-medication" data-id="${m.id}">🗑️</button>
     </div>`;
@@ -8244,8 +10435,8 @@ function stopActivityStopwatch(){
   const minutes = Math.max(1, Math.round(totalMs/60000));
   const w = {
     id: uid(), type:"workout", title: s.activityLabel, notes:"", exercises:[],
-    checklist: [{id:uid(), text:s.activityLabel, done:true, minutes}],
-    drawings:[], audioIds:[], date: todayISO, done:true,
+    checklist: [{id:uid(), text:s.activityLabel, done:false, minutes}],
+    drawings:[], audioIds:[], date: todayISO, done:false,
     estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
     recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
     shareId:null, sharedStatus:null, sharedAccepterName:null,
@@ -8253,7 +10444,7 @@ function stopActivityStopwatch(){
   state.workouts = [...state.workouts, w];
   state.activityStopwatch = null;
   saveState();
-  showToast(`${s.activityLabel} uloženo (${formatElapsed(totalMs)}) ✓ — počítám kalorie…`);
+  showToast(`${s.activityLabel} uloženo (${formatElapsed(totalMs)}) ✓ — nezapomeň označit jako hotové · počítám kalorie…`);
   renderActivityStopwatchWidget();
   renderWorkoutsView();
   estimateWorkoutCaloriesAI(w.id);
@@ -8270,8 +10461,8 @@ function logQuickActivityManual(label, hours, minutes){
   const totalMinutes = Math.max(1, (Number(hours)||0)*60 + (Number(minutes)||0));
   const w = {
     id: uid(), type:"workout", title: label.trim(), notes:"", exercises:[],
-    checklist: [{id:uid(), text:label.trim(), done:true, minutes: totalMinutes}],
-    drawings:[], audioIds:[], date: state.selectedDate || todayISO, done:true,
+    checklist: [{id:uid(), text:label.trim(), done:false, minutes: totalMinutes}],
+    drawings:[], audioIds:[], date: state.selectedDate || todayISO, done:false,
     estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
     recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
     shareId:null, sharedStatus:null, sharedAccepterName:null,
@@ -9603,8 +11794,9 @@ function renderSharedOverlay(){
   const p = sharedTaskPayload;
   if(!p){ el.innerHTML = ""; return; }
   const itemType = p.itemType || "task"; // old links (before this update) had no itemType — always a task
-  const label = itemType==="meal" ? "jídlo" : itemType==="workout" ? "trénink" : "úkol";
-  const emoji = itemType==="meal" ? "🍽️" : itemType==="workout" ? "🏋️" : escapeHTML(p.emoji||"📌");
+  const shareMeta = SHAREABLE_STORES[itemType];
+  const label = shareMeta ? shareMeta.label : "úkol";
+  const emoji = shareMeta ? shareMeta.icon : escapeHTML(p.emoji||"📌");
   const meta = itemType==="task" ? priorityMeta(Math.min(10, Math.max(1, Number(p.priority) || 5))) : null;
   el.innerHTML = `
     <div class="shared-overlay">
@@ -9615,8 +11807,8 @@ function renderSharedOverlay(){
           <div class="row gap-3" style="margin-bottom:8px">
             <span style="font-size:26px">${emoji}</span>
             <div class="grow">
-              <p class="text-base font-semi text-main" style="margin:0">${escapeHTML(p.title||"")}</p>
-              <p class="text-xs muted" style="margin:2px 0 0">${itemType==="task" ? `${escapeHTML(p.catLabel||"")} · ` : ""}${escapeHTML(p.date||"")}${meta ? ` · ${escapeHTML(meta.tag)}` : ""}</p>
+              <p class="text-base font-semi text-main" style="margin:0">${escapeHTML(p.title||p.name||"")}</p>
+              <p class="text-xs muted" style="margin:2px 0 0">${itemType==="task" ? `${escapeHTML(p.catLabel||"")} · ` : ""}${escapeHTML(p.date||"")}${meta ? ` · ${escapeHTML(meta.tag)}` : ""}${itemType==="medication" && p.dosage ? ` · ${escapeHTML(p.dosage)}` : ""}</p>
             </div>
           </div>
           ${p.content ? `<p class="text-sm" style="color:#475569;margin:8px 0 0">${escapeHTML(p.content)}</p>` : ""}
@@ -9631,6 +11823,12 @@ function renderSharedOverlay(){
           ${itemType==="workout" ? `
             ${Array.isArray(p.exercises)&&p.exercises.length ? `<div class="col gap-1" style="margin-top:8px">${p.exercises.map(e => `<div class="text-xs" style="color:#64748b">• ${escapeHTML(e.name)} — ${e.sets}×${e.reps}${e.weight?`, ${escapeHTML(e.weight)}`:''}</div>`).join("")}</div>` : ""}
             ${Array.isArray(p.checklist)&&p.checklist.length ? `<div class="col gap-1" style="margin-top:8px">${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(c.text)} (${c.minutes} min)</div>`).join("")}</div>` : ""}
+          ` : ""}
+          ${itemType==="recipe" && Array.isArray(p.sections)&&p.sections.length ? `
+            ${p.sections.map(s => `<p class="text-xs font-semi" style="margin:8px 0 2px;color:#475569">${escapeHTML(s.name)}</p><div class="col gap-1">${(s.items||[]).map(i=>`<div class="text-xs" style="color:#64748b">• ${escapeHTML(i.text)}</div>`).join("")}</div>`).join("")}
+          ` : ""}
+          ${itemType==="note" && Array.isArray(p.checklist)&&p.checklist.length ? `
+            <div class="col gap-1" style="margin-top:8px">${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(String(c))}</div>`).join("")}</div>
           ` : ""}
         </div>
         <div class="col gap-2">
