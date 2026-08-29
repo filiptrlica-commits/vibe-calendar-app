@@ -4823,6 +4823,33 @@ async function sendPushTo(subscription, title, message, url){
     });
   }catch(e){ /* tichý neúspěch — appka to zkusí zase příště při další změně */ }
 }
+// Testovací tlačítko v Nastavení — na rozdíl od sendPushTo NESKRÝVÁ chybu,
+// ale ukáže přesně, co server (Netlify funkce) vrátil, ať jde najít
+// skutečnou příčinu (špatné VAPID klíče, nezabalená funkce, chybný odběr…),
+// místo dohadování naslepo.
+async function testPushNotification(){
+  const el = document.getElementById("pushDiagnosticsRoot");
+  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">Odesílám testovací notifikaci…</p>`;
+  if(!state.pushSubscription){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Appka nemá uložený odběr push notifikací — zkus nejdřív appku znovu zapnout tlačítkem výše.</p>`;
+    return;
+  }
+  try{
+    const res = await fetch("/.netlify/functions/send-push", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ subscription: state.pushSubscription, title: "🧪 Testovací notifikace", message: "Pokud tohle vidíš, push funguje ✓", url: "./" }),
+    });
+    let bodyText = "";
+    try{ bodyText = await res.text(); }catch(e){}
+    if(res.ok){
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#059669">✅ Server notifikaci odeslal v pořádku (${res.status}). Pokud se na telefonu neobjevila do pár vteřin, je problém v systémových oprávněních telefonu/prohlížeče pro notifikace, ne v appce/serveru.</p>`;
+    } else {
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Server vrátil chybu ${res.status}:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code></p>`;
+    }
+  }catch(e){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Appka se vůbec nedovolala na server: ${escapeHTML(e.message)}<br>Nejčastěji to znamená, že funkce send-push.js není správně nasazená na Netlify.</p>`;
+  }
+}
 // Po každé změně sdílené položky appka zkusí poslat push druhé straně —
 // najde její "subscription" v tom samém sdíleném záznamu, kam appka už
 // ukládá stav a checklist.
@@ -8643,6 +8670,10 @@ function renderSettingsView(){
         ${state.pushSubscription ? '🔕 Vypnout push upozornění' : '🔔 Zapnout push upozornění'}
       </button>
       ${state.pushSubscription ? `<p class="text-xs" style="margin:8px 0 0;color:#059669">✅ Zapnuto na tomhle zařízení</p>` : ""}
+      ${state.pushSubscription ? `
+        <button class="btn btn-soft" style="margin-top:10px" data-action="test-push">🧪 Otestovat push (pošle notifikaci na tohle zařízení)</button>
+        <div id="pushDiagnosticsRoot" style="margin-top:8px"></div>
+      ` : ""}
     </div>
     <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:var(--ink)">🎨 Barevné schéma</p>
@@ -10309,6 +10340,7 @@ function handleClickInner(e){
     case "set-color-scheme": state.colorScheme = id; saveState(); renderAll(); renderSettingsView(); break;
     case "enable-push": enablePushNotifications().then(() => renderSettingsView()); break;
     case "disable-push": disablePushNotifications().then(() => renderSettingsView()); break;
+    case "test-push": testPushNotification(); break;
     case "open-search": openGlobalSearch(); break;
     case "open-search-result": {
       const r = { id, type: t.dataset.sub };
