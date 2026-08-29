@@ -4773,11 +4773,33 @@ async function enablePushNotifications(){
     }
     state.pushSubscription = sub.toJSON();
     saveState();
+    // Doplní nový odběr i do VŠECH už existujících sdílených položek — jinak
+    // by push fungoval jen pro věci sdílené OD TÉHLE chvíle dál, a starší
+    // sdílené úkoly (odeslané před zapnutím push) by zůstaly beze změny.
+    await backfillPushSubscriptionToExistingShares();
     showToast("🔔 Push upozornění zapnuta ✓");
     return true;
   }catch(e){
     showToast("Zapnutí push upozornění se nezdařilo — zkus to prosím znovu.");
     return false;
+  }
+}
+// Projde všechny úkoly/jídla/tréninky, co appka aktuálně sdílí (ať už je
+// odeslala, nebo přijala), a doplní do jejich sdíleného záznamu nový odběr
+// push notifikací — potřeba hlavně tehdy, když si člověk push zapne AŽ PO
+// tom, co už něco sdílel/přijal, aby to fungovalo i pro tyhle starší věci,
+// ne jen pro nově sdílené od téhle chvíle.
+async function backfillPushSubscriptionToExistingShares(){
+  if(!state.pushSubscription) return;
+  const linked = [
+    ...state.tasks.filter(x => x.shareId || x.sharedFromId),
+    ...state.meals.filter(x => x.shareId || x.sharedFromId),
+    ...state.workouts.filter(x => x.shareId || x.sharedFromId),
+  ];
+  for(const item of linked){
+    const linkId = item.shareId || item.sharedFromId;
+    const field = item.shareId ? "senderSubscription" : "receiverSubscription";
+    await updateShareStatusRecord(linkId, { [field]: state.pushSubscription });
   }
 }
 async function disablePushNotifications(){
