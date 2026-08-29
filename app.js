@@ -1,0 +1,10789 @@
+
+
+// ============================================================
+// Kalendář — Visual Life Dashboard PWA (single-file vanilla JS)
+// ============================================================
+
+// ---------- Date helpers ----------
+const toISO = (d) => {
+  const x = new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth()+1).padStart(2,"0");
+  const day = String(x.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+};
+// Safely parse a "YYYY-MM-DD" string as a LOCAL date (avoids the UTC-midnight
+// parsing that `new Date("YYYY-MM-DD")` does per spec, which shifts the day
+// by one in timezones ahead of/behind UTC).
+function parseISODate(iso){
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const addMonths = (d, n) => {
+  const x = new Date(d);
+  const day = x.getDate();
+  x.setDate(1); // avoid month-overflow while stepping the month itself
+  x.setMonth(x.getMonth() + n);
+  const daysInTargetMonth = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+  x.setDate(Math.min(day, daysInTargetMonth)); // clamp e.g. Jan 31 + 1 month -> Feb 28/29
+  return x;
+};
+const DAY_SHORT = ["Ne","Po","Út","St","Čt","Pá","So"];
+const MONTHS = ["Led","Úno","Bře","Dub","Kvě","Čer","Čvc","Srp","Zář","Říj","Lis","Pro"];
+
+// ================= CZ STATE HOLIDAYS & NAME DAYS =================
+// Easter Sunday via the standard Meeus/Jones/Butcher algorithm — needed since
+// Good Friday and Easter Monday are movable state holidays in Czechia.
+function easterSunday(year){
+  const a = year % 19, b = Math.floor(year/100), c = year % 100;
+  const d = Math.floor(b/4), e = b % 4, f = Math.floor((b+8)/25);
+  const g = Math.floor((b-f+1)/3), h = (19*a+b-d-g+15) % 30;
+  const i = Math.floor(c/4), k = c % 4, l = (32+2*e+2*i-h-k) % 7;
+  const m = Math.floor((a+11*h+22*l)/451);
+  const month = Math.floor((h+l-7*m+114)/31), day = ((h+l-7*m+114) % 31) + 1;
+  return new Date(year, month-1, day);
+}
+function czStateHolidays(year){
+  const easter = easterSunday(year);
+  const fixed = [
+    [0,1,"Nový rok, Den obnovy samostatného českého státu"], [4,1,"Svátek práce"], [4,8,"Den vítězství"],
+    [6,5,"Den slovanských věrozvěstů Cyrila a Metoděje"], [6,6,"Den upálení mistra Jana Husa"],
+    [8,28,"Den české státnosti"], [9,28,"Den vzniku samostatného československého státu"],
+    [10,17,"Den boje za svobodu a demokracii"], [11,24,"Štědrý den"], [11,25,"1. svátek vánoční"], [11,26,"2. svátek vánoční"],
+  ];
+  const out = {};
+  fixed.forEach(([m,d,label]) => { out[toISO(new Date(year,m,d))] = label; });
+  out[toISO(addDays(easter,-2))] = "Velký pátek";
+  out[toISO(addDays(easter,1))] = "Velikonoční pondělí";
+  return out;
+}
+function czStateHolidayName(iso){
+  const year = Number(iso.slice(0,4));
+  return czStateHolidays(year)[iso] || null;
+}
+// Standard Czech calendar of jmeniny (name days), keyed by "MM-DD".
+const CZ_NAMEDAYS = {
+  "01-01":"Nový rok","01-02":"Karina","01-03":"Radmila","01-04":"Diana","01-05":"Dalimil","01-06":"Tři králové",
+  "01-07":"Vilma","01-08":"Čestmír","01-09":"Vladan","01-10":"Břetislav","01-11":"Bohdana","01-12":"Pravoslav",
+  "01-13":"Edita","01-14":"Radovan","01-15":"Alice","01-16":"Ctirad","01-17":"Drahoslav","01-18":"Vladislav",
+  "01-19":"Doubravka","01-20":"Ilona","01-21":"Běla","01-22":"Slavomír","01-23":"Zdeněk","01-24":"Milena",
+  "01-25":"Miloš","01-26":"Zora","01-27":"Ingrid","01-28":"Otýlie","01-29":"Zdislava","01-30":"Robin","01-31":"Marika",
+  "02-01":"Hynek","02-02":"Nela","02-03":"Blažej","02-04":"Jarmila","02-05":"Dobromila","02-06":"Vanda",
+  "02-07":"Veronika","02-08":"Milada","02-09":"Apolena","02-10":"Mojmír","02-11":"Božena","02-12":"Slavěna",
+  "02-13":"Věnceslav","02-14":"Valentýn","02-15":"Jiřina","02-16":"Ljuba","02-17":"Miloslava","02-18":"Gizela",
+  "02-19":"Patrik","02-20":"Oldřich","02-21":"Lenka","02-22":"Petr","02-23":"Svatopluk","02-24":"Matěj",
+  "02-25":"Liliana","02-26":"Dorota","02-27":"Alexandr","02-28":"Lumír","02-29":"Horymír",
+  "03-01":"Bedřich","03-02":"Anežka","03-03":"Kamil","03-04":"Stela","03-05":"Kazimír","03-06":"Miroslav",
+  "03-07":"Tomáš","03-08":"Gabriela","03-09":"Františka","03-10":"Viktorie","03-11":"Anděla","03-12":"Řehoř",
+  "03-13":"Růžena","03-14":"Rút, Matylda","03-15":"Ida","03-16":"Elena, Herbert","03-17":"Vlastimil","03-18":"Eduard",
+  "03-19":"Josef","03-20":"Světlana","03-21":"Radek","03-22":"Leona","03-23":"Ivona","03-24":"Gabriel",
+  "03-25":"Marián","03-26":"Emanuel","03-27":"Dita","03-28":"Soňa","03-29":"Taťána","03-30":"Arnošt","03-31":"Kvido",
+  "04-01":"Hugo","04-02":"Erika","04-03":"Richard","04-04":"Ivana","04-05":"Miroslava","04-06":"Vendula",
+  "04-07":"Heřman, Hermína","04-08":"Ema","04-09":"Dušan","04-10":"Darja","04-11":"Izabela","04-12":"Julius",
+  "04-13":"Aleš","04-14":"Vincenc","04-15":"Anastázie","04-16":"Irena","04-17":"Rudolf","04-18":"Valérie",
+  "04-19":"Rostislav","04-20":"Marcela","04-21":"Alexandra","04-22":"Evžénie","04-23":"Vojtěch","04-24":"Jiří",
+  "04-25":"Marek","04-26":"Oto","04-27":"Jaroslav","04-28":"Vlastislav","04-29":"Robert","04-30":"Blahoslav",
+  "05-01":"Svátek práce","05-02":"Zikmund","05-03":"Alexej","05-04":"Květoslav","05-05":"Klaudie","05-06":"Radoslav",
+  "05-07":"Stanislav","05-08":"Den vítězství","05-09":"Ctibor","05-10":"Blažena","05-11":"Svatava","05-12":"Pankrác",
+  "05-13":"Servác","05-14":"Bonifác","05-15":"Žofie","05-16":"Přemysl","05-17":"Aneta","05-18":"Nataša",
+  "05-19":"Ivo","05-20":"Zbyšek","05-21":"Monika","05-22":"Emil","05-23":"Vladimír","05-24":"Jana",
+  "05-25":"Viola","05-26":"Filip","05-27":"Valdemar","05-28":"Vilém","05-29":"Maxmilián, Maxim","05-30":"Ferdinand","05-31":"Kamila",
+  "06-01":"Laura","06-02":"Jarmil","06-03":"Tamara","06-04":"Dalibor","06-05":"Dobroslav","06-06":"Norbert",
+  "06-07":"Iveta, Slavoj","06-08":"Medard","06-09":"Stanislava","06-10":"Gita","06-11":"Bruno","06-12":"Antonie",
+  "06-13":"Antonín","06-14":"Roland","06-15":"Vít","06-16":"Zbyněk","06-17":"Adolf","06-18":"Milan",
+  "06-19":"Leoš","06-20":"Květa","06-21":"Alois","06-22":"Pavla","06-23":"Zdeňka","06-24":"Jan",
+  "06-25":"Ivan","06-26":"Adriana","06-27":"Ladislav","06-28":"Lubomír","06-29":"Petr a Pavel","06-30":"Šárka",
+  "07-01":"Jaroslava","07-02":"Patricie","07-03":"Radomír","07-04":"Prokop","07-05":"Cyril a Metoděj","07-06":"Mistr Jan Hus",
+  "07-07":"Bohuslava","07-08":"Nora","07-09":"Drahoslava","07-10":"Libuše, Amálie","07-11":"Olga","07-12":"Bořek",
+  "07-13":"Markéta","07-14":"Karolína","07-15":"Jindřich","07-16":"Luboš","07-17":"Martina","07-18":"Drahomíra",
+  "07-19":"Čeněk","07-20":"Ilja","07-21":"Vítězslav","07-22":"Magdaléna","07-23":"Libor","07-24":"Kristýna",
+  "07-25":"Jakub","07-26":"Anna","07-27":"Věroslav","07-28":"Viktor","07-29":"Marta","07-30":"Bořivoj","07-31":"Ignác",
+  "08-01":"Oskar","08-02":"Gustav","08-03":"Miluše","08-04":"Dominik","08-05":"Kristián","08-06":"Oldřiška",
+  "08-07":"Lada","08-08":"Soběslav","08-09":"Roman","08-10":"Vavřinec","08-11":"Zuzana","08-12":"Klára",
+  "08-13":"Alena","08-14":"Alan","08-15":"Hana","08-16":"Jáchym","08-17":"Petra","08-18":"Helena",
+  "08-19":"Ludvík","08-20":"Bernard","08-21":"Johana","08-22":"Bohuslav","08-23":"Sandra","08-24":"Bartoloměj",
+  "08-25":"Radim","08-26":"Luděk","08-27":"Otakar","08-28":"Augustýn","08-29":"Evelína","08-30":"Vladěna","08-31":"Pavlína",
+  "09-01":"Linda, Samuel","09-02":"Adéla","09-03":"Bronislav","09-04":"Jindřiška","09-05":"Boris","09-06":"Boleslav",
+  "09-07":"Regina","09-08":"Mariana","09-09":"Daniela","09-10":"Irma","09-11":"Denisa","09-12":"Marie",
+  "09-13":"Lubor","09-14":"Radka","09-15":"Jolana","09-16":"Ludmila","09-17":"Naděžda","09-18":"Kryštof",
+  "09-19":"Zita","09-20":"Oleg","09-21":"Matouš","09-22":"Darina","09-23":"Berta","09-24":"Jaromír",
+  "09-25":"Zlata","09-26":"Andrea","09-27":"Jonáš","09-28":"Václav","09-29":"Michal","09-30":"Jeroným",
+  "10-01":"Igor","10-02":"Olívie","10-03":"Bohumil","10-04":"František","10-05":"Eliška","10-06":"Hanuš",
+  "10-07":"Justýna","10-08":"Věra","10-09":"Štefan, Sára","10-10":"Marina","10-11":"Andrej","10-12":"Marcel",
+  "10-13":"Renáta","10-14":"Agáta","10-15":"Tereza","10-16":"Havel","10-17":"Hedvika","10-18":"Lukáš",
+  "10-19":"Michaela","10-20":"Vendelín","10-21":"Brigita","10-22":"Sabina","10-23":"Teodor","10-24":"Nina",
+  "10-25":"Beáta","10-26":"Erik","10-27":"Šarlota","10-28":"Den vzniku ČSR","10-29":"Silvie","10-30":"Tadeáš","10-31":"Štěpánka",
+  "11-01":"Felix","11-02":"Památka zesnulých","11-03":"Hubert","11-04":"Karel","11-05":"Miriam","11-06":"Liběna",
+  "11-07":"Saskie","11-08":"Bohumír","11-09":"Bohdan","11-10":"Evžen","11-11":"Martin","11-12":"Benedikt",
+  "11-13":"Tibor","11-14":"Sáva","11-15":"Leopold","11-16":"Otmar","11-17":"Mahulena","11-18":"Romana",
+  "11-19":"Alžběta","11-20":"Nikola","11-21":"Albert","11-22":"Cecílie","11-23":"Klement","11-24":"Emílie",
+  "11-25":"Kateřina","11-26":"Artur","11-27":"Xenie","11-28":"René","11-29":"Zina","11-30":"Ondřej",
+  "12-01":"Iva","12-02":"Blanka","12-03":"Svatoslav","12-04":"Barbora","12-05":"Jitka","12-06":"Mikuláš",
+  "12-07":"Ambrož, Benjamín","12-08":"Květoslava","12-09":"Vratislav","12-10":"Julie","12-11":"Dana",
+  "12-12":"Simona","12-13":"Lucie","12-14":"Lýdie","12-15":"Radana, Radan","12-16":"Albína","12-17":"Daniel",
+  "12-18":"Miloslav","12-19":"Ester","12-20":"Dagmar","12-21":"Natálie","12-22":"Šimon","12-23":"Vlasta",
+  "12-24":"Štědrý den","12-25":"1. svátek vánoční","12-26":"2. svátek vánoční","12-27":"Žaneta",
+  "12-28":"Bohumila","12-29":"Judita","12-30":"David","12-31":"Silvestr",
+};
+function czNamedayFor(iso){ return CZ_NAMEDAYS[iso.slice(5)] || null; }
+function czNamedayMonthDay(name){
+  if(!name || !name.trim()) return null;
+  const target = name.trim().toLowerCase();
+  for(const [md, names] of Object.entries(CZ_NAMEDAYS)){
+    const parts = names.split(/,\s*|\s+a\s+/i).map(n => n.trim().toLowerCase());
+    if(parts.includes(target)) return md;
+  }
+  return null;
+}
+
+// ================= PEOPLE / ANNIVERSARY REMINDERS =================
+function findPerson(id){ return state.people.find(p => p.id === id); }
+function addPerson(name){
+  if(!name || !name.trim()) return null;
+  const p = {
+    id: uid(), name: name.trim(), birthdayMonthDay: null, birthdayFullDate: null,
+    birthdayReminder: { enabled:false, daysBefore:0, note:"" },
+    namedayReminder: { enabled:false, daysBefore:0, note:"" },
+    anniversaries: [],
+  };
+  state.people = [...state.people, p];
+  saveState();
+  return p;
+}
+function updatePerson(id, patch){
+  state.people = state.people.map(p => p.id===id ? {...p, ...patch} : p);
+  saveState();
+}
+function deletePerson(id){
+  state.people = state.people.filter(p => p.id !== id);
+  saveState();
+  showToast("Odstraněno ✓");
+  renderSettingsView();
+}
+function addAnniversary(personId, label){
+  const p = findPerson(personId); if(!p) return;
+  const a = { id: uid(), label: (label&&label.trim()) || "Výročí", monthDay: null, reminder: { enabled:false, daysBefore:0, note:"" } };
+  updatePerson(personId, { anniversaries: [...p.anniversaries, a] });
+}
+function updateAnniversary(personId, annivId, patch){
+  const p = findPerson(personId); if(!p) return;
+  updatePerson(personId, { anniversaries: p.anniversaries.map(a => a.id===annivId ? {...a, ...patch} : a) });
+}
+function removeAnniversary(personId, annivId){
+  const p = findPerson(personId); if(!p) return;
+  updatePerson(personId, { anniversaries: p.anniversaries.filter(a => a.id !== annivId) });
+}
+// Turns an enabled reminder into an actual task on the right date (event date
+// minus the configured lead time), covering this year and next so nothing
+// near year-end gets missed — each (person, event type, year) combination is
+// only ever created once, tracked in anniversaryTaskLog, so re-running this
+// on every app start never creates duplicates.
+function maybeCreateAnniversaryTask(personId, typeKey, monthDay, year, reminderCfg, title, emoji){
+  if(!monthDay || !reminderCfg || !reminderCfg.enabled) return;
+  const logKey = `${personId}:${typeKey}:${year}`;
+  if(state.anniversaryTaskLog[logKey]) return;
+  const [mm, dd] = monthDay.split("-").map(Number);
+  if(!mm || !dd) return;
+  const eventDate = new Date(year, mm-1, dd);
+  const taskDate = addDays(eventDate, -(Number(reminderCfg.daysBefore)||0));
+  const ws = getWorkspace();
+  const task = {
+    id: uid(), type:"task", title: `${emoji} ${title}`, content: reminderCfg.note || "",
+    date: toISO(taskDate), done:false, priority: 5,
+    categoryId: (ws.categories[0]||{}).id, listId: (ws.lists[0]||{}).id,
+    checklist:[], images:[], drawings:[], audioIds:[], files:[], friendIds:[],
+    recurrenceType:"none", recurrenceGroupId:null,
+    reminder: { enabled:true, time:"09:00", sound:"bell", customAudioId:null },
+    deletedAt:null,
+  };
+  state.tasks = [...state.tasks, task];
+  state.anniversaryTaskLog[logKey] = true;
+}
+// Writes a single field ("daysBefore" or "note") into the correct reminder
+// config, based on which of the three reminder kinds this row belongs to.
+function applyReminderFieldChange(prefix, ownerId, subId, field, value){
+  if(prefix === "person-birthday-reminder"){
+    const p = findPerson(ownerId); if(!p) return;
+    updatePerson(ownerId, {birthdayReminder: {...p.birthdayReminder, [field]: value}});
+  } else if(prefix === "person-nameday-reminder"){
+    const p = findPerson(ownerId); if(!p) return;
+    updatePerson(ownerId, {namedayReminder: {...p.namedayReminder, [field]: value}});
+  } else if(prefix === "anniversary-reminder"){
+    const p = findPerson(ownerId); if(!p) return;
+    const a = p.anniversaries.find(x => x.id === subId); if(!a) return;
+    updateAnniversary(ownerId, subId, {reminder: {...a.reminder, [field]: value}});
+  }
+}
+function ensureAnniversaryTasks(){
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear, thisYear+1];
+  const before = state.tasks.length;
+  state.people.forEach(p => {
+    years.forEach(y => {
+      maybeCreateAnniversaryTask(p.id, "birthday", p.birthdayMonthDay, y, p.birthdayReminder, `Narozeniny — ${p.name}`, "🎂");
+      const nmd = czNamedayMonthDay(p.name);
+      maybeCreateAnniversaryTask(p.id, "nameday", nmd, y, p.namedayReminder, `Svátek — ${p.name}`, "🎉");
+      (p.anniversaries||[]).forEach(a => {
+        maybeCreateAnniversaryTask(p.id, "anniv:"+a.id, a.monthDay, y, a.reminder, `${a.label} — ${p.name}`, "📅");
+      });
+    });
+  });
+  if(state.tasks.length !== before){ saveState(); scheduleReminders(); }
+}
+
+const TODAY = new Date();
+const todayISO = toISO(TODAY);
+const uid = () => `id${Date.now().toString(36)}${Math.random().toString(36).slice(2,8)}`;
+
+function dayOfYear(d){ const start = new Date(d.getFullYear(),0,0); return Math.round((d-start)/86400000); }
+const TODAY_DOY = dayOfYear(TODAY);
+
+// ---------- Personality quotes (large pool, rotates daily) ----------
+// PERSONALITIES (citáty) žije teď v samostatném souboru quotes.js,
+// načteném jako <script> před tímhle souborem.
+function dailyQuote(personalityKey){
+  const p = PERSONALITIES[personalityKey] || PERSONALITIES.zdravi;
+  return p.quotes[TODAY_DOY % p.quotes.length];
+}
+
+// ---------- Priority lanes (red = most important -> green = least) ----------
+const LANES = [
+  { id:"high", label:"Vysoká priorita", range:[1,3], dot:"#ef4444", cls:"lane-life", tag:"🔴 Vysoká" },
+  { id:"medium", label:"Střední priorita", range:[4,7], dot:"#fb923c", cls:"lane-important", tag:"🟠 Střední" },
+  { id:"low", label:"Nízká priorita", range:[8,10], dot:"#22c55e", cls:"lane-low", tag:"🟢 Nízká" },
+];
+function priorityMeta(p){ return LANES.find(l => p >= l.range[0] && p <= l.range[1]) || LANES[1]; }
+function pulseClass(p){ return (p<=3) ? "pulse-p1" : ""; }
+// Shared 3-button priority picker (Vysoká/Střední/Nízká) used by the task form
+// and by notes — simple to tap, and the color always matches LANES so it stays
+// consistent everywhere (task cards, lanes list, month calendar).
+const PRIORITY_OPTIONS = [
+  {id:"high", val:1, label:"🔴 Vysoká", bg:"#fee2e2", color:"#dc2626"},
+  {id:"medium", val:5, label:"🟠 Střední", bg:"#ffedd5", color:"#c2410c"},
+  {id:"low", val:10, label:"🟢 Nízká", bg:"#dcfce7", color:"#15803d"},
+];
+function priorityPickerHTML(currentPriority, action, subId){
+  const tier = priorityMeta(Number(currentPriority)).id;
+  return `<div class="row gap-2" style="flex-wrap:wrap">
+    ${PRIORITY_OPTIONS.map(o => `<button class="chip" style="${tier===o.id?`background:${o.bg};color:${o.color};font-weight:700`:''}" data-action="${action}" data-id="${o.val}"${subId?` data-sub="${subId}"`:''}>${o.label}</button>`).join("")}
+  </div>`;
+}
+
+// ---------- Themes ----------
+const THEME_PRESETS = {
+  light:{name:"Světlé",cls:"theme-light"}, dark:{name:"Tmavé",cls:"theme-dark"},
+  pastel:{name:"Pastelové",cls:"theme-pastel"}, mint:{name:"Mátové",cls:"theme-mint"},
+  ocean:{name:"Oceán",cls:"theme-ocean"}, sunset:{name:"Západ slunce",cls:"theme-sunset"},
+  lavender:{name:"Levandule",cls:"theme-lavender"}, forest:{name:"Les",cls:"theme-forest"},
+  charcoal:{name:"Antracit",cls:"theme-charcoal"}, photo:{name:"Vlastní foto",cls:"theme-photo"},
+};
+const ACCENTS = ["#34d399,#2dd4bf","#38bdf8,#6366f1","#fda4af,#fb923c","#a78bfa,#e879f9","#fcd34d,#fb7185"];
+const WORKSPACE_EMOJIS = ["🏡","💼","🎓","🧘","👨‍👩‍👧","🎨","💪","✈️"];
+const FRIEND_EMOJIS = ["😀","🧑","👩","🧔","👱‍♀️","🧑‍🦱","👩‍🦰","🧑‍🎨"];
+
+// ---------- Reminders ----------
+const REMINDER_SOUNDS = {
+  bell:{label:"🔔 Zvonek", notes:["C6","E6","G6"], wave:"sine"},
+  chime:{label:"🎐 Zvonkohra", notes:["E6","B5","G6","D6"], wave:"triangle"},
+  soft:{label:"🌙 Jemné pípnutí", notes:["A5","A5"], wave:"sine"},
+  upbeat:{label:"⚡ Energické", notes:["C5","E5","G5","C6"], wave:"square"},
+  custom:{label:"🎵 Vlastní nahraná melodie (mp3)", notes:null, wave:null, custom:true},
+  none:{label:"🔇 Bez zvuku", notes:null, wave:null},
+};
+const REMINDER_MODES = [
+  {id:"atTime", label:"V konkrétní čas"},
+  {id:"before", label:"Předem před termínem"},
+  {id:"custom", label:"Vlastní datum a čas"},
+];
+const ADVANCE_UNITS = [ {id:"minutes",label:"minut"}, {id:"hours",label:"hodin"}, {id:"days",label:"dní"} ];
+const RECURRENCE_TYPES = [
+  {id:"none", label:"Neopakovat"},
+  {id:"daily", label:"Denně"},
+  {id:"weekly", label:"Každý týden"},
+  {id:"weekly_days", label:"Vybrané dny v týdnu"},
+  {id:"monthly", label:"Každý měsíc"},
+  {id:"custom", label:"Vlastní data"},
+];
+const WEEKDAY_LABELS = [
+  {id:1, label:"Po"}, {id:2, label:"Út"}, {id:3, label:"St"}, {id:4, label:"Čt"},
+  {id:5, label:"Pá"}, {id:6, label:"So"}, {id:0, label:"Ne"},
+];
+const DURATION_UNITS = [
+  {id:"days", label:"dní", toDays:1},
+  {id:"weeks", label:"týdnů", toDays:7},
+  {id:"months", label:"měsíců", toDays:30},
+  {id:"years", label:"let", toDays:365},
+];
+// Turns a plain-language duration ("po dobu 2 měsíců") into the actual number of
+// occurrences to generate, given the recurrence pattern — so nobody has to do
+// this math by hand.
+function computeRecurrenceCount(recurrenceType, weekdaysCount, durationValue, durationUnit){
+  const unit = DURATION_UNITS.find(u => u.id === durationUnit) || DURATION_UNITS[1];
+  const totalDays = Math.max(1, Number(durationValue) || 1) * unit.toDays;
+  let count;
+  if(recurrenceType === "daily") count = totalDays;
+  else if(recurrenceType === "weekly") count = totalDays / 7;
+  else if(recurrenceType === "monthly") count = totalDays / 30;
+  else if(recurrenceType === "weekly_days") count = (totalDays / 7) * Math.max(1, weekdaysCount || 1);
+  else count = 1;
+  return Math.max(1, Math.min(400, Math.round(count)));
+}
+// Shared by task/meal/medication recurrence editors — walks forward day by day
+// from `base` and collects dates whose weekday is in `weekdays`, until `count`
+// matches are found (safety-capped so a bad selection can't loop forever).
+function weekdayOccurrenceDates(base, weekdays, count){
+  if(!weekdays || !weekdays.length) return [base];
+  const out = [];
+  let cursor = parseISODate(base);
+  let guard = 0;
+  while(out.length < count && guard < 400){
+    if(weekdays.includes(cursor.getDay())) out.push(toISO(cursor));
+    cursor = addDays(cursor, 1);
+    guard++;
+  }
+  return out.length ? out : [base];
+}
+// Explains what "count" actually produces when specific weekdays are picked — it's
+// a total number of dates, not a number of weeks, which isn't obvious at a glance.
+function weeklyDaysCountHint(weekdaysCount, count){
+  if(!weekdaysCount) return "";
+  const weeks = Math.ceil(count / weekdaysCount);
+  return `(rozděleno mezi ${weekdaysCount} ${weekdaysCount===1?'vybraný den':'vybrané dny'} v týdnu, tedy zhruba ${weeks} ${weeks===1?'týden':(weeks<5?'týdny':'týdnů')})`;
+}
+
+function noteFreq(name){
+  const NOTES = {C:-9,"C#":-8,D:-7,"D#":-6,E:-5,F:-4,"F#":-3,G:-2,"G#":-1,A:0,"A#":1,B:2};
+  const m = /^([A-G]#?)(\d)$/.exec(name);
+  if(!m) return 440;
+  const semis = NOTES[m[1]] + (parseInt(m[2],10)-5)*12;
+  return 440 * Math.pow(2, semis/12);
+}
+
+// ---------- IndexedDB (binary attachments: photos, drawings, voice notes, custom melodies) ----------
+const DB_NAME = "kalendarMediaDB";
+const STORE = "media";
+function openMediaDB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSet(blob){
+  const id = "m" + uid();
+  const db = await openMediaDB();
+  await new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(blob, id);
+    tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+  });
+  return id;
+}
+async function idbGet(id){
+  if(!id) return null;
+  const db = await openMediaDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readonly");
+    const r = tx.objectStore(STORE).get(id);
+    r.onsuccess = () => res(r.result || null);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbDelete(id){
+  if(!id) return;
+  const db = await openMediaDB();
+  return new Promise((res) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => res();
+  });
+}
+const blobUrlCache = new Map();
+async function getBlobURL(id){
+  if(!id) return null;
+  if(blobUrlCache.has(id)) return blobUrlCache.get(id);
+  const blob = await idbGet(id);
+  if(!blob) return null;
+  const url = URL.createObjectURL(blob);
+  blobUrlCache.set(id, url);
+  return url;
+}
+
+// ---------- Image resize (keeps localStorage small) ----------
+function resizeImageFile(file, maxDim = 900, quality = 0.82){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > maxDim || height > maxDim){
+        if(width > height){ height = Math.round(height * (maxDim/width)); width = maxDim; }
+        else { width = Math.round(width * (maxDim/height)); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ---------- Seed / default data ----------
+function defaultWorkspaces(){
+  return [
+    { id:"personal", name:"Osobní", emoji:"🏡", accent:ACCENTS[0], theme:"light", customBg:null,
+      categories:[
+        {id:"c1",emoji:"🧘",label:"Mindfulness"}, {id:"c2",emoji:"🛒",label:"Nákupy"},
+        {id:"c3",emoji:"👨‍👩‍👧",label:"Rodina"}, {id:"c4",emoji:"🎨",label:"Koníčky"}, {id:"c5",emoji:"🏋️",label:"Sport"},
+      ],
+      lists:[{id:"l1",name:"Obecné"},{id:"l2",name:"Domácnost"}],
+      templates:[],
+    },
+    { id:"work", name:"Pracovní", emoji:"💼", accent:ACCENTS[1], theme:"pastel", customBg:null,
+      categories:[
+        {id:"c6",emoji:"💼",label:"Schůzky"}, {id:"c7",emoji:"📊",label:"Projekty"},
+        {id:"c8",emoji:"📧",label:"E-maily"}, {id:"c9",emoji:"🎯",label:"Cíle"}, {id:"c10",emoji:"🧠",label:"Strategie"},
+      ],
+      lists:[{id:"l3",name:"Obecné"},{id:"l4",name:"Klienti"}],
+      templates:[],
+    },
+  ];
+}
+function seedTasks(){
+  return [
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c1", title:"Meditace 10 minut", content:"", date:todayISO, priority:2, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l2", categoryId:"c2", title:"Nákup na víkend", content:"", date:todayISO, priority:6, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c3", title:"Zavolat mámě", content:"", date:todayISO, priority:5, type:"task", done:true, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l2", categoryId:"c2", title:"Uklidit pracovní stůl", content:"", date:todayISO, priority:9, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c3", title:"Narozeniny dcery – objednat dort", content:"", date:toISO(addDays(TODAY,3)), priority:1, type:"task", done:false, checklist:[{id:uid(),text:"Vybrat cukrárnu",done:false},{id:uid(),text:"Objednat dort",done:false},{id:uid(),text:"Vyzvednout balónky",done:false}], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c5", title:"Ranní běh", content:"", date:toISO(addDays(TODAY,1)), priority:2, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c1", title:"Dokončit daňové přiznání", content:"", date:toISO(addDays(TODAY,-1)), priority:2, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"work", listId:"l3", categoryId:"c6", title:"Dokončit prezentaci pro klienta", content:"", date:todayISO, priority:3, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"work", listId:"l4", categoryId:"c7", title:"Přípravná schůzka projektu", content:"", date:toISO(addDays(TODAY,1)), priority:4, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"work", listId:"l3", categoryId:"c8", title:"Odpovědět na e-maily", content:"", date:todayISO, priority:7, type:"task", done:true, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"work", listId:"l4", categoryId:"c9", title:"Vrátit se klientovi s nabídkou", content:"", date:toISO(addDays(TODAY,-1)), priority:5, type:"task", done:false, checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"personal", listId:"l1", categoryId:"c4", title:"Nápad: aplikace na sledování snů", content:"Propojit s deníkem a ranním hodnocením nálady.", date:todayISO, priority:5, type:"note", checklist:[], friendIds:[] },
+    { id:uid(), workspaceId:"work", listId:"l3", categoryId:"c10", title:"Zvážit novou cenovou strategii", content:"", date:todayISO, priority:5, type:"note", checklist:[], friendIds:[] },
+  ];
+}
+function defaultFriends(){
+  return [ {id:"f1",name:"Tomáš",emoji:"🧑",phone:""}, {id:"f2",name:"Klára",emoji:"👩",phone:""} ];
+}
+
+function defaultRecipes(){
+  return [
+    {
+      id: "r1", emoji: "🍰", title: "Babiččina bábovka", servings: "1 bábovka (10 porcí)",
+      notes: "Klasický recept — hezky vláčná, vydrží i tři dny čerstvá.",
+      coverImage: null, gallery: [], totalGrams: 950, servingGrams: 95, categoryId: "rc4",
+      sections: [
+        { id:"s1", name:"Suroviny — těsto", isIngredients:true, items:[
+          {id:uid(), text:"250 g hladké mouky", done:false, nutrition:{calories:872, protein:25, fat:2.5, carbs:182}},
+          {id:uid(), text:"200 g cukru krupice", done:false, nutrition:{calories:800, protein:0, fat:0, carbs:200}},
+          {id:uid(), text:"3 vejce", done:false, nutrition:{calories:232, protein:19.5, fat:16.5, carbs:1.5}},
+          {id:uid(), text:"200 ml oleje", done:false, nutrition:{calories:1768, protein:0, fat:200, carbs:0}},
+          {id:uid(), text:"200 ml mléka", done:false, nutrition:{calories:128, protein:6.4, fat:7.2, carbs:9.6}},
+          {id:uid(), text:"1 prášek do pečiva", done:false, nutrition:{calories:5, protein:0, fat:0, carbs:1}},
+          {id:uid(), text:"1 vanilkový cukr", done:false, nutrition:{calories:32, protein:0, fat:0, carbs:8}},
+        ]},
+        { id:"s2", name:"Suroviny — náplň", isIngredients:true, items:[
+          {id:uid(), text:"2 lžíce kakaa", done:false, nutrition:{calories:46, protein:4, fat:2.8, carbs:11.6}},
+          {id:uid(), text:"2 lžíce cukru", done:false, nutrition:{calories:100, protein:0, fat:0, carbs:25}},
+        ]},
+        { id:"s3", name:"Postup", isIngredients:false, items:[
+          {id:uid(), text:"Troubu předehřej na 175 °C", done:false},
+          {id:uid(), text:"Vejce utřij s cukrem do pěny", done:false},
+          {id:uid(), text:"Přidej olej a mléko, promíchej", done:false},
+          {id:uid(), text:"Vmíchej mouku s práškem do pečiva", done:false},
+          {id:uid(), text:"Polovinu těsta dej do formy", done:false},
+          {id:uid(), text:"Do zbytku vmíchej kakao s cukrem", done:false},
+          {id:uid(), text:"Přidej tmavé těsto na světlé a lehce protáhni vidličkou", done:false},
+          {id:uid(), text:"Peč 45–50 minut do sucha špejle", done:false},
+          {id:uid(), text:"Nech vychladnout ve formě 15 minut", done:false},
+        ]},
+      ],
+    },
+  ];
+}
+
+// ---------- Persistent state (localStorage) ----------
+const STORAGE_KEY = "kalendarAppState_v1";
+function defaultMealLabels(){
+  return [
+    {id:"ml1", name:"Snídaně"}, {id:"ml2", name:"Dopolední svačina"},
+    {id:"ml3", name:"Oběd"}, {id:"ml4", name:"Odpolední svačina"}, {id:"ml5", name:"Večeře"},
+  ];
+}
+function defaultRecipeCategories(){
+  return [
+    {id:"rc1", name:"Snídaně"}, {id:"rc2", name:"Oběd"}, {id:"rc3", name:"Večeře"},
+    {id:"rc4", name:"Pečení"}, {id:"rc5", name:"Sladké"}, {id:"rc6", name:"Slané"}, {id:"rc7", name:"Svačiny"},
+  ];
+}
+const MED_CATEGORY_EMOJI = { lek:"💊", vitamin:"🍊", doplnek:"🌿" };
+const MED_CATEGORY_LABEL = { lek:"Lék", vitamin:"Vitamín", doplnek:"Doplněk" };
+// ================= PROTEIN USABILITY (skutečně využitelné bílkoviny) =================
+// Not every gram of protein you eat is equally usable by the body. This uses a
+// fixed lookup table (fast, no AI call needed on every render) with a keyword
+// guess as the default, which the person can always correct by hand.
+// ================= WEIGHT UNITS & INTAKE GUIDANCE =================
+const KG_PER_LB = 0.45359237;
+function kgToLb(kg){ return kg / KG_PER_LB; }
+function lbToKg(lb){ return lb * KG_PER_LB; }
+function displayWeight(weightKg, unitPref){
+  if(weightKg == null) return null;
+  return unitPref === "lb" ? Math.round(kgToLb(weightKg)*10)/10 : Math.round(weightKg*10)/10;
+}
+function weightUnitLabel(unitPref){ return unitPref === "lb" ? "lb" : "kg"; }
+// ================= ENERGY UNIT (kcal / kJ) =================
+const KCAL_TO_KJ = 4.184;
+function displayEnergy(kcal){
+  const unit = (state.userProfile && state.userProfile.energyUnit === "kJ") ? "kJ" : "kcal";
+  if(unit === "kJ") return `${Math.round(kcal*KCAL_TO_KJ)} kJ`;
+  return `${Math.round(kcal)} kcal`;
+}
+// ================= DRINK VOLUME UNITS =================
+// Everything is stored/scaled internally in ml (matching the "per 100 [base
+// unit]" pattern already used for weight-based foods) — dcl/l are just
+// convenient input units that get converted to ml right away.
+function toMl(amount, unit){
+  const n = Number(amount) || 0;
+  if(unit === "l") return n * 1000;
+  if(unit === "dcl") return n * 100;
+  return n; // already ml
+}
+const VOLUME_UNITS = [
+  {id:"ml", label:"ml"}, {id:"dcl", label:"dcl"}, {id:"l", label:"l"},
+];
+// General evidence-based intake ranges per kilogram of bodyweight for natural
+// (non-enhanced) trainees. The 0.8 g/kg protein baseline is WHO's official
+// RDA for a sedentary adult; the higher, goal-specific ranges below come from
+// sports-nutrition research (commonly cited by bodies like the ISSN/ACSM),
+// not WHO itself — both are shown so the difference is clear and honest.
+const INTAKE_GOALS = {
+  maintain: { label:"Udržení váhy", protein:[1.2,1.6], carbs:[3,5], fat:[0.8,1.2] },
+  lose: { label:"Hubnutí (spalování tuku)", protein:[1.6,2.2], carbs:[2,4], fat:[0.6,1.0] },
+  gain: { label:"Nabírání svalů", protein:[1.6,2.2], carbs:[4,7], fat:[0.8,1.2] },
+  custom: { label:"✏️ Vlastní cíl", protein:null, carbs:null, fat:null },
+};
+function intakeGuidanceHTML(weightKg, unitPref, goal, customTargets, todayTotals){
+  const isCustom = goal === "custom";
+  const g = INTAKE_GOALS[goal] || INTAKE_GOALS.maintain;
+  const unit = weightUnitLabel(unitPref);
+  const wForRange = weightKg ? (unitPref==="lb" ? kgToLb(weightKg) : weightKg) : null;
+  const range = (arr) => {
+    const lo = wForRange ? Math.round(arr[0]*wForRange) : null;
+    const hi = wForRange ? Math.round(arr[1]*wForRange) : null;
+    return `${arr[0]}–${arr[1]} g/${unit}${lo!=null ? ` <span class="muted">(≈ ${lo}–${hi} g/den)</span>` : ""}`;
+  };
+  const customRow = (label, field, val) => {
+    const abs = (val && wForRange) ? Math.round(val*wForRange) : null;
+    return `
+      <div class="row gap-2" style="align-items:center;margin-bottom:6px">
+        <span class="text-sm grow" style="color:#334155"><b>${label}:</b></span>
+        <input type="number" min="0" step="0.1" class="field" style="width:80px" placeholder="g/${unit}" value="${val ?? ''}" data-target-field="${field}" />
+        <span class="text-xs muted" style="min-width:70px">g/${unit}${abs!=null ? ` (≈${abs} g/den)` : ''}</span>
+      </div>`;
+  };
+  const progressRow = (label, targetPerUnit, eatenTotal) => {
+    if(!targetPerUnit || !wForRange || eatenTotal == null) return "";
+    const targetTotal = targetPerUnit * wForRange;
+    const pct = Math.min(999, Math.round((eatenTotal/targetTotal)*100));
+    const color = pct >= 90 && pct <= 115 ? "#059669" : pct > 115 ? "#d97706" : "#64748b";
+    return `<p class="text-xs" style="margin:2px 0 0;color:${color}">${label}: ${eatenTotal}g / cíl ${Math.round(targetTotal)}g — <b>${pct}%</b></p>`;
+  };
+  return `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <p class="text-xs font-semi muted" style="margin:0 0 8px">📐 Doporučený příjem — přirozený (natural) cvičenec</p>
+      <div class="row gap-2 wrapf" style="margin-bottom:10px">
+        ${Object.entries(INTAKE_GOALS).map(([id,gl]) => `<button class="chip ${goal===id?'active':''}" data-action="set-intake-goal" data-id="${id}">${gl.label}</button>`).join("")}
+      </div>
+      ${isCustom ? `
+        <p class="text-xs muted" style="margin:0 0 8px">Zadej si vlastní dlouhodobý cíl na kilogram/libru tělesné hmotnosti — appka si to zapamatuje.</p>
+        ${customRow("Bílkoviny", "protein", customTargets?.protein)}
+        ${customRow("Sacharidy", "carbs", customTargets?.carbs)}
+        ${customRow("Tuky", "fat", customTargets?.fat)}
+      ` : `
+        <div class="col gap-1">
+          <p class="text-sm" style="margin:0"><b>Bílkoviny:</b> ${range(g.protein)}</p>
+          <p class="text-sm" style="margin:0"><b>Sacharidy:</b> ${range(g.carbs)}</p>
+          <p class="text-sm" style="margin:0"><b>Tuky:</b> ${range(g.fat)}</p>
+        </div>
+      `}
+      ${(isCustom && todayTotals && wForRange) ? `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #f1f5f9">
+          <p class="text-xs font-semi muted" style="margin:0 0 2px">Dnes snědeno vůči tvému cíli</p>
+          ${progressRow("Bílkoviny", customTargets?.protein, todayTotals.eaten.protein)}
+          ${progressRow("Sacharidy", customTargets?.carbs, todayTotals.eaten.carbs)}
+          ${progressRow("Tuky", customTargets?.fat, todayTotals.eaten.fat)}
+        </div>
+      ` : ""}
+      <p class="text-xs muted" style="margin:8px 0 0">Základní norma WHO pro bílkoviny (sedavý dospělý) je 0,8 g/kg — vyšší rozmezí výše je běžně používané sportovní doporučení pro aktivní/přirozené cvičence, ne oficiální WHO norma. ${!weightKg ? "Zadej si váhu níže, ať appka spočítá i celkové gramy na den." : ""}</p>
+    </div>`;
+}
+// Simple, dependency-free horizontal bar — no charting library needed for
+// something this basic, keeps the app fast and the visuals dead simple.
+// Bar chart showing the eaten amount against the FULL recommended range (not
+// just its lower bound) — the target zone is shaded on the track so it's
+// obvious at a glance whether today's intake falls inside, below, or above it.
+function macroBarHTML(label, valueG, rangeG, color){
+  const hasRange = Array.isArray(rangeG) && rangeG[1] > 0;
+  const lo = hasRange ? rangeG[0] : null, hi = hasRange ? rangeG[1] : null;
+  const maxScale = hasRange ? hi*1.2 : Math.max(valueG*1.3, 50);
+  const valuePct = Math.min(100, Math.round((valueG/maxScale)*100));
+  const loPct = hasRange ? Math.round((lo/maxScale)*100) : null;
+  const hiPct = hasRange ? Math.round((hi/maxScale)*100) : null;
+  const goalPct = hasRange ? Math.round((valueG/hi)*100) : null;
+  return `
+    <div style="margin-bottom:10px">
+      <div class="row between" style="margin-bottom:3px">
+        <span class="text-xs font-med" style="color:#475569">${label}</span>
+        <span class="text-xs muted">${Math.round(valueG*10)/10} g${hasRange ? ` <span style="color:#94a3b8">/ cíl ${Math.round(lo)}–${Math.round(hi)} g · </span><span style="font-weight:700;color:${color}">${goalPct}%</span>` : ''}</span>
+      </div>
+      <div style="height:10px;border-radius:999px;background:#f1f5f9;overflow:hidden;position:relative">
+        ${hasRange ? `<div style="position:absolute;left:${loPct}%;width:${hiPct-loPct}%;top:0;bottom:0;background:${color}33"></div>` : ""}
+        <div style="height:100%;width:${valuePct}%;border-radius:999px;background:${color};transition:width .3s;position:relative"></div>
+      </div>
+    </div>`;
+}
+// Consolidates everything that used to be four separate stacked cards
+// (macros, calorie balance, profile, intake guidance) into ONE card that's
+// collapsed by default, so the meal list itself stays the main focus and
+// isn't buried under dashboard clutter. Expanding it reveals the full detail.
+function dailyOverviewCardHTML(totals){
+  const cb = totals.calorieBalance;
+  const p = state.userProfile || {};
+  const wUnit = p.weightKg ? (p.unitPref==="lb" ? kgToLb(p.weightKg) : p.weightKg) : null;
+  const unitLabel = weightUnitLabel(p.unitPref);
+  const goalMeta = INTAKE_GOALS[p.goal] || null;
+  const perKgRange = (kind) => p.goal==="custom" ? (p.customTargets?.[kind] ? [p.customTargets[kind], p.customTargets[kind]] : null) : (goalMeta ? goalMeta[kind] : null);
+  const proteinPerKg = perKgRange("protein"), carbsPerKg = perKgRange("carbs"), fatPerKg = perKgRange("fat");
+  const proteinRangeG = proteinPerKg && wUnit ? [proteinPerKg[0]*wUnit, proteinPerKg[1]*wUnit] : null;
+  const carbsRangeG = carbsPerKg && wUnit ? [carbsPerKg[0]*wUnit, carbsPerKg[1]*wUnit] : null;
+  const fatRangeG = fatPerKg && wUnit ? [fatPerKg[0]*wUnit, fatPerKg[1]*wUnit] : null;
+  const netCalories = cb.hasWorkouts ? cb.netEatenMinusDone : totals.eaten.calories;
+  const kcalTargetLine = (wUnit && (proteinPerKg||carbsPerKg||fatPerKg)) ? (() => {
+    // Rough kcal target implied by the macro g/kg ranges (4/4/9 kcal per g).
+    const loKcal = (proteinRangeG?proteinRangeG[0]*4:0) + (carbsRangeG?carbsRangeG[0]*4:0) + (fatRangeG?fatRangeG[0]*9:0);
+    const hiKcal = (proteinRangeG?proteinRangeG[1]*4:0) + (carbsRangeG?carbsRangeG[1]*4:0) + (fatRangeG?fatRangeG[1]*9:0);
+    return loKcal>0 ? `${displayEnergy(Math.round(loKcal))}–${displayEnergy(Math.round(hiKcal))}` : null;
+  })() : null;
+
+  return `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <button class="row between" style="width:100%;background:none;align-items:center" data-action="toggle-daily-overview">
+        <p class="text-sm font-semi" style="margin:0;color:#334155">📊 Denní přehled</p>
+        <span class="text-xs" style="color:#94a3b8">${dailyOverviewExpanded ? '▲ Skrýt detail' : '▼ Zobrazit detail'}</span>
+      </button>
+      <div class="row gap-4 wrapf" style="margin:10px 0">
+        <div><p class="text-xs muted" style="margin:0">Snědeno</p><p class="text-lg font-semi" style="margin:0;color:#059669">${displayEnergy(totals.eaten.calories)}</p></div>
+        ${cb.hasWorkouts ? `<div><p class="text-xs muted" style="margin:0">Spáleno tréninkem</p><p class="text-lg font-semi" style="margin:0;color:#d97706">${displayEnergy(cb.burnedDone)}</p></div>` : ""}
+        <div><p class="text-xs muted" style="margin:0">${cb.hasWorkouts ? 'Reálný čistý příjem' : 'Naplánováno celkem'}</p><p class="text-lg font-semi" style="margin:0;color:${cb.hasWorkouts && netCalories<0 ? '#dc2626' : '#1e293b'}">${cb.hasWorkouts ? displayEnergy(netCalories) : displayEnergy(totals.planned.calories)}</p></div>
+      </div>
+      ${macroBarHTML("Bílkoviny", totals.eaten.protein, proteinRangeG, "#7c3aed")}
+      ${macroBarHTML("Sacharidy", totals.eaten.carbs, carbsRangeG, "#0284c7")}
+      ${macroBarHTML("Tuky", totals.eaten.fat, fatRangeG, "#d97706")}
+      ${wUnit ? `
+        <p class="text-xs muted" style="margin:2px 0 0">Aktuálně: <b>${(totals.eaten.protein/wUnit).toFixed(2)}</b> / <b>${(totals.eaten.carbs/wUnit).toFixed(2)}</b> / <b>${(totals.eaten.fat/wUnit).toFixed(2)}</b> g B/S/T na ${unitLabel}${proteinPerKg||carbsPerKg||fatPerKg ? ` — cíl ${proteinPerKg?proteinPerKg[0]+'–'+proteinPerKg[1]:'?'} / ${carbsPerKg?carbsPerKg[0]+'–'+carbsPerKg[1]:'?'} / ${fatPerKg?fatPerKg[0]+'–'+fatPerKg[1]:'?'} g/${unitLabel}` : ''}${kcalTargetLine ? ` · cíl ${kcalTargetLine}` : ''}</p>
+      ` : `<p class="text-xs muted" style="margin:6px 0 0">Zadej si váhu a cíl v detailu níže, ať appka ukáže i cílové rozmezí v grafu.</p>`}
+
+      ${dailyOverviewExpanded ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9">
+          ${totals.usableProtein.total > 0 ? `
+            <div style="margin-bottom:12px">
+              <p class="text-xs muted" style="margin:0 0 2px">🧬 Skutečně využitelné bílkoviny ${
+                totals.usableProtein.fromAI && !totals.usableProtein.stale ? '<span style="color:#059669;font-weight:700">— ✅ AI aktuální</span>'
+                : totals.usableProtein.fromAI && totals.usableProtein.stale ? '<span style="color:#dc2626;font-weight:700">— ⚠️ NEAKTUÁLNÍ</span>'
+                : '<span style="color:#94a3b8">— rychlý odhad</span>'
+              }</p>
+              <p class="text-sm font-semi" style="margin:0;color:#7c3aed">${totals.usableProtein.usable} g <span class="text-xs muted font-normal">z ${totals.usableProtein.total} g</span></p>
+              <p class="text-xs muted" style="margin:2px 0 6px">${totals.usableProtein.reason}</p>
+              ${totals.usableProtein.stale ? `<p class="text-xs" style="margin:0 0 6px;color:#dc2626;font-weight:600">Od analýzy přibylo/ubylo jídlo (teď ${totals.usableProtein.currentTotal} g, analyzováno ${totals.usableProtein.total} g).</p>` : ""}
+              <button id="analyzeProteinBtn" class="chip" style="font-size:11px;${totals.usableProtein.stale?'background:#fef2f2;color:#dc2626;font-weight:700':''}" data-action="analyze-day-protein" data-id="${state.selectedDate}">🧠 AI: ${totals.usableProtein.fromAI ? 'Přepočítat' : 'Přesná analýza bílkovin'}</button>
+            </div>
+          ` : ""}
+
+          ${cb.hasWorkouts ? `
+            <p class="text-xs muted" style="margin:0 0 8px">Podle plánu celého dne: ${displayEnergy(totals.planned.calories)} jídla − ${displayEnergy(cb.burnedPlanned)} trénink = <b>${displayEnergy(cb.netPlannedMinusPlanned)}</b>${cb.workoutsMissingEstimate ? ' ⚠️ (nějaký trénink ještě nemá odhad kalorií)' : ''}</p>
+          ` : ""}
+
+          ${userProfileCardHTML(totals)}
+        </div>
+      ` : ""}
+    </div>`;
+}
+function calorieBalanceCardHTML(cb, totals){
+  if(!cb || !cb.hasWorkouts) return "";
+  return `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <p class="text-xs font-semi muted" style="margin:0 0 8px">🔥 Kalorická bilance dne</p>
+      <div class="col gap-1" style="margin-bottom:6px">
+        <p class="text-sm" style="margin:0;color:#475569">Snědeno: <b>${displayEnergy(totals.eaten.calories)}</b></p>
+        <p class="text-sm" style="margin:0;color:#d97706">− Spáleno tréninkem (dokončeným): <b>${displayEnergy(cb.burnedDone)}</b></p>
+        <p class="text-sm font-semi" style="margin:4px 0 0;color:#1e293b;border-top:1px solid #f1f5f9;padding-top:6px">= Reálný čistý příjem: <b style="color:${cb.netEatenMinusDone<0?'#dc2626':'#059669'}">${displayEnergy(cb.netEatenMinusDone)}</b></p>
+      </div>
+      <div class="col gap-1" style="margin-top:8px;padding-top:8px;border-top:1px dashed #e2e8f0">
+        <p class="text-xs muted" style="margin:0">Podle plánu celého dne (i nedokončené):</p>
+        <p class="text-sm" style="margin:0;color:#64748b">Naplánováno k jídlu: <b>${displayEnergy(totals.planned.calories)}</b> − Naplánovaný trénink: <b>${displayEnergy(cb.burnedPlanned)}</b> = <b>${displayEnergy(cb.netPlannedMinusPlanned)}</b></p>
+      </div>
+      ${cb.workoutsMissingEstimate ? `<p class="text-xs" style="margin:8px 0 0;color:#d97706">⚠️ Aspoň jeden dnešní trénink ještě nemá odhad kalorií — otevři ho a klikni na "🔥 AI: Odhadnout spálené kalorie", ať je bilance přesná.</p>` : ""}
+      <p class="text-xs muted" style="margin:8px 0 0">Tréninky pro tento den: ${cb.workouts.map(w => `${escapeHTML(w.title)}${w.estimatedCalories!=null?` (${displayEnergy(w.estimatedCalories)}${w.done?', hotovo':', naplánováno'})`:' (bez odhadu)'}`).join(", ")}</p>
+    </div>`;
+}
+function userProfileCardHTML(todayTotals){
+  const p = state.userProfile || { gender:null, weightKg:null, unitPref:"kg", goal:"maintain", customTargets:{} };
+  const displayVal = displayWeight(p.weightKg, p.unitPref);
+  return `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <p class="text-xs font-semi muted" style="margin:0 0 8px">👤 Tvůj profil (pro přepočet g/kg a g/lb)</p>
+      <div class="row gap-2 wrapf" style="margin-bottom:10px">
+        <button class="chip ${p.gender==='muz'?'active':''}" data-action="set-profile-gender" data-id="muz">Muž</button>
+        <button class="chip ${p.gender==='zena'?'active':''}" data-action="set-profile-gender" data-id="zena">Žena</button>
+        <button class="chip ${p.gender==='jine'?'active':''}" data-action="set-profile-gender" data-id="jine">Jiné</button>
+      </div>
+      <div class="row gap-2" style="align-items:center;margin-bottom:4px">
+        <input type="number" min="1" step="0.1" class="field" style="width:110px" placeholder="Váha" value="${displayVal ?? ''}" data-profile-field="weight" />
+        <div class="row gap-1">
+          <button class="chip ${p.unitPref==='kg'?'active':''}" data-action="set-weight-unit" data-id="kg">kg</button>
+          <button class="chip ${p.unitPref==='lb'?'active':''}" data-action="set-weight-unit" data-id="lb">lb</button>
+        </div>
+      </div>
+      <p class="text-xs muted" style="margin:0 0 10px">Jednotka (kg/lb) platí pro celou appku — přepni si ji, jak ti to vyhovuje víc.</p>
+      <div class="row gap-2" style="align-items:center">
+        <span class="text-xs muted">Energie v celé appce:</span>
+        <button class="chip ${(p.energyUnit||'kcal')==='kcal'?'active':''}" data-action="set-energy-unit" data-id="kcal">kcal</button>
+        <button class="chip ${p.energyUnit==='kJ'?'active':''}" data-action="set-energy-unit" data-id="kJ">kJ</button>
+      </div>
+    </div>
+    ${intakeGuidanceHTML(p.weightKg, p.unitPref, p.goal, p.customTargets, todayTotals)}`;
+}
+const PROTEIN_TIERS = {
+  animal:          { label:"Živočišné (maso, ryby, vejce, mléčné)", emoji:"🥩", coef:1.0 },
+  isolated_plant:  { label:"Izolované rostlinné (sójový/hrachový protein)", emoji:"🧪", coef:0.9 },
+  legume:          { label:"Luštěniny", emoji:"🫘", coef:0.7 },
+  grain:           { label:"Obiloviny / ořechy / semínka", emoji:"🌾", coef:0.7 },
+};
+const PROTEIN_TIER_KEYWORDS = {
+  isolated_plant: ["sójový protein","sojovy protein","hrachový protein","hrachovy protein","rostlinný protein","rostlinny protein","veganský protein","veg protein","protein izolát","protein izolat"],
+  legume: ["čočk","cock","fazol","cizrn","hrách","hrach","sój","soj","edamame","tempeh","tofu"],
+  grain: ["rýž","ryz","chléb","chleb","rohlík","rohlik","baget","housk","těstovin","testovin","špaget","spaget","ovesn","vloč","vloc","müsli","musli","quinoa","pšenic","psenic","žit","zit","kukuřic","kukuric","brambor","cereál","cereal","oříšk","orisk","mandl","vlašsk","vlassk","kešu","kesu","para ořech","pistác","pistac","semínk","seminek","seminka","chia","lněn","lnen"],
+  animal: ["maso","masa","masu","masem","kuř","kur","hověz","hovez","vepřov","veprov","ryba","ryby","losos","tuňák","tunak","tresk","vejc","sýr","syr","tvaroh","jogurt","mlék","mlek","šunk","sunk","salám","salam","párk","park","klobás","slanin","syrovátk","syrovatk","whey","kreve","kalamár","kalamar"],
+};
+function guessProteinTier(text){
+  const t = (text||"").toLowerCase();
+  for(const tier of ["isolated_plant","legume","grain","animal"]){
+    if(PROTEIN_TIER_KEYWORDS[tier].some(w => t.includes(w))) return tier;
+  }
+  return "animal"; // unrecognised items default to the least-discounted tier; always overridable by hand
+}
+// A single free-text item ("rohlík se šunkou a kečupem") can genuinely mix
+// sources with very different usability, and keyword matching alone can't know
+// the true proportion of protein coming from each part — that's a job for the
+// existing AI macro-estimate (see estimateMealItemsNutritionAI/
+// estimateFoodItemNutritionAI), which already makes this exact API call and
+// can return an accurate blended percentage at no extra cost. This function is
+// just the instant, free, zero-latency starting point: if it spots keywords
+// from more than one tier in the same text, it flags the item as "mixed" and
+// averages the matched tiers as a reasonable placeholder — good enough to show
+// *something* sensible immediately, with the AI estimate offered as the way
+// to sharpen it for anyone who wants precision on a genuinely combined dish.
+function guessProteinUsability(text){
+  const t = (text||"").toLowerCase();
+  const matched = [];
+  for(const tier of ["isolated_plant","legume","grain","animal"]){
+    if(PROTEIN_TIER_KEYWORDS[tier].some(w => t.includes(w))) matched.push(tier);
+  }
+  if(!matched.length) return { tier:"animal", percent:Math.round(PROTEIN_TIERS.animal.coef*100), mixed:false };
+  if(matched.length === 1) return { tier:matched[0], percent:Math.round(PROTEIN_TIERS[matched[0]].coef*100), mixed:false };
+  const avg = matched.reduce((s,tr)=>s+PROTEIN_TIERS[tr].coef,0) / matched.length;
+  return { tier:matched[0], percent:Math.round(avg*100), mixed:true, matchedTiers:matched };
+}
+// Applies the day-level "legumes + grains combine into a fuller amino-acid
+// profile" rule (0.7 -> 0.8 for whole plant foods) and returns both the raw
+// and the realistically-usable protein total, plus a short human explanation.
+function computeUsableProtein(entries){
+  // entries: [{protein, tier, usablePercent?}] — usablePercent (set by an AI
+  // estimate that reasoned about a specific combined dish) always wins over
+  // the generic tier lookup for that one entry, since it's more precise.
+  const hasLegume = entries.some(e => e.tier === "legume" && e.protein > 0 && e.usablePercent==null);
+  const hasGrain = entries.some(e => e.tier === "grain" && e.protein > 0 && e.usablePercent==null);
+  const comboBonus = hasLegume && hasGrain;
+  let total = 0, usable = 0;
+  const byTier = {};
+  entries.forEach(({protein, tier, usablePercent}) => {
+    if(!protein) return;
+    total += protein;
+    if(usablePercent != null){
+      usable += protein * (usablePercent/100);
+      byTier["ai:"+Math.round(usablePercent)] = (byTier["ai:"+Math.round(usablePercent)]||0) + protein;
+      return;
+    }
+    const meta = PROTEIN_TIERS[tier] || PROTEIN_TIERS.animal;
+    let coef = meta.coef;
+    if((tier === "legume" || tier === "grain") && comboBonus) coef = 0.8;
+    usable += protein * coef;
+    byTier[tier] = (byTier[tier]||0) + protein;
+  });
+  const reasonParts = Object.entries(byTier).map(([key, g]) => {
+    if(key.startsWith("ai:")){
+      const pct = key.slice(3);
+      return `✨ ${Math.round(g*10)/10} g × ${pct} % (AI odhad podle konkrétního jídla)`;
+    }
+    const meta = PROTEIN_TIERS[key] || PROTEIN_TIERS.animal;
+    const coef = (key==="legume"||key==="grain") && comboBonus ? 0.8 : meta.coef;
+    return `${meta.emoji} ${Math.round(g*10)/10} g × ${Math.round(coef*100)} %`;
+  });
+  if(comboBonus) reasonParts.push("(luštěniny + obiloviny ve stejný den = doplněné spektrum aminokyselin, využitelnost luštěnin/obilovin zvednuta na 80 %)");
+  return {
+    total: Math.round(total*10)/10,
+    usable: Math.round(usable*10)/10,
+    comboBonus,
+    reason: reasonParts.join(" · "),
+  };
+}
+const FOOD_CATEGORIES = [
+  {id:"fc1", name:"Maso a ryby"}, {id:"fc2", name:"Luštěniny"}, {id:"fc3", name:"Přílohy"},
+  {id:"fc4", name:"Pečivo"}, {id:"fc5", name:"Mléčné výrobky"}, {id:"fc6", name:"Ovoce a zelenina"},
+  {id:"fc7", name:"Uzeniny"}, {id:"fc8", name:"Sladkosti a moučníky"}, {id:"fc9", name:"Ostatní"},
+  {id:"fc10", name:"Nápoje"},
+];
+// Seed with the exact examples the person gave, plus a few common staples — all
+// macros are per 100 g so any portion size can be scaled from one clean number.
+function seedFoodItems(){
+  return [
+    { id:uid(), name:"Šunka debrecínská", categoryId:"fc7", favorite:false, deletedAt:null, proteinTier:"animal", nutritionPer100g:{calories:215, protein:18, fat:15, carbs:1} },
+    { id:uid(), name:"Rohlík žitný", categoryId:"fc4", favorite:false, deletedAt:null, proteinTier:"grain", nutritionPer100g:{calories:264, protein:8, fat:2, carbs:52} },
+    { id:uid(), name:"Kuřecí prsa", categoryId:"fc1", favorite:false, deletedAt:null, proteinTier:"animal", nutritionPer100g:{calories:110, protein:23, fat:1.5, carbs:0} },
+    { id:uid(), name:"Rýže bílá vařená", categoryId:"fc3", favorite:false, deletedAt:null, proteinTier:"grain", nutritionPer100g:{calories:130, protein:2.7, fat:0.3, carbs:28} },
+    { id:uid(), name:"Vejce slepičí", categoryId:"fc1", favorite:false, deletedAt:null, proteinTier:"animal", nutritionPer100g:{calories:155, protein:13, fat:11, carbs:1.1} },
+    { id:uid(), name:"Tvaroh měkký", categoryId:"fc5", favorite:false, deletedAt:null, proteinTier:"animal", nutritionPer100g:{calories:98, protein:12, fat:4, carbs:3.4} },
+    { id:uid(), name:"Čočka vařená", categoryId:"fc2", favorite:false, deletedAt:null, proteinTier:"legume", nutritionPer100g:{calories:116, protein:9, fat:0.4, carbs:20} },
+    { id:uid(), name:"Banán", categoryId:"fc6", favorite:false, deletedAt:null, nutritionPer100g:{calories:89, protein:1.1, fat:0.3, carbs:23} },
+  ];
+}
+function seedMedications(){
+  return [
+    { id:uid(), type:"medication", date:todayISO, time:"08:00", name:"Vitamín D", dosage:"1 kapsle", category:"vitamin",
+      notes:"", taken:false, reminder:null, reminderBaseTime:"08:00", recurrenceGroupId:null, deletedAt:null },
+  ];
+}
+function seedMeals(){
+  return [
+    { id:uid(), type:"meal", date:todayISO, labelId:"ml3", source:"custom", title:"Kupovaná bageta se šunkou a sýrem", items:[], recipeId:null, servingsCount:1, nutrition:{calories:420,protein:18,fat:16,carbs:52}, eaten:false, reminder:null, reminderBaseTime:"12:00" },
+  ];
+}
+function defaultState(){
+  return {
+    personality: "zdravi",
+    workspaces: defaultWorkspaces(),
+    activeWorkspaceId: "personal",
+    tasks: seedTasks(),
+    friends: defaultFriends(),
+    recipes: defaultRecipes(),
+    meals: seedMeals(),
+    mealLabels: defaultMealLabels(),
+    recipeCategories: defaultRecipeCategories(),
+    documents: [],
+    workouts: [],
+    medications: seedMedications(),
+    foodItems: seedFoodItems(),
+    proteinAiAnalysis: {},
+    userProfile: { gender: null, weightKg: null, unitPref: "kg", goal: "maintain", customTargets: { protein:null, carbs:null, fat:null }, energyUnit: "kcal" },
+    reminderLog: [],
+    activityStopwatch: null,
+    people: [],
+    anniversaryTaskLog: {},
+    shoppingList: [],
+    pantryStock: [],
+    aiFoodCache: {},
+    aiWorkoutCache: {},
+    colorScheme: "indigo",
+    pushSubscription: null,
+    foodCategories: FOOD_CATEGORIES,
+    currentView: "calendar",
+    selectedDate: todayISO,
+    activeListFilter: "all",
+    windowStart: toISO(addDays(TODAY, -1)),
+  };
+}
+// One-time migration: people who already had the app running before the demo
+// recipe's nutrition data was added won't get it from defaultRecipes() (that
+// only runs on a brand-new install) — this patches it into their saved copy,
+// but only if they haven't already filled anything in themselves.
+function migrateSeedRecipeNutrition(state){
+  let r = state.recipes && state.recipes.find(x => x.id === "r1");
+  if(!r){
+    // The demo recipe got lost somewhere along the way (deleted, or an older
+    // save never had it) — bring it back so the macro-transfer demo always works.
+    if(!Array.isArray(state.recipes)) state.recipes = [];
+    r = defaultRecipes()[0];
+    state.recipes = [...state.recipes, r];
+  }
+  if(!r.sections) return;
+  const hasAnyNutrition = r.sections.some(s => (s.items||[]).some(i => i.nutrition));
+  if(hasAnyNutrition || r.totalGrams || r.servingGrams) return;
+  const seedNutritionByText = {
+    "250 g hladké mouky": {calories:872, protein:25, fat:2.5, carbs:182},
+    "200 g cukru krupice": {calories:800, protein:0, fat:0, carbs:200},
+    "3 vejce": {calories:232, protein:19.5, fat:16.5, carbs:1.5},
+    "200 ml oleje": {calories:1768, protein:0, fat:200, carbs:0},
+    "200 ml mléka": {calories:128, protein:6.4, fat:7.2, carbs:9.6},
+    "1 prášek do pečiva": {calories:5, protein:0, fat:0, carbs:1},
+    "1 vanilkový cukr": {calories:32, protein:0, fat:0, carbs:8},
+    "2 lžíce kakaa": {calories:46, protein:4, fat:2.8, carbs:11.6},
+    "2 lžíce cukru": {calories:100, protein:0, fat:0, carbs:25},
+  };
+  r.sections.forEach(s => {
+    (s.items||[]).forEach(i => {
+      if(seedNutritionByText[i.text]) i.nutrition = {...seedNutritionByText[i.text]};
+    });
+  });
+  r.totalGrams = 950;
+  r.servingGrams = 95;
+  if(!r.categoryId) r.categoryId = "rc4";
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if(!parsed || !Array.isArray(parsed.workspaces) || !Array.isArray(parsed.tasks)) return defaultState();
+    // Backfill fields that may not exist in data saved by an older version of the app,
+    // so upgrading never crashes and never silently drops the user's existing tasks.
+    const safe = {
+      personality: (parsed.personality && PERSONALITIES[parsed.personality]) ? parsed.personality : "zdravi",
+      workspaces: parsed.workspaces.map(w => ({
+        id: w.id, name: w.name || "Kalendář", emoji: w.emoji || "🏡",
+        accent: w.accent || ACCENTS[0], theme: w.theme || "light", customBg: w.customBg || null,
+        categories: Array.isArray(w.categories) && w.categories.length ? w.categories : [{id:"c"+uid(), emoji:"✨", label:"Obecné"}],
+        lists: Array.isArray(w.lists) && w.lists.length ? w.lists : [{id:"l"+uid(), name:"Obecné"}],
+        templates: Array.isArray(w.templates) ? w.templates : [],
+      })),
+      activeWorkspaceId: parsed.activeWorkspaceId,
+      tasks: parsed.tasks.map(t => ({
+        ...t,
+        checklist: Array.isArray(t.checklist) ? t.checklist : [],
+        friendIds: Array.isArray(t.friendIds) ? t.friendIds : [],
+        confirmedFriendIds: Array.isArray(t.confirmedFriendIds) ? t.confirmedFriendIds : [],
+        files: Array.isArray(t.files) ? t.files : [],
+        images: Array.isArray(t.images) && t.images.length ? t.images : (t.image ? [t.image] : []),
+        drawings: Array.isArray(t.drawings) && t.drawings.length ? t.drawings : (t.drawing ? [t.drawing] : []),
+        audioIds: Array.isArray(t.audioIds) && t.audioIds.length ? t.audioIds : (t.audioId ? [t.audioId] : []),
+      })),
+      friends: Array.isArray(parsed.friends) ? parsed.friends : defaultFriends(),
+      recipes: Array.isArray(parsed.recipes) ? parsed.recipes.map(r => ({
+        ...r,
+        totalGrams: r.totalGrams || null,
+        servingGrams: r.servingGrams || null,
+        nutrition: r.nutrition || null,
+        coverImage: r.coverImage || null,
+        categoryId: r.categoryId || null,
+        gallery: Array.isArray(r.gallery) ? r.gallery : [],
+        sections: Array.isArray(r.sections) ? r.sections.map(s => ({
+          ...s,
+          isIngredients: typeof s.isIngredients === "boolean" ? s.isIngredients : !/postup|krok|příprava|priprava/i.test(s.name||""),
+          items: Array.isArray(s.items) ? s.items : [],
+        })) : [],
+      })) : defaultRecipes(),
+      meals: Array.isArray(parsed.meals) ? parsed.meals.map(m => ({
+        ...m,
+        type: "meal",
+        servingsCount: m.servingsCount || 1,
+        nutrition: m.nutrition || null,
+        eaten: !!m.eaten,
+        items: Array.isArray(m.items) ? m.items : [],
+        shareId: m.shareId || null, sharedStatus: m.sharedStatus || null, sharedAccepterName: m.sharedAccepterName || null,
+      })) : seedMeals(),
+      mealLabels: Array.isArray(parsed.mealLabels) && parsed.mealLabels.length ? parsed.mealLabels : defaultMealLabels(),
+      recipeCategories: Array.isArray(parsed.recipeCategories) && parsed.recipeCategories.length ? parsed.recipeCategories : defaultRecipeCategories(),
+      documents: Array.isArray(parsed.documents) ? parsed.documents.map(d => ({
+        ...d,
+        checklist: Array.isArray(d.checklist) ? d.checklist : [],
+        images: Array.isArray(d.images) ? d.images : [],
+        files: Array.isArray(d.files) ? d.files : [],
+        drawings: Array.isArray(d.drawings) && d.drawings.length ? d.drawings : (d.drawing ? [d.drawing] : []),
+        audioIds: Array.isArray(d.audioIds) && d.audioIds.length ? d.audioIds : (d.audioId ? [d.audioId] : []),
+      })) : [],
+      workouts: Array.isArray(parsed.workouts) ? parsed.workouts.map(w => ({
+        ...w,
+        exercises: Array.isArray(w.exercises) ? w.exercises : [],
+        checklist: Array.isArray(w.checklist) ? w.checklist.map(i => ({...i, minutes: i.minutes || parseMinutesFromText(i.text)})) : [],
+        drawings: Array.isArray(w.drawings) ? w.drawings : [],
+        audioIds: Array.isArray(w.audioIds) ? w.audioIds : [],
+        date: w.date || todayISO,
+        done: !!w.done,
+        estimatedCalories: w.estimatedCalories ?? null,
+        calorieReasoning: w.calorieReasoning || null,
+        calorieAnalyzedAt: w.calorieAnalyzedAt || null,
+        calorieSignature: w.calorieSignature || null,
+        recurrenceType: w.recurrenceType || "none",
+        recurrenceWeekdays: Array.isArray(w.recurrenceWeekdays) ? w.recurrenceWeekdays : [],
+        recurrenceDurationValue: w.recurrenceDurationValue || 4,
+        recurrenceDurationUnit: w.recurrenceDurationUnit || "weeks",
+        recurrenceGroupId: w.recurrenceGroupId || null,
+        shareId: w.shareId || null, sharedStatus: w.sharedStatus || null, sharedAccepterName: w.sharedAccepterName || null,
+      })) : [],
+      medications: Array.isArray(parsed.medications) ? parsed.medications.map(m => ({
+        ...m,
+        type: "medication",
+        taken: !!m.taken,
+        category: m.category || "lek",
+      })) : seedMedications(),
+      foodItems: Array.isArray(parsed.foodItems) ? parsed.foodItems.map(f => ({
+        ...f,
+        favorite: !!f.favorite,
+        unitKind: f.unitKind === "volume" ? "volume" : "weight",
+        nutritionPer100g: f.nutritionPer100g || {calories:0, protein:0, fat:0, carbs:0},
+      })) : seedFoodItems(),
+      foodCategories: (() => {
+        const saved = Array.isArray(parsed.foodCategories) && parsed.foodCategories.length ? parsed.foodCategories : FOOD_CATEGORIES;
+        const missing = FOOD_CATEGORIES.filter(c => !saved.some(s => s.id === c.id));
+        return missing.length ? [...saved, ...missing] : saved;
+      })(),
+      proteinAiAnalysis: (parsed.proteinAiAnalysis && typeof parsed.proteinAiAnalysis === "object") ? parsed.proteinAiAnalysis : {},
+      userProfile: (parsed.userProfile && typeof parsed.userProfile === "object") ? {
+        gender: parsed.userProfile.gender || null,
+        weightKg: Number(parsed.userProfile.weightKg) || null,
+        unitPref: parsed.userProfile.unitPref === "lb" ? "lb" : "kg",
+        goal: parsed.userProfile.goal || "maintain",
+        customTargets: (parsed.userProfile.customTargets && typeof parsed.userProfile.customTargets === "object") ? {
+          protein: Number(parsed.userProfile.customTargets.protein) || null,
+          carbs: Number(parsed.userProfile.customTargets.carbs) || null,
+          fat: Number(parsed.userProfile.customTargets.fat) || null,
+        } : { protein:null, carbs:null, fat:null },
+        energyUnit: parsed.userProfile.energyUnit === "kJ" ? "kJ" : "kcal",
+      } : { gender: null, weightKg: null, unitPref: "kg", goal: "maintain", customTargets: { protein:null, carbs:null, fat:null }, energyUnit: "kcal" },
+      reminderLog: Array.isArray(parsed.reminderLog) ? parsed.reminderLog.slice(0, 200) : [],
+      activityStopwatch: (parsed.activityStopwatch && typeof parsed.activityStopwatch === "object") ? parsed.activityStopwatch : null,
+      people: Array.isArray(parsed.people) ? parsed.people.map(p => ({
+        id: p.id, name: p.name || "",
+        birthdayMonthDay: p.birthdayMonthDay || null,
+        birthdayFullDate: p.birthdayFullDate || null,
+        birthdayReminder: { enabled:false, daysBefore:0, note:"", ...(p.birthdayReminder||{}) },
+        namedayReminder: { enabled:false, daysBefore:0, note:"", ...(p.namedayReminder||{}) },
+        anniversaries: Array.isArray(p.anniversaries) ? p.anniversaries.map(a => ({
+          id:a.id, label:a.label||"Výročí", monthDay:a.monthDay||null,
+          reminder: { enabled:false, daysBefore:0, note:"", ...(a.reminder||{}) },
+        })) : [],
+      })) : [],
+      anniversaryTaskLog: (parsed.anniversaryTaskLog && typeof parsed.anniversaryTaskLog === "object") ? parsed.anniversaryTaskLog : {},
+      shoppingList: Array.isArray(parsed.shoppingList) ? parsed.shoppingList : [],
+      pantryStock: Array.isArray(parsed.pantryStock) ? parsed.pantryStock : [],
+      aiFoodCache: (parsed.aiFoodCache && typeof parsed.aiFoodCache === "object") ? parsed.aiFoodCache : {},
+      aiWorkoutCache: (parsed.aiWorkoutCache && typeof parsed.aiWorkoutCache === "object") ? parsed.aiWorkoutCache : {},
+      colorScheme: ["indigo","forest","amber","mono"].includes(parsed.colorScheme) ? parsed.colorScheme : "indigo",
+      pushSubscription: (parsed.pushSubscription && typeof parsed.pushSubscription === "object") ? parsed.pushSubscription : null,
+      currentView: ["recipes","meals","notes","documents","medications","workouts","settings"].includes(parsed.currentView) ? parsed.currentView : "calendar",
+      selectedDate: todayISO,
+      activeListFilter: parsed.activeListFilter || "all",
+      windowStart: toISO(addDays(TODAY, -1)),
+    };
+    if(!safe.workspaces.length) return defaultState();
+    if(!safe.workspaces.find(w => w.id === safe.activeWorkspaceId)) safe.activeWorkspaceId = safe.workspaces[0].id;
+    migrateSeedRecipeNutrition(safe);
+    return safe;
+  }catch(e){
+    console.warn("Nepodařilo se načíst uložená data, používám výchozí.", e);
+    return defaultState();
+  }
+}
+let saveFailWarned = false;
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch(e){
+    console.warn("Uložení se nezdařilo (možná plné úložiště).", e);
+    if(!saveFailWarned){
+      saveFailWarned = true;
+      showToast("⚠️ Data se nepodařilo uložit — úložiště prohlížeče je plné. Zkus smazat velké fotky/přílohy.");
+    }
+  }
+}
+
+// ================= BACKUP / EXPORT / RESTORE =================
+// Everything lives only in this browser's localStorage — no server, no
+// account. This is the safety net: a downloadable snapshot of the whole
+// state, and a way to load one back in, so switching phones or an
+// accidentally-cleared browser doesn't mean losing everything.
+function exportBackup(){
+  try{
+    const payload = { app:"vibe-calendar", exportedAt: new Date().toISOString(), state };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vibe-calendar-zaloha-${todayISO}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast("✅ Záloha stažena");
+  }catch(e){
+    showToast("Stažení zálohy se nezdařilo.");
+  }
+}
+async function handleBackupUpload(fileList){
+  if(!fileList || !fileList.length) return;
+  try{
+    const text = await fileList[0].text();
+    const parsed = JSON.parse(text);
+    const restoredState = parsed && parsed.state ? parsed.state : parsed; // accept raw state too
+    if(!restoredState || typeof restoredState !== "object" || !Array.isArray(restoredState.tasks)){
+      showToast("Tenhle soubor nevypadá jako platná záloha appky.");
+      return;
+    }
+    pendingRestoreState = restoredState;
+    openModal("confirmRestore");
+  }catch(e){
+    showToast("Soubor se nepodařilo přečíst — je poškozený nebo to není platná záloha.");
+  }
+}
+let pendingRestoreState = null;
+function confirmRestoreBackup(){
+  if(!pendingRestoreState) return;
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingRestoreState));
+    showToast("✅ Záloha obnovena — appka se teď načte znovu");
+    pendingRestoreState = null;
+    closeModal();
+    setTimeout(() => location.reload(), 800);
+  }catch(e){
+    showToast("Obnovení se nezdařilo.");
+  }
+}
+function confirmRestoreModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:360px;text-align:center">
+        <p style="font-size:40px;margin:0 0 8px">⚠️</p>
+        <p class="text-lg font-semi" style="margin:0 0 8px;color:#334155">Obnovit ze zálohy?</p>
+        <p class="text-sm muted" style="margin:0 0 20px">Tohle <b>přepíše všechna aktuální data</b> v appce zálohou ze souboru. Tuhle akci nejde vzít zpět — pokud si nejsi jistý/á, nejdřív si stáhni zálohu aktuálního stavu.</p>
+        <div class="row gap-2">
+          <button class="btn btn-soft grow" style="justify-content:center" data-action="close-modal">Zrušit</button>
+          <button class="btn btn-primary grow" style="justify-content:center;background:#dc2626" data-action="confirm-restore-backup">Ano, přepsat</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+let globalSearchQuery = "";
+let shoppingDaysAhead = 7;
+let pantryExpanded = false;
+function openGlobalSearch(){
+  globalSearchQuery = "";
+  openModal("globalSearch");
+}
+// Strips accents/diacritics so "ukol" finds "úkol" and "recepty" finds
+// "recepty" regardless of how the person happens to type it — works for any
+// Latin-based diacritics, not just Czech.
+function normalizeSearchText(text){
+  return String(text||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+// ================= AI ANSWER MEMORY (cheaper AI without losing quality) =================
+// Once AI has estimated macros for e.g. "Rohlík" or calories for "Běh 30 min",
+// the app remembers it — scaled per 100g/100ml, or per activity+duration — so
+// asking about the SAME thing again (which happens constantly in real use;
+// people eat the same foods and do the same activities repeatedly) is
+// instant and free, with zero AI call. Nothing about the model or the
+// quality of a genuinely NEW estimate changes — only real repeats get
+// skipped, so the "brilliant thinking" stays exactly as sharp as before for
+// anything the app hasn't already learned.
+function normalizeCacheKey(text){ return normalizeSearchText(text).trim(); }
+function getCachedFoodNutrition(name){
+  const key = normalizeCacheKey(name);
+  return state.aiFoodCache[key] || null;
+}
+function cacheFoodNutrition(name, grams, nutrition){
+  const key = normalizeCacheKey(name);
+  if(!key) return;
+  const ratio = 100 / (Number(grams) || 100);
+  state.aiFoodCache[key] = {
+    caloriesPer100: Math.round((Number(nutrition.calories)||0)*ratio),
+    proteinPer100: Math.round((Number(nutrition.protein)||0)*ratio*10)/10,
+    fatPer100: Math.round((Number(nutrition.fat)||0)*ratio*10)/10,
+    carbsPer100: Math.round((Number(nutrition.carbs)||0)*ratio*10)/10,
+    cachedAt: Date.now(),
+  };
+  saveState();
+}
+function scaleFoodFromCache(cached, grams){
+  const ratio = (Number(grams)||100) / 100;
+  return {
+    calories: Math.round((cached.caloriesPer100||0)*ratio),
+    protein: Math.round((cached.proteinPer100||0)*ratio*10)/10,
+    fat: Math.round((cached.fatPer100||0)*ratio*10)/10,
+    carbs: Math.round((cached.carbsPer100||0)*ratio*10)/10,
+  };
+}
+// Workout/activity calorie cache — keyed by activity name + duration rounded
+// to the nearest 5 minutes, so "Běh 28 min" and "Běh 30 min" still share one
+// learned answer (close enough not to matter, and it means far fewer misses).
+function workoutCacheKey(label, minutes){
+  const roundedMin = Math.round((Number(minutes)||0)/5)*5;
+  return `${normalizeCacheKey(label)}::${roundedMin}`;
+}
+function getCachedWorkoutCalories(label, minutes){
+  return state.aiWorkoutCache[workoutCacheKey(label, minutes)] || null;
+}
+function cacheWorkoutCalories(label, minutes, calories, reasoning){
+  const key = workoutCacheKey(label, minutes);
+  if(!normalizeCacheKey(label)) return;
+  state.aiWorkoutCache[key] = { calories: Math.round(Number(calories)||0), reasoning: String(reasoning||"").slice(0,300), cachedAt: Date.now() };
+  saveState();
+}
+function globalSearchResults(query){
+  const q = normalizeSearchText(query).trim();
+  if(q.length < 2) return [];
+  const results = [];
+  const matches = (text) => text && normalizeSearchText(text).includes(q);
+  state.tasks.filter(t=>!t.deletedAt).forEach(t => {
+    if(matches(t.title) || matches(t.content)) results.push({type:"task", icon:"☑️", title:t.title, sub:t.date, id:t.id});
+  });
+  state.recipes.filter(r=>!r.deletedAt).forEach(r => {
+    if(matches(r.title)) results.push({type:"recipe", icon:"🍳", title:r.title, sub:"Recept", id:r.id});
+  });
+  state.meals.filter(m=>!m.deletedAt).forEach(m => {
+    if(matches(m.title)) results.push({type:"meal", icon:"🍽️", title:m.title, sub:m.date, id:m.id});
+  });
+  state.documents.filter(d=>!d.deletedAt).forEach(d => {
+    if(matches(d.title) || matches(d.content)) results.push({type:"document", icon:"📁", title:d.title, sub:"Dokument", id:d.id});
+  });
+  state.workouts.filter(w=>!w.deletedAt).forEach(w => {
+    if(matches(w.title) || matches(w.notes)) results.push({type:"workout", icon:"🏋️", title:w.title, sub:w.date, id:w.id});
+  });
+  state.medications.filter(m=>!m.deletedAt).forEach(m => {
+    if(matches(m.name)) results.push({type:"medication", icon:"💊", title:m.name, sub:m.date, id:m.id});
+  });
+  state.people.forEach(p => {
+    if(matches(p.name)) results.push({type:"person", icon:"🎂", title:p.name, sub:"Rodina a blízcí", id:p.id});
+  });
+  return results.slice(0, 40);
+}
+function openGlobalSearchResult(r){
+  closeModal();
+  if(r.type === "task"){ const t = state.tasks.find(x=>x.id===r.id); if(t){ state.selectedDate=t.date; state.windowStart=toISO(addDays(parseISODate(t.date),-1)); state.currentView="calendar"; saveState(); renderAll(); openTaskQuickView(t.id); } }
+  else if(r.type === "recipe"){ state.currentView="recipes"; saveState(); openRecipeId=r.id; renderAll(); }
+  else if(r.type === "meal"){ const m = state.meals.find(x=>x.id===r.id); if(m){ state.selectedDate=m.date; state.windowStart=toISO(addDays(parseISODate(m.date),-1)); state.currentView="meals"; saveState(); renderAll(); } }
+  else if(r.type === "document"){ state.currentView="documents"; saveState(); renderAll(); openDocumentDetail(r.id); }
+  else if(r.type === "workout"){ const w = state.workouts.find(x=>x.id===r.id); if(w){ state.selectedDate=w.date; state.windowStart=toISO(addDays(parseISODate(w.date),-1)); state.currentView="workouts"; saveState(); renderAll(); openWorkoutDetail(r.id); } }
+  else if(r.type === "medication"){ const m = state.medications.find(x=>x.id===r.id); if(m){ state.selectedDate=m.date; state.currentView="medications"; saveState(); renderAll(); } }
+  else if(r.type === "person"){ state.currentView="settings"; saveState(); renderAll(); expandedPersonId=r.id; renderSettingsView(); }
+}
+function globalSearchResultsHTML(){
+  const results = globalSearchResults(globalSearchQuery);
+  if(globalSearchQuery.trim().length < 2) return `<p class="text-sm muted" style="text-align:center;padding:16px 0">Napiš aspoň 2 znaky…</p>`;
+  if(results.length===0) return `<p class="text-sm muted" style="text-align:center;padding:16px 0">Nic nenalezeno.</p>`;
+  return `
+    <div class="col gap-2">
+      ${results.map(r => `
+        <button class="row gap-3" style="width:100%;text-align:left;background:#f8fafc;border-radius:12px;padding:10px 12px" data-action="open-search-result" data-id="${r.id}" data-sub="${r.type}">
+          <span style="font-size:16px">${r.icon}</span>
+          <div class="grow" style="min-width:0">
+            <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(r.title||"(bez názvu)")}</p>
+            <p class="text-xs muted" style="margin:0">${escapeHTML(r.sub||"")}</p>
+          </div>
+        </button>`).join("")}
+    </div>`;
+}
+function renderGlobalSearchResults(){
+  const el = document.getElementById("globalSearchResultsRoot");
+  if(el) el.innerHTML = globalSearchResultsHTML();
+}
+function globalSearchModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🔍 Hledat v appce</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <input id="globalSearchInput" class="field" style="margin-bottom:12px" placeholder="Hledej úkoly, recepty, dokumenty, tréninky…" value="${escapeAttr(globalSearchQuery)}" autofocus />
+        <div id="globalSearchResultsRoot">${globalSearchResultsHTML()}</div>
+      </div>
+    </div>`;
+}
+
+let state = loadState();
+
+// ================= SHOPPING LIST =================
+function addShoppingListItem(text){
+  if(!text || !text.trim()) return;
+  state.shoppingList = [...state.shoppingList, { id: uid(), text: text.trim(), name: text.trim(), checked:false, source:"manual" }];
+  saveState();
+}
+function toggleShoppingListItem(id){
+  state.shoppingList = state.shoppingList.map(i => i.id===id ? {...i, checked:!i.checked} : i);
+  saveState();
+}
+function removeShoppingListItem(id){
+  state.shoppingList = state.shoppingList.filter(i => i.id !== id);
+  saveState();
+}
+function clearCheckedShoppingItems(){
+  state.shoppingList = state.shoppingList.filter(i => !i.checked);
+  saveState();
+  showToast("Odškrtnuté položky smazány ✓");
+}
+// Pulls ingredients from planned (not-yet-eaten) meals over the next N days —
+// both freely-typed items and recipe-sourced ones — and merges same-named
+// items into one line instead of duplicating them.
+function generateShoppingListFromMeals(daysAhead){
+  const days = daysAhead || 7;
+  const dates = Array.from({length:days}, (_,i) => toISO(addDays(new Date(), i)));
+  const gathered = {}; // name -> {totalGrams, unit, count}
+  dates.forEach(date => {
+    mealsForDate(date).filter(m => !m.eaten).forEach(m => {
+      if(m.items && m.items.length){
+        m.items.forEach(it => {
+          const key = it.text.trim().toLowerCase();
+          if(!gathered[key]) gathered[key] = { name: it.text.trim(), totalGrams:0, unit: it.unit||"g", count:0 };
+          gathered[key].totalGrams += Number(it.grams)||0;
+          gathered[key].count++;
+        });
+      } else if(m.source === "recipe" && m.recipeId){
+        const r = findRecipe(m.recipeId);
+        if(r){
+          (r.sections||[]).forEach(sec => {
+            if(!sec.isIngredients) return;
+            (sec.items||[]).forEach(ing => {
+              const key = ing.text.trim().toLowerCase();
+              if(!gathered[key]) gathered[key] = { name: ing.text.trim(), totalGrams:0, unit:"g", count:0, isRecipeLine:true };
+              gathered[key].count++;
+            });
+          });
+        }
+      }
+    });
+  });
+  const existingNames = new Set(state.shoppingList.filter(i=>!i.checked).map(i => (i.name||i.text).trim().toLowerCase()));
+  const skippedPantry = [];
+  const newItems = Object.values(gathered)
+    .filter(g => {
+      if(existingNames.has(g.name.toLowerCase())) return false;
+      if(isInPantry(g.name)){ skippedPantry.push(g.name); return false; }
+      return true;
+    })
+    .map(g => ({
+      id: uid(),
+      name: g.name,
+      text: g.totalGrams > 0 ? `${g.name} (${Math.round(g.totalGrams)} ${g.unit})` : g.name,
+      checked:false, source:"meal",
+    }));
+  if(!newItems.length){
+    showToast(skippedPantry.length ? `Vše potřebné už máš doma (${skippedPantry.join(", ")}) ✓` : "Žádné nové suroviny k přidání — buď nemáš naplánovaná jídla, nebo už je máš na seznamu.");
+    return;
+  }
+  state.shoppingList = [...state.shoppingList, ...newItems];
+  saveState();
+  showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${skippedPantry.length ? ` (${skippedPantry.length}× přeskočeno, máš doma)` : ''} ✓`);
+}
+// ================= PANTRY / "MÁM DOMA" =================
+// Anything already in the fridge/freezer/garden — the shopping-list generator
+// skips ingredients that match, so it doesn't ask you to buy what you already have.
+function addPantryItem(text){
+  if(!text || !text.trim()) return;
+  state.pantryStock = [...state.pantryStock, { id: uid(), name: text.trim() }];
+  saveState();
+}
+function removePantryItem(id){
+  state.pantryStock = state.pantryStock.filter(i => i.id !== id);
+  saveState();
+}
+// Simple, forgiving substring match either direction — "maso" in the pantry
+// matches a shopping ingredient called "kuřecí maso" and vice versa — good
+// enough for short, plainly-named pantry entries without being fussy about exact wording.
+function isInPantry(ingredientName){
+  const n = ingredientName.trim().toLowerCase();
+  return state.pantryStock.some(p => {
+    const pn = p.name.trim().toLowerCase();
+    return pn.length > 0 && (n.includes(pn) || pn.includes(n));
+  });
+}
+
+// ================= NUTRITION TRENDS / PERIOD EVALUATION =================
+// Aggregates eaten-meal data across a date range and compares it to the
+// person's target (from the same intake-guidance system used elsewhere), so
+// the same numbers stay consistent app-wide instead of drifting between screens.
+function computePeriodNutritionStats(startDate, endDate){
+  const start = parseISODate(startDate), end = parseISODate(endDate);
+  const dayCount = Math.round((end-start)/86400000) + 1;
+  const series = [];
+  let daysWithData = 0;
+  const sums = {calories:0, protein:0, fat:0, carbs:0};
+  for(let i=0;i<dayCount;i++){
+    const d = toISO(addDays(start, i));
+    if(d > todayISO) break; // don't project into the future
+    const meals = mealsForDate(d).filter(m=>m.eaten);
+    const dayTotal = meals.reduce((acc,m) => {
+      const n = m.nutrition||{};
+      acc.calories += Number(n.calories)||0; acc.protein += Number(n.protein)||0;
+      acc.fat += Number(n.fat)||0; acc.carbs += Number(n.carbs)||0;
+      return acc;
+    }, {calories:0,protein:0,fat:0,carbs:0});
+    if(meals.length){
+      daysWithData++;
+      sums.calories += dayTotal.calories; sums.protein += dayTotal.protein;
+      sums.fat += dayTotal.fat; sums.carbs += dayTotal.carbs;
+    }
+    series.push({ date:d, ...dayTotal, hasData: meals.length>0 });
+  }
+  const avg = (key) => daysWithData ? Math.round((sums[key]/daysWithData)*10)/10 : 0;
+  return {
+    startDate, endDate, dayCount, daysWithData, series,
+    avgCalories: avg("calories"), avgProtein: avg("protein"), avgFat: avg("fat"), avgCarbs: avg("carbs"),
+    totalCalories: Math.round(sums.calories), totalProtein: Math.round(sums.protein*10)/10,
+  };
+}
+// Instant, free, rule-based feedback comparing the averages to the person's
+// own target range — no AI needed for this baseline, matches the "always
+// something useful immediately" pattern used elsewhere (protein AI analysis,
+// workout calories).
+function generateNutritionInsights(stats){
+  const p = state.userProfile || {};
+  if(stats.daysWithData === 0) return ["Za tohle období nemáš zaznamenané žádné snědené jídlo — appka nemá z čeho vyhodnotit."];
+  const insights = [];
+  insights.push(`Za ${stats.daysWithData} ${stats.daysWithData===1?'den':stats.daysWithData<5?'dny':'dní'} se záznamem sis v průměru snědl/a ${displayEnergy(stats.avgCalories)}/den, ${stats.avgProtein} g bílkovin, ${stats.avgCarbs} g sacharidů a ${stats.avgFat} g tuků.`);
+  const wUnit = p.weightKg ? (p.unitPref==="lb" ? kgToLb(p.weightKg) : p.weightKg) : null;
+  if(wUnit){
+    const goalMeta = INTAKE_GOALS[p.goal];
+    const proteinRange = p.goal==="custom" ? (p.customTargets?.protein ? [p.customTargets.protein,p.customTargets.protein] : null) : (goalMeta ? goalMeta.protein : null);
+    if(proteinRange){
+      const avgPerKg = Math.round((stats.avgProtein/wUnit)*100)/100;
+      if(avgPerKg < proteinRange[0]) insights.push(`⚠️ Příjem bílkovin (${avgPerKg} g/${weightUnitLabel(p.unitPref)}) je pod tvým cílem (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — zkus přidat cca ${Math.round((proteinRange[0]-avgPerKg)*wUnit)} g bílkovin denně navíc.`);
+      else if(avgPerKg > proteinRange[1]) insights.push(`Příjem bílkovin (${avgPerKg} g/${weightUnitLabel(p.unitPref)}) je nad doporučeným rozmezím (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — není to nutně problém, ale je nad tím, co si sám nastavil/a jako cíl.`);
+      else insights.push(`✅ Příjem bílkovin se drží přesně v tvém cílovém rozmezí (${proteinRange[0]}–${proteinRange[1]} g/${weightUnitLabel(p.unitPref)}) — pěkná konzistence.`);
+    }
+  } else {
+    insights.push("Zadej si váhu a cíl v Denním přehledu, ať appka umí porovnat příjem s konkrétním doporučením, ne jen ukázat čísla.");
+  }
+  const coverage = Math.round((stats.daysWithData/stats.dayCount)*100);
+  if(coverage < 50) insights.push(`Zaznamenal/a jsi jídlo jen u ${coverage} % dní z tohoto období — čím pravidelněji budeš zapisovat, tím přesnější bude vyhodnocení.`);
+  return insights;
+}
+function nutritionChartHTML(series){
+  const w = 320, h = 90, padTop = 8, padBottom = 4;
+  const maxCal = Math.max(...series.map(d=>d.calories), 100);
+  const barW = Math.max(2, Math.floor((w / series.length) - 2));
+  const bars = series.map((d, i) => {
+    const x = i * (w/series.length);
+    const barH = d.hasData ? Math.max(2, ((d.calories/maxCal) * (h-padTop-padBottom))) : 0;
+    const y = h - padBottom - barH;
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${d.hasData?'#059669':'#e2e8f0'}"></rect>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:80px;display:block">${bars}</svg>`;
+}
+let nutritionPeriodMode = "week"; // "week" | "month" | "year" | "custom"
+let nutritionCustomStart = null, nutritionCustomEnd = null;
+let nutritionAiAnalysis = null; // {text, computedAt, forPeriod}
+function nutritionPeriodDates(){
+  const end = todayISO;
+  if(nutritionPeriodMode === "week") return [toISO(addDays(new Date(), -6)), end];
+  if(nutritionPeriodMode === "month") return [toISO(addDays(new Date(), -29)), end];
+  if(nutritionPeriodMode === "year") return [toISO(addDays(new Date(), -364)), end];
+  return [nutritionCustomStart || toISO(addDays(new Date(),-6)), nutritionCustomEnd || end];
+}
+async function analyzeNutritionPeriodAI(){
+  const [start, end] = nutritionPeriodDates();
+  const stats = computePeriodNutritionStats(start, end);
+  if(stats.daysWithData === 0){ showToast("Za tohle období nemáš zaznamenaná žádná jídla."); return; }
+  const p = state.userProfile || {};
+  const btn = document.getElementById("nutritionAiBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🧠 AI analyzuje…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6", max_tokens: 800,
+        messages: [{ role:"user", content:
+          `Jsi zkušený nutriční specialista. Zhodnoť stravování klienta za období ${start} až ${end} (${stats.daysWithData} dní se záznamem z ${stats.dayCount}):\n- Průměrně ${stats.avgCalories} kcal/den, ${stats.avgProtein} g bílkovin, ${stats.avgCarbs} g sacharidů, ${stats.avgFat} g tuků.\n${p.weightKg ? `- Váha klienta: ${Math.round(p.weightKg)} kg, cíl: ${p.goal==="lose"?"hubnutí":p.goal==="gain"?"nabírání svalů":p.goal==="custom"?"vlastní cíl":"udržení váhy"}.` : "- Váha ani cíl nejsou zadané."}\n\nNapiš krátké (4-6 vět) profesionální ale srozumitelné zhodnocení jako od nutričního specialisty — co dělá dobře, co by mohl/mohla zlepšit, a 1-2 konkrétní chytrá doporučení. Piš v češtině, přátelsky, věcně, bez odborného žargonu.\n\nOdpověz POUZE čistým textem, žádný JSON, žádný markdown.`
+        }],
+      }),
+    });
+    if(!response.ok) throw new Error("http-"+response.status);
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    if(!text) throw new Error("empty");
+    nutritionAiAnalysis = { text, computedAt: Date.now(), forPeriod: `${start}_${end}` };
+    showToast("Analýza hotova ✨");
+  }catch(e){
+    showToast("AI analýza teď není dostupná — appka zatím ukazuje rychlé vyhodnocení bez AI.");
+  }finally{
+    const btn2 = document.getElementById("nutritionAiBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🧠 AI: Podrobná analýza od nutričního specialisty"; }
+    renderModals();
+  }
+}
+function nutritionTrendsModalHTML(){
+  const [start, end] = nutritionPeriodDates();
+  const stats = computePeriodNutritionStats(start, end);
+  const insights = generateNutritionInsights(stats);
+  const currentPeriodKey = `${start}_${end}`;
+  const aiStale = nutritionAiAnalysis && nutritionAiAnalysis.forPeriod !== currentPeriodKey;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:440px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">📈 Vyhodnocení jídelníčku</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="row gap-2 wrapf" style="margin-bottom:12px">
+          <button class="chip ${nutritionPeriodMode==='week'?'active':''}" data-action="set-nutrition-period" data-id="week">Týden</button>
+          <button class="chip ${nutritionPeriodMode==='month'?'active':''}" data-action="set-nutrition-period" data-id="month">Měsíc</button>
+          <button class="chip ${nutritionPeriodMode==='year'?'active':''}" data-action="set-nutrition-period" data-id="year">Rok</button>
+          <button class="chip ${nutritionPeriodMode==='custom'?'active':''}" data-action="set-nutrition-period" data-id="custom">Vlastní</button>
+        </div>
+        ${nutritionPeriodMode==="custom" ? `
+          <div class="row gap-2" style="margin-bottom:12px">
+            <input type="date" class="field" value="${nutritionCustomStart||''}" data-nutrition-custom-field="start" />
+            <input type="date" class="field" value="${nutritionCustomEnd||''}" data-nutrition-custom-field="end" />
+          </div>
+        ` : ""}
+        <p class="text-xs muted" style="margin:0 0 6px">${start} — ${end} · ${stats.daysWithData}/${stats.dayCount} dní se záznamem</p>
+        ${nutritionChartHTML(stats.series)}
+        <p class="text-xs muted" style="margin:6px 0 14px">🟢 dny se záznamem jídla · ⬜ bez záznamu — výška = kalorie</p>
+
+        <div class="row gap-4 wrapf" style="margin-bottom:14px">
+          <div><p class="text-xs muted" style="margin:0">Ø kalorie/den</p><p class="text-sm font-semi" style="margin:0;color:#059669">${displayEnergy(stats.avgCalories)}</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø bílkoviny</p><p class="text-sm font-semi" style="margin:0;color:#7c3aed">${stats.avgProtein} g</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø sacharidy</p><p class="text-sm font-semi" style="margin:0;color:#0284c7">${stats.avgCarbs} g</p></div>
+          <div><p class="text-xs muted" style="margin:0">Ø tuky</p><p class="text-sm font-semi" style="margin:0;color:#d97706">${stats.avgFat} g</p></div>
+        </div>
+
+        <div style="background:#f8fafc;border-radius:12px;padding:12px;margin-bottom:12px">
+          <p class="text-xs font-semi muted" style="margin:0 0 6px">📋 Rychlé vyhodnocení</p>
+          ${insights.map(i => `<p class="text-sm" style="margin:0 0 6px;color:#475569">${i}</p>`).join("")}
+        </div>
+
+        ${nutritionAiAnalysis && !aiStale ? `
+          <div style="background:#faf5ff;border-radius:12px;padding:12px;margin-bottom:12px">
+            <p class="text-xs font-semi" style="margin:0 0 6px;color:#7c3aed">🧠 Od nutričního specialisty (AI)</p>
+            <p class="text-sm" style="margin:0;color:#475569;white-space:pre-wrap">${escapeHTML(nutritionAiAnalysis.text)}</p>
+          </div>
+        ` : ""}
+        <button id="nutritionAiBtn" class="btn btn-primary" style="width:100%;justify-content:center" data-action="analyze-nutrition-period">🧠 AI: ${nutritionAiAnalysis && !aiStale ? 'Přepočítat' : 'Podrobná analýza od nutričního specialisty'}</button>
+      </div>
+    </div>`;
+}
+function shoppingListModalHTML(){
+  const unchecked = state.shoppingList.filter(i=>!i.checked);
+  const checked = state.shoppingList.filter(i=>i.checked);
+  const row = (i) => `
+    <div class="row gap-2" style="align-items:center">
+      <button data-action="toggle-shopping-item" data-id="${i.id}" style="width:20px;height:20px;border-radius:6px;border:2px solid ${i.checked?'#10b981':'#cbd5e1'};background:${i.checked?'#10b981':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${i.checked?'✓':''}</button>
+      <span class="text-sm grow ${i.checked?'strike':''}" style="color:${i.checked?'#94a3b8':'#334155'}">${escapeHTML(i.text)}</span>
+      <button class="icon-btn-sm shrink0" data-action="remove-shopping-item" data-id="${i.id}">🗑️</button>
+    </div>`;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🛒 Nákupní seznam</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="row gap-2" style="align-items:center;margin-bottom:8px">
+          <input id="shoppingDaysAheadInput" type="number" min="1" max="60" class="field" style="width:60px" value="${shoppingDaysAhead}" />
+          <span class="text-xs muted">dní dopředu</span>
+          <button class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🔄 Doplnit z jídelníčku</button>
+        </div>
+        <button class="chip" style="margin-bottom:12px" data-action="toggle-pantry-section">${pantryExpanded?'▲':'🏠'} Mám doma (${state.pantryStock.length})</button>
+        ${pantryExpanded ? `
+          <div style="background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:12px">
+            <p class="text-xs muted" style="margin:0 0 8px">Appka tyhle suroviny přeskočí, když bude generovat seznam z jídelníčku — např. maso v mrazáku, zelenina ze zahrady, ovoce od známých.</p>
+            <div class="row gap-2" style="margin-bottom:8px">
+              <input id="pantryItemInput" class="field grow" placeholder="např. kuřecí maso, mrkev…" />
+              <button class="icon-btn shrink0" data-action="add-pantry-item">➕</button>
+            </div>
+            ${state.pantryStock.length ? `
+              <div class="row gap-1 wrapf">
+                ${state.pantryStock.map(p => `<span class="chip" style="background:#dcfce7;color:#166534">${escapeHTML(p.name)} <button data-action="remove-pantry-item" data-id="${p.id}" style="margin-left:4px;color:#166534">✕</button></span>`).join("")}
+              </div>
+            ` : `<p class="text-xs muted" style="margin:0">Zatím nic.</p>`}
+          </div>
+        ` : ""}
+        <div class="row gap-2" style="margin-bottom:14px">
+          <input id="shoppingItemInput" class="field grow" placeholder="Přidat vlastní položku…" />
+          <button class="icon-btn shrink0" data-action="add-shopping-item">➕</button>
+        </div>
+        ${state.shoppingList.length===0 ? `<p class="text-sm muted" style="text-align:center;padding:16px 0">Seznam je zatím prázdný.</p>` : `
+          <div class="col gap-2" style="margin-bottom:${checked.length?'14px':'0'}">
+            ${unchecked.map(row).join("")}
+          </div>
+          ${checked.length ? `
+            <p class="text-xs font-semi muted" style="margin:0 0 8px">Koupeno (${checked.length})</p>
+            <div class="col gap-2" style="opacity:0.6;margin-bottom:12px">${checked.map(row).join("")}</div>
+            <button class="chip" data-action="clear-checked-shopping">🗑️ Smazat odškrtnuté</button>
+          ` : ""}
+        `}
+      </div>
+    </div>`;
+}
+
+saveState(); // persist any one-time data migrations (e.g. demo recipe nutrition) immediately
+
+// transient (not persisted) UI/form state
+let draft = freshDraft();
+function freshDraft(){
+  return {
+    editingId: null,
+    formType: "task",
+    formTitle: "",
+    formContent: "",
+    formDate: todayISO,
+    formPriority: 5,
+    formCategoryId: null,
+    formListId: null,
+    formFriendIds: [],
+    formChecklist: [],
+    formImages: [],
+    formDrawings: [],
+    formAudioIds: [],
+    formFiles: [],
+    reminderEnabled: false,
+    reminderMode: "atTime",
+    reminderTime: "09:00",
+    reminderBaseTime: "09:00",
+    reminderAdvanceValue: 30,
+    reminderAdvanceUnit: "minutes",
+    reminderCustomDate: todayISO,
+    reminderCustomTime: "09:00",
+    reminderSound: "bell",
+    reminderCustomAudioId: null,
+    reminderCustomAudioName: null,
+    recurrenceType: "none",
+    recurrenceCount: 6,
+    recurrenceCustomDates: [], recurrenceWeekdays: [], recurrenceDurationValue: 2, recurrenceDurationUnit: "weeks",
+  };
+}
+
+// ---------- Derived helpers ----------
+function getWorkspace(){ return state.workspaces.find(w => w.id === state.activeWorkspaceId) || state.workspaces[0]; }
+function catById(id){ return getWorkspace().categories.find(c => c.id === id) || {emoji:"✨", label:""}; }
+function listById(id){ return getWorkspace().lists.find(l => l.id === id) || {name:"Obecné"}; }
+function friendById(id){ return state.friends.find(f => f.id === id); }
+function toggleFriendConfirm(taskId, friendId){
+  const friend = friendById(friendId);
+  const name = friend ? friend.name : "Osoba";
+  let nowConfirmed = false;
+  state.tasks = state.tasks.map(t => {
+    if(t.id !== taskId) return t;
+    const confirmed = t.confirmedFriendIds || [];
+    const isConfirmed = confirmed.includes(friendId);
+    nowConfirmed = !isConfirmed;
+    const next = isConfirmed ? confirmed.filter(f=>f!==friendId) : [...confirmed, friendId];
+    return {...t, confirmedFriendIds: next};
+  });
+  saveState(); renderLanes();
+  if(currentModal) renderModals();
+  showToast(nowConfirmed ? `✓ ${name} potvrzeno jako hotovo u tohoto úkolu` : `Potvrzení pro ${name} zrušeno`);
+}
+function wsTasks(){
+  return state.tasks.filter(t => !t.deletedAt && t.workspaceId === state.activeWorkspaceId &&
+    (state.activeListFilter === "all" || t.listId === state.activeListFilter));
+}
+function tasksByDate(){
+  const map = {};
+  wsTasks().forEach(t => { if(t.type !== "task") return; (map[t.date] = map[t.date] || []).push(t); });
+  return map;
+}
+function overdueTasks(){
+  return wsTasks().filter(t => t.type === "task" && !t.done && t.date < todayISO)
+    .sort((a,b) => a.date.localeCompare(b.date));
+}
+function completedTasks(){
+  return wsTasks().filter(t => t.type === "task" && t.done).sort((a,b) => b.date.localeCompare(a.date));
+}
+function delegatedTasks(){
+  return wsTasks().filter(t => t.type === "task" && (t.friendIds||[]).length > 0).sort((a,b) => a.date.localeCompare(b.date));
+}
+function allDelegationRelatedCount(){
+  const ids = new Set();
+  delegatedTasks().forEach(t => ids.add(t.id));
+  state.tasks.filter(t => t.shareId && !t.deletedAt).forEach(t => ids.add(t.id));
+  return ids.size;
+}
+function dayTasks(){ return wsTasks().filter(t => t.type === "task" && t.date === state.selectedDate); }
+function notesList(){ return wsTasks().filter(t => t.type === "note"); }
+function laneItems(range){
+  return dayTasks().filter(t => t.priority >= range[0] && t.priority <= range[1]).sort((a,b) => a.priority - b.priority);
+}
+
+function reminderDateTime(task){
+  const r = task.reminder;
+  if(!r || !r.enabled) return null;
+  if(r.mode === "atTime"){ if(!r.time) return null; return new Date(`${task.date}T${r.time}:00`); }
+  if(r.mode === "before"){
+    const base = new Date(`${task.date}T${task.reminderBaseTime || "09:00"}:00`);
+    const amount = Number(r.advanceValue || 0);
+    const ms = r.advanceUnit === "days" ? amount*86400000 : r.advanceUnit === "hours" ? amount*3600000 : amount*60000;
+    return new Date(base.getTime() - ms);
+  }
+  if(r.mode === "custom"){ if(!r.customDate || !r.customTime) return null; return new Date(`${r.customDate}T${r.customTime}:00`); }
+  return null;
+}
+function reminderSummary(task){
+  const r = task.reminder;
+  if(!r || !r.enabled) return "";
+  if(r.mode === "atTime") return `🔔 ${r.time || "--:--"}`;
+  if(r.mode === "before") return `🔔 ${r.advanceValue || 0} ${(ADVANCE_UNITS.find(u => u.id === r.advanceUnit)||{}).label||""} předem`;
+  if(r.mode === "custom") return `🔔 ${r.customDate||""} ${r.customTime||""}`;
+  return "";
+}
+
+// ---------- Toast ----------
+let toastTimer = null;
+function showToast(msg){
+  const el = document.getElementById("toastRoot");
+  el.innerHTML = `<div class="toast">${escapeHTML(msg)}</div>`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.innerHTML = ""; }, 2800);
+}
+let bannerTimer = null;
+function showReminderBanner(item){
+  const el = document.getElementById("reminderBannerRoot");
+  const isMeal = item.type === "meal";
+  const isMed = item.type === "medication";
+  const emoji = isMeal ? "🍽️" : isMed ? (MED_CATEGORY_EMOJI[item.category] || "💊") : (catById(item.categoryId).emoji || "🔔");
+  const subtitle = isMeal ? (mealLabelById(item.labelId).name) : isMed ? "Čas na lék/doplněk" : item.title;
+  const title = isMeal ? item.title : isMed ? `${item.name}${item.dosage ? " — " + item.dosage : ""}` : "";
+  const heading = isMeal ? "Čas na jídlo" : isMed ? "Čas na lék" : "Připomínka";
+  const bodyText = (isMeal || isMed) ? `${escapeHTML(subtitle)}: ${escapeHTML(title)}` : escapeHTML(subtitle);
+  el.innerHTML = `
+    <div class="reminder-banner">
+      <div class="row gap-3">
+        <span style="font-size:22px">${emoji}</span>
+        <div class="grow">
+          <p class="text-sm font-semi text-main" style="margin:0">🔔 ${heading}</p>
+          <p class="text-sm" style="margin:2px 0 0;color:#475569">${bodyText}</p>
+        </div>
+        <button class="icon-btn-sm" data-action="dismiss-reminder-banner" style="flex-shrink:0">✕</button>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" data-action="open-reminder-task" data-id="${item.id}">↗️ ${isMeal ? "Otevřít jídelníček" : isMed ? "Otevřít léky" : "Otevřít úkol"}</button>
+        <button class="btn btn-soft" data-action="stop-reminder-sound">🔇 Zastavit zvuk</button>
+      </div>
+    </div>`;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { if(el.innerHTML) el.innerHTML = ""; }, 25000);
+}
+// Stejný nápadný banner (ne jen prchavý toast) pro sdílené aktualizace —
+// "kamarádka odškrtla krok", "úkol je hotový" atd. Zůstane vidět 12 vteřin,
+// dá se i ručně zavřít, a klepnutím tě appka rovnou přenese na tu položku.
+function showSharedUpdateBanner(title, subtitle, itemId, itemType){
+  const el = document.getElementById("reminderBannerRoot");
+  el.innerHTML = `
+    <div class="reminder-banner">
+      <div class="row gap-3">
+        <span style="font-size:22px">👥</span>
+        <div class="grow">
+          <p class="text-sm font-semi text-main" style="margin:0">${escapeHTML(title)}</p>
+          <p class="text-sm" style="margin:2px 0 0;color:#475569">${escapeHTML(subtitle)}</p>
+        </div>
+        <button class="icon-btn-sm" data-action="dismiss-reminder-banner" style="flex-shrink:0">✕</button>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" data-action="open-shared-update" data-id="${itemId}" data-sub="${itemType}">👀 Zobrazit</button>
+        <button class="btn btn-soft" data-action="dismiss-reminder-banner">Zavřít</button>
+      </div>
+    </div>`;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { if(el.innerHTML) el.innerHTML = ""; }, 12000);
+}
+function dismissReminderBanner(){
+  document.getElementById("reminderBannerRoot").innerHTML = "";
+  clearTimeout(bannerTimer);
+}
+function stopReminderSound(){
+  if(customAudioPlayer){ customAudioPlayer.pause(); }
+  previewPlaying = false;
+  const btn = document.getElementById("previewSoundBtn");
+  if(btn) btn.textContent = "▶️";
+}
+function openReminderTask(itemId){
+  const t = state.tasks.find(x => x.id === itemId);
+  if(t){
+    stopReminderSound();
+    dismissReminderBanner();
+    if(t.workspaceId !== state.activeWorkspaceId){ state.activeWorkspaceId = t.workspaceId; resetDraft(); }
+    state.selectedDate = t.date;
+    state.windowStart = toISO(addDays(parseISODate(t.date), -1));
+    state.currentView = "calendar";
+    saveState();
+    renderAll();
+    window.scrollTo({top:0, behavior:"smooth"});
+    return;
+  }
+  const m = state.meals.find(x => x.id === itemId);
+  if(m){
+    stopReminderSound();
+    dismissReminderBanner();
+    state.selectedDate = m.date;
+    state.windowStart = toISO(addDays(parseISODate(m.date), -1));
+    state.currentView = "meals";
+    saveState();
+    renderAll();
+    window.scrollTo({top:0, behavior:"smooth"});
+    return;
+  }
+  const med = state.medications.find(x => x.id === itemId);
+  if(med){
+    stopReminderSound();
+    dismissReminderBanner();
+    state.selectedDate = med.date;
+    state.windowStart = toISO(addDays(parseISODate(med.date), -1));
+    state.currentView = "medications";
+    saveState();
+    renderAll();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+}
+function escapeHTML(str){
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+// ---------- Reminder sound playback (Web Audio API, no external libs) ----------
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+// Play+immediately-pause a near-silent clip so later programmatic <audio>.play()
+// calls (e.g. when a reminder fires without a fresh user gesture) are allowed
+// by the browser's autoplay policy for the rest of this session.
+let mediaUnlocked = false;
+function unlockMediaPlayback(){
+  if(mediaUnlocked) return;
+  try{
+    const a = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=");
+    a.volume = 0;
+    a.play().then(() => { a.pause(); mediaUnlocked = true; }).catch(() => {});
+  }catch(e){ /* ignore */ }
+}
+let appVolume = 100; // 0-100, controls sounds/voice WITHIN this app only (alarms, TTS) — never external tabs
+function playTone(freq, wave, startAt, dur=0.28, vol=0.22){
+  const effectiveVol = vol * (appVolume/100);
+  if(effectiveVol <= 0) return;
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = wave || "sine";
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, ctx.currentTime + startAt);
+  gain.gain.linearRampToValueAtTime(effectiveVol, ctx.currentTime + startAt + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(ctx.currentTime + startAt);
+  osc.stop(ctx.currentTime + startAt + dur + 0.05);
+}
+let customAudioPlayer = null;
+async function playReminderSoundOnce(soundKey, customAudioId, maxDurationMs){
+  const def = REMINDER_SOUNDS[soundKey];
+  if(!def) return;
+  if(def.custom){
+    if(!customAudioId){ return; }
+    try{
+      const url = await getBlobURL(customAudioId);
+      if(!url) return;
+      if(customAudioPlayer) customAudioPlayer.pause();
+      customAudioPlayer = new Audio(url);
+      customAudioPlayer.volume = Math.max(0, Math.min(1, appVolume/100));
+      customAudioPlayer.play().catch(() => {});
+      if(maxDurationMs){
+        setTimeout(() => { if(customAudioPlayer){ customAudioPlayer.pause(); } }, maxDurationMs);
+      }
+    }catch(e){ /* ignore */ }
+    return;
+  }
+  if(!def.notes) return;
+  try{ def.notes.forEach((note, i) => playTone(noteFreq(note), def.wave, i*0.18)); }
+  catch(e){ /* audio not available */ }
+}
+
+let previewPlaying = false;
+async function togglePreviewSound(){
+  const btn = document.getElementById("previewSoundBtn");
+  const soundKey = draft.reminderSound;
+  const def = REMINDER_SOUNDS[soundKey];
+  if(!def){ return; }
+
+  // Stop currently playing preview
+  if(previewPlaying){
+    if(customAudioPlayer) customAudioPlayer.pause();
+    previewPlaying = false;
+    if(btn) btn.textContent = "▶️";
+    return;
+  }
+
+  if(def.custom){
+    if(!draft.reminderCustomAudioId){ showToast("Nejdřív nahraj vlastní melodii 🎵"); return; }
+    getAudioCtx(); // unlock/resume audio context on this user gesture too
+    try{
+      const url = await getBlobURL(draft.reminderCustomAudioId);
+      if(!url){ showToast("Vlastní melodie nebyla nalezena — zkus ji nahrát znovu."); return; }
+      if(customAudioPlayer) customAudioPlayer.pause();
+      customAudioPlayer = new Audio(url);
+      customAudioPlayer.volume = Math.max(0, Math.min(1, appVolume/100));
+      customAudioPlayer.onended = () => { previewPlaying = false; if(btn) btn.textContent = "▶️"; };
+      customAudioPlayer.onerror = () => { showToast("Tento zvukový soubor se nepodařilo přehrát."); previewPlaying=false; if(btn) btn.textContent="▶️"; };
+      await customAudioPlayer.play();
+      previewPlaying = true;
+      if(btn) btn.textContent = "⏹";
+    }catch(e){ showToast("Přehrání melodie se nezdařilo."); }
+  } else if(def.notes){
+    getAudioCtx();
+    def.notes.forEach((note, i) => playTone(noteFreq(note), def.wave, i*0.18));
+  } else {
+    showToast("Tato volba je bez zvuku.");
+  }
+}
+// Backward-compatible wrapper used by other code paths
+async function playReminderSound(soundKey, customAudioId){ return playReminderSoundOnce(soundKey, customAudioId, 20000); }
+
+// ---------- Notifications + reminder scheduling ----------
+let reminderTimers = {};
+async function requestNotifyPermission(){
+  if(!("Notification" in window)) return "unsupported";
+  if(Notification.permission === "default") return await Notification.requestPermission();
+  return Notification.permission;
+}
+async function showSystemNotification(task){
+  if(!("Notification" in window) || Notification.permission !== "granted") return false;
+  const isMeal = task.type === "meal";
+  const isMed = task.type === "medication";
+  const title = "🔔 " + (isMed ? task.name : task.title);
+  const body = isMeal ? `Čas na: ${mealLabelById(task.labelId).name}` : isMed ? (task.dosage || "Čas na lék/doplněk") : (catById(task.categoryId).label || "Připomínka z aplikace Vibe Calendar");
+  // 1) Preferred: Service-Worker notification with action buttons ("Otevřít úkol" / "Zastavit zvuk").
+  //    We race against a short timeout so a stuck/unregistered SW never blocks the fallback below.
+  try{
+    if(navigator.serviceWorker){
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, rej) => setTimeout(() => rej(new Error("sw-timeout")), 1200)),
+      ]);
+      await reg.showNotification(title, {
+        body, tag: "reminder-" + task.id, icon: APP_ICON_192, badge: APP_ICON_192,
+        requireInteraction: true, data: { taskId: task.id },
+        actions: [ { action: "open", title: "↗️ Otevřít úkol" }, { action: "mute", title: "🔇 Zastavit zvuk" } ],
+      });
+      return true;
+    }
+  }catch(e){ /* fall through to plain Notification below */ }
+  // 2) Fallback: plain Notification (no action buttons, but still a real system popup).
+  try{
+    const n = new Notification(title, { body, tag: "reminder-"+task.id, icon: APP_ICON_192 });
+    n.onclick = () => { window.focus(); openReminderTask(task.id); n.close(); };
+    return true;
+  }catch(e){ return false; }
+}
+async function fireReminder(task){
+  showReminderBanner(task);
+  playReminderSoundOnce((task.reminder && task.reminder.sound) || "bell", task.reminder && task.reminder.customAudioId, 20000);
+  showSystemNotification(task);
+  logReminderFired(task);
+}
+// ================= REMINDER LOG (co appka oznámila a ještě nebylo potvrzeno) =================
+// So even if a phone notification gets swiped away or the ringing gets
+// dismissed and forgotten, there's always an in-app record of exactly what
+// the app tried to notify about, until the person actually deals with it.
+function logReminderFired(item){
+  if(!state.reminderLog) state.reminderLog = [];
+  const refType = item.type === "medication" ? "medication" : item.type === "meal" ? "meal" : "task";
+  const title = refType === "medication" ? item.name : item.title;
+  state.reminderLog = [{ id: uid(), refType, refId: item.id, title, firedAt: Date.now(), confirmed:false }, ...state.reminderLog].slice(0, 200);
+  saveState();
+}
+function isReminderLogEntryPending(entry){
+  if(entry.confirmed) return false;
+  if(entry.refType === "meal"){ const m = state.meals.find(x=>x.id===entry.refId); return m ? (!m.eaten && !m.deletedAt) : false; }
+  if(entry.refType === "medication"){ const m = state.medications.find(x=>x.id===entry.refId); return m ? (!m.taken && !m.deletedAt) : false; }
+  const t = state.tasks.find(x=>x.id===entry.refId);
+  return t ? (!t.done && !t.deletedAt) : false;
+}
+function pendingReminderLog(){ return (state.reminderLog||[]).filter(isReminderLogEntryPending); }
+function confirmReminderLogEntry(entryId){
+  state.reminderLog = (state.reminderLog||[]).map(e => e.id===entryId ? {...e, confirmed:true} : e);
+  saveState();
+  renderTopBar();
+  if(currentModal && currentModal.name === "reminderLog") renderModals();
+}
+function openReminderLogEntry(entry){
+  if(entry.refType === "meal"){ state.currentView = "meals"; }
+  else if(entry.refType === "medication"){ state.currentView = "medications"; }
+  else { state.currentView = "calendar"; }
+  const item = entry.refType === "meal" ? state.meals.find(x=>x.id===entry.refId)
+    : entry.refType === "medication" ? state.medications.find(x=>x.id===entry.refId)
+    : state.tasks.find(x=>x.id===entry.refId);
+  if(item){ state.selectedDate = item.date; state.windowStart = toISO(addDays(parseISODate(item.date), -1)); }
+  closeModal();
+  saveState();
+  renderAll();
+  if(entry.refType === "task" && item) openTaskQuickView(item.id);
+}
+function reminderLogModalHTML(){
+  const pending = pendingReminderLog();
+  const recentConfirmed = (state.reminderLog||[]).filter(e => e.confirmed).slice(0, 15);
+  const emoji = (t) => t==="meal" ? "🍽️" : t==="medication" ? "💊" : "☑️";
+  const row = (e, showConfirm) => `
+    <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+      <span style="font-size:16px">${emoji(e.refType)}</span>
+      <button class="grow" style="text-align:left;min-width:0" data-action="open-reminder-log-entry" data-id="${e.id}">
+        <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(e.title||"(smazáno)")}</p>
+        <p class="text-xs muted" style="margin:0">${new Date(e.firedAt).toLocaleString("cs-CZ", {day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"})}</p>
+      </button>
+      ${showConfirm ? `<button class="icon-btn-sm shrink0" data-action="confirm-reminder-log-entry" data-id="${e.id}" title="Označit jako vyřešené">✓</button>` : ""}
+    </div>`;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:6px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🔔 Upozornění</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Vše, co ti appka oznámila a ještě to nemáš potvrzené jako hotovo — i kdyby ses ztratil/a v notifikacích v telefonu.</p>
+        ${pending.length===0 ? `<p class="text-sm muted" style="margin-bottom:14px">🎉 Žádná nevyřešená upozornění.</p>` : `
+          <div class="col gap-2" style="margin-bottom:16px">
+            ${pending.map(e => row(e, true)).join("")}
+          </div>`}
+        ${recentConfirmed.length ? `
+          <p class="text-xs font-semi muted" style="margin:0 0 8px">Nedávno vyřešená</p>
+          <div class="col gap-2" style="opacity:0.6">
+            ${recentConfirmed.map(e => row(e, false)).join("")}
+          </div>` : ""}
+      </div>
+    </div>`;
+}
+function scheduleReminders(){
+  Object.values(reminderTimers).forEach(clearTimeout);
+  reminderTimers = {};
+  const MAX_DELAY = 24 * 60 * 60 * 1000 * 20; // ~20 days safety cap
+  state.tasks.forEach((t) => {
+    if(t.type !== "task" || t.done) return;
+    const when = reminderDateTime(t);
+    if(!when || isNaN(when.getTime())) return;
+    const delay = when.getTime() - Date.now();
+    if(delay <= 0 || delay > MAX_DELAY) return;
+    reminderTimers[t.id] = setTimeout(() => {
+      const fresh = state.tasks.find(x => x.id === t.id);
+      if(fresh && !fresh.done) fireReminder(fresh);
+    }, delay);
+  });
+  state.meals.forEach((m) => {
+    if(m.eaten || m.deletedAt) return;
+    const when = reminderDateTime(m);
+    if(!when || isNaN(when.getTime())) return;
+    const delay = when.getTime() - Date.now();
+    if(delay <= 0 || delay > MAX_DELAY) return;
+    reminderTimers[m.id] = setTimeout(() => {
+      const fresh = state.meals.find(x => x.id === m.id);
+      if(fresh && !fresh.eaten) fireReminder(fresh);
+    }, delay);
+  });
+  state.medications.forEach((med) => {
+    if(med.taken || med.deletedAt) return;
+    const when = reminderDateTime(med);
+    if(!when || isNaN(when.getTime())) return;
+    const delay = when.getTime() - Date.now();
+    if(delay <= 0 || delay > MAX_DELAY) return;
+    reminderTimers[med.id] = setTimeout(() => {
+      const fresh = state.medications.find(x => x.id === med.id);
+      if(fresh && !fresh.taken) fireReminder(fresh);
+    }, delay);
+  });
+}
+
+// ---------- Core task/note actions ----------
+function buildReminderFromDraft(){
+  if(!draft.reminderEnabled) return null;
+  return {
+    enabled:true, mode:draft.reminderMode, time:draft.reminderTime,
+    advanceValue:Number(draft.reminderAdvanceValue), advanceUnit:draft.reminderAdvanceUnit,
+    customDate:draft.reminderCustomDate, customTime:draft.reminderCustomTime,
+    sound:draft.reminderSound, customAudioId:draft.reminderCustomAudioId, customAudioName:draft.reminderCustomAudioName,
+  };
+}
+
+function occurrenceDates(){
+  const base = draft.formDate;
+  if(draft.recurrenceType === "none") return [base];
+  if(draft.recurrenceType === "custom"){
+    const dates = [...new Set([base, ...draft.recurrenceCustomDates])].sort();
+    return dates.length ? dates : [base];
+  }
+  const count = computeRecurrenceCount(draft.recurrenceType, draft.recurrenceWeekdays.length, draft.recurrenceDurationValue, draft.recurrenceDurationUnit);
+  if(draft.recurrenceType === "weekly_days"){
+    return weekdayOccurrenceDates(base, draft.recurrenceWeekdays, count);
+  }
+  const out = [];
+  for(let i=0;i<count;i++){
+    let d;
+    if(draft.recurrenceType === "daily") d = addDays(parseISODate(base), i);
+    else if(draft.recurrenceType === "weekly") d = addDays(parseISODate(base), i*7);
+    else if(draft.recurrenceType === "monthly") d = addMonths(parseISODate(base), i);
+    else d = parseISODate(base);
+    out.push(toISO(d));
+  }
+  return out;
+}
+
+function addItem(){
+  if(!draft.formTitle.trim()){ showToast("Napiš prosím název, ať vím co přidat 🙂"); return; }
+  const priorityNum = Number(draft.formPriority);
+  const reminder = buildReminderFromDraft();
+
+  if(draft.editingId){
+    const prev = state.tasks.find(t => t.id === draft.editingId);
+    state.tasks = state.tasks.map(t => t.id === draft.editingId ? {
+      ...t,
+      listId: draft.formListId, categoryId: draft.formCategoryId,
+      title: draft.formTitle.trim(), content: draft.formContent.trim(),
+      date: draft.formDate, priority: priorityNum, type: draft.formType,
+      image: draft.formImages[0] || null, images: draft.formImages.map(i=>i),
+      drawing: draft.formDrawings[0] || null, drawings: draft.formDrawings.map(d=>d),
+      audioId: draft.formAudioIds[0] || null, audioIds: draft.formAudioIds.map(a=>a), files: draft.formFiles,
+      checklist: draft.formChecklist, friendIds: draft.formFriendIds,
+      reminder, reminderBaseTime: draft.reminderBaseTime,
+    } : t);
+    // Clean up IndexedDB blobs that were replaced or removed while editing.
+    if(prev){
+      (prev.audioIds || (prev.audioId ? [prev.audioId] : [])).forEach(oldId => {
+        if(!draft.formAudioIds.includes(oldId)) idbDelete(oldId).catch(()=>{});
+      });
+      const prevSoundId = prev.reminder && prev.reminder.customAudioId;
+      const nextSoundId = reminder && reminder.customAudioId;
+      if(prevSoundId && prevSoundId !== nextSoundId) idbDelete(prevSoundId).catch(()=>{});
+    }
+    saveState(); scheduleReminders();
+    showToast("Změny uloženy ✓");
+    formCollapsed = true;
+    resetDraft();
+    renderAll();
+    return;
+  }
+
+  const dates = draft.formType === "task" ? occurrenceDates() : [draft.formDate];
+  const groupId = dates.length > 1 ? uid() : null;
+  const newItems = dates.map(date => ({
+    id: uid(), workspaceId: state.activeWorkspaceId, listId: draft.formListId, categoryId: draft.formCategoryId,
+    title: draft.formTitle.trim(), content: draft.formContent.trim(), date, priority: priorityNum,
+    type: draft.formType, done:false, image: draft.formImages[0] || null, images: draft.formImages.map(i=>i),
+    drawing: draft.formDrawings[0] || null, drawings: draft.formDrawings.map(d=>d),
+    audioId: draft.formAudioIds[0] || null, audioIds: draft.formAudioIds.map(a=>a), files: draft.formFiles.map(f=>({...f})),
+    checklist: draft.formChecklist.map(c => ({...c})), friendIds: [...draft.formFriendIds],
+    reminder: reminder ? {...reminder} : null, reminderBaseTime: draft.reminderBaseTime,
+    recurrenceGroupId: groupId,
+  }));
+  state.tasks = [...state.tasks, ...newItems];
+  saveState(); scheduleReminders();
+  state.selectedDate = draft.formDate;
+  if(draft.formType === "task"){
+    const msg = newItems.length > 1
+      ? `Přidáno ${newItems.length}× do řady „${priorityMeta(priorityNum).label}“ ✓`
+      : `Úkol přidán do řady „${priorityMeta(priorityNum).label}“ ✓${reminder ? " Upozornění nastaveno 🔔" : ""}`;
+    showToast(msg);
+  } else {
+    showToast("Poznámka byla uložena ✓");
+  }
+  formCollapsed = true;
+  resetDraft();
+  renderAll();
+}
+
+function resetDraft(){
+  const ws = getWorkspace();
+  draft = freshDraft();
+  draft.formCategoryId = ws.categories[0] ? ws.categories[0].id : null;
+  draft.formListId = ws.lists[0] ? ws.lists[0].id : null;
+}
+
+function editTask(id){
+  const t = state.tasks.find(x => x.id === id);
+  if(!t) return;
+  formCollapsed = false;
+  draft.editingId = t.id;
+  draft.formType = t.type;
+  draft.formTitle = t.title;
+  draft.formContent = t.content || "";
+  draft.formDate = t.date;
+  draft.formPriority = t.priority;
+  draft.formCategoryId = t.categoryId;
+  draft.formListId = t.listId;
+  draft.formImages = Array.isArray(t.images) && t.images.length ? [...t.images] : (t.image ? [t.image] : []);
+  draft.formDrawings = Array.isArray(t.drawings) && t.drawings.length ? [...t.drawings] : (t.drawing ? [t.drawing] : []);
+  draft.formAudioIds = Array.isArray(t.audioIds) && t.audioIds.length ? [...t.audioIds] : (t.audioId ? [t.audioId] : []);
+  draft.formFiles = (t.files || []).map(f => ({...f}));
+  draft.formChecklist = (t.checklist || []).map(c => ({...c}));
+  draft.formFriendIds = [...(t.friendIds || [])];
+  const r = t.reminder;
+  draft.reminderEnabled = !!(r && r.enabled);
+  draft.reminderMode = (r && r.mode) || "atTime";
+  draft.reminderTime = (r && r.time) || "09:00";
+  draft.reminderBaseTime = t.reminderBaseTime || "09:00";
+  draft.reminderAdvanceValue = (r && r.advanceValue) ?? 30;
+  draft.reminderAdvanceUnit = (r && r.advanceUnit) || "minutes";
+  draft.reminderCustomDate = (r && r.customDate) || todayISO;
+  draft.reminderCustomTime = (r && r.customTime) || "09:00";
+  draft.reminderSound = (r && r.sound) || "bell";
+  draft.reminderCustomAudioId = (r && r.customAudioId) || null;
+  draft.reminderCustomAudioName = (r && r.customAudioName) || null;
+  draft.recurrenceType = "none";
+  draft.recurrenceCustomDates = [];
+  draft.recurrenceWeekdays = [];
+  showToast("Úprava — proveď změny a ulož je nahoře ✎");
+  renderAll();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+function cancelEdit(){ if(organizedDictationActive) stopOrganizedNoteDictation(false); formCollapsed = true; resetDraft(); renderAll(); }
+
+function toggleDone(id){
+  let updated = null;
+  state.tasks = state.tasks.map(t => {
+    if(t.id !== id) return t;
+    updated = {...t, done: !t.done};
+    return updated;
+  });
+  saveState(); scheduleReminders(); renderBoard();
+  if(currentModal) renderModals();
+  if(updated) syncSharedCompletionIfNeeded(updated, "done");
+}
+function deleteTask(id){
+  state.tasks = state.tasks.map(t => t.id === id ? {...t, deletedAt: Date.now()} : t);
+  saveState(); scheduleReminders(); renderBoard();
+  showToast("Přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+}
+function permanentlyDeleteTask(id){
+  const t = state.tasks.find(x => x.id === id);
+  if(t){
+    if(t.audioId) idbDelete(t.audioId).catch(()=>{});
+    if(t.reminder && t.reminder.customAudioId) idbDelete(t.reminder.customAudioId).catch(()=>{});
+    (t.files||[]).forEach(f => { if(f.blobId) idbDelete(f.blobId).catch(()=>{}); });
+  }
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  saveState(); scheduleReminders();
+}
+function restoreTask(id){
+  state.tasks = state.tasks.map(t => t.id === id ? {...t, deletedAt: null} : t);
+  saveState(); scheduleReminders();
+  showToast("Obnoveno ✓");
+}
+function deleteSeries(groupId){
+  state.tasks = state.tasks.map(t => t.recurrenceGroupId === groupId ? {...t, deletedAt: Date.now()} : t);
+  saveState(); scheduleReminders(); renderBoard();
+  showToast("Celá série přesunuta do archivu ✓");
+}
+function moveToToday(id){
+  state.tasks = state.tasks.map(t => t.id === id ? {...t, date: todayISO} : t);
+  saveState(); scheduleReminders(); renderBoard();
+  showToast("Úkol přesunut na dnešek ✓");
+}
+function moveToDate(id, date){
+  if(!date) return;
+  state.tasks = state.tasks.map(t => t.id === id ? {...t, date} : t);
+  saveState(); scheduleReminders(); renderBoard();
+  showToast(`Úkol přeplánován na ${date} ✓`);
+}
+
+// ---------- Checklist (existing task cards) ----------
+let expandedTaskIds = {};
+function toggleExpand(id){ expandedTaskIds[id] = !expandedTaskIds[id]; renderLanes(); }
+function toggleSubtask(taskId, subId){
+  const before = state.tasks.find(t => t.id === taskId);
+  const wasAllDone = allChecklistItemsDone(before);
+  state.tasks = state.tasks.map(t => t.id === taskId ? {...t, checklist:(t.checklist||[]).map(s => s.id===subId?{...s,done:!s.done}:s)} : t);
+  saveState(); renderLanes(); if(currentModal) renderModals();
+  const updated = state.tasks.find(t => t.id === taskId);
+  // Checklist se posílá druhé straně vždycky, potichu — ať appka odškrtnuté
+  // kroky vidí naživo obě zařízení. Ale skutečná NOTIFIKACE (co telefon
+  // upozorní i zavřený) se pošle jen jednou, ve chvíli, kdy poslední krok
+  // dorovná seznam na kompletně hotový — ne po každé jednotlivé položce.
+  // Jinak by u nákupního seznamu s deseti položkami přišlo deset upozornění
+  // za sebou, což by jen otravovalo.
+  pushChecklistToShare(updated);
+  const nowAllDone = allChecklistItemsDone(updated);
+  if(nowAllDone && !wasAllDone) notifyOtherPartyOfChange(updated, updated.title, "🎉 Celý seznam je hotový!");
+}
+function allChecklistItemsDone(task){
+  return !!(task && task.checklist && task.checklist.length > 0 && task.checklist.every(s => s.done));
+}
+function addSubtaskToTask(taskId, text){
+  if(!text || !text.trim()) return;
+  state.tasks = state.tasks.map(t => t.id === taskId ? {...t, checklist:[...(t.checklist||[]), {id:uid(), text:text.trim(), done:false}]} : t);
+  saveState(); renderLanes(); if(currentModal) renderModals();
+  pushChecklistToShare(state.tasks.find(t => t.id === taskId));
+}
+function removeSubtaskFromTask(taskId, subId){
+  state.tasks = state.tasks.map(t => t.id === taskId ? {...t, checklist:(t.checklist||[]).filter(s => s.id!==subId)} : t);
+  saveState(); renderLanes(); if(currentModal) renderModals();
+  pushChecklistToShare(state.tasks.find(t => t.id === taskId));
+}
+
+// ---------- Category / list management ----------
+function updateWorkspace(patch){
+  state.workspaces = state.workspaces.map(w => w.id === state.activeWorkspaceId ? {...w, ...patch} : w);
+  saveState();
+}
+function addCategory(emoji, label){
+  if(!label || !label.trim()){ showToast("Napiš název aktivity."); return; }
+  const ws = getWorkspace();
+  updateWorkspace({ categories:[...ws.categories, {id:"c"+uid(), emoji:emoji||"✨", label:label.trim()}] });
+  showToast("Aktivita přidána ✓"); renderAll();
+}
+function deleteCategory(id){
+  const ws = getWorkspace();
+  if(ws.categories.length <= 1){ showToast("Musí zůstat alespoň jedna aktivita."); return; }
+  updateWorkspace({ categories: ws.categories.filter(c => c.id !== id) });
+  if(draft.formCategoryId === id) draft.formCategoryId = getWorkspace().categories[0].id;
+  showToast("Aktivita smazána ✓"); renderAll();
+}
+function addList(name){
+  if(!name || !name.trim()){ showToast("Napiš název seznamu."); return; }
+  const ws = getWorkspace();
+  updateWorkspace({ lists:[...ws.lists, {id:"l"+uid(), name:name.trim()}] });
+  showToast("Seznam přidán ✓"); renderAll();
+}
+function deleteList(id){
+  const ws = getWorkspace();
+  if(ws.lists.length <= 1){ showToast("Musí zůstat alespoň jeden seznam."); return; }
+  const fallback = ws.lists.find(l => l.id !== id).id;
+  updateWorkspace({ lists: ws.lists.filter(l => l.id !== id) });
+  state.tasks = state.tasks.map(t => t.listId === id ? {...t, listId:fallback} : t);
+  if(draft.formListId === id) draft.formListId = fallback;
+  if(state.activeListFilter === id) state.activeListFilter = "all";
+  saveState();
+  showToast("Seznam smazán ✓"); renderAll();
+}
+
+// ---------- Friends ----------
+function addFriend(name, emoji, phone){
+  if(!name || !name.trim()){ showToast("Napiš jméno kamaráda."); return; }
+  const cleanPhone = (phone||"").replace(/[^\d+]/g,"");
+  state.friends = [...state.friends, {id:"f"+uid(), name:name.trim(), emoji, phone:cleanPhone}];
+  saveState(); showToast("Kamarád přidán ✓"); renderAll();
+}
+function deleteFriend(id){
+  state.friends = state.friends.filter(f => f.id !== id);
+  draft.formFriendIds = draft.formFriendIds.filter(f => f !== id);
+  saveState(); showToast("Kamarád odebrán ✓"); renderAll();
+}
+function toggleFormFriend(id){
+  draft.formFriendIds = draft.formFriendIds.includes(id) ? draft.formFriendIds.filter(f=>f!==id) : [...draft.formFriendIds, id];
+  renderForm();
+}
+
+// ---------- Templates (preset tasks/activities) ----------
+function saveCurrentAsTemplate(name){
+  if(!name || !name.trim()){ showToast("Pojmenuj šablonu."); return; }
+  const ws = getWorkspace();
+  const tpl = {
+    id:"tpl"+uid(), name:name.trim(),
+    title: draft.formTitle, content: draft.formContent, priority: draft.formPriority,
+    categoryId: draft.formCategoryId, listId: draft.formListId, type: draft.formType,
+    checklist: draft.formChecklist.map(c=>({...c})),
+  };
+  updateWorkspace({ templates:[...(ws.templates||[]), tpl] });
+  showToast("Šablona uložena ✓"); renderAll();
+}
+function useTemplate(id){
+  const ws = getWorkspace();
+  const tpl = (ws.templates||[]).find(t => t.id === id);
+  if(!tpl) return;
+  draft.formTitle = tpl.title; draft.formContent = tpl.content || "";
+  draft.formPriority = tpl.priority; draft.formCategoryId = tpl.categoryId;
+  draft.formListId = tpl.listId; draft.formType = tpl.type;
+  draft.formChecklist = (tpl.checklist||[]).map(c=>({...c}));
+  showToast(`Šablona „${tpl.name}“ použita ✓`);
+  renderForm();
+}
+function deleteTemplate(id){
+  const ws = getWorkspace();
+  updateWorkspace({ templates:(ws.templates||[]).filter(t => t.id !== id) });
+  renderAll();
+}
+
+// ---------- Workspace management ----------
+function addWorkspace(name, emoji){
+  if(!name || !name.trim()){ showToast("Napiš název kalendáře."); return; }
+  const id = "ws"+uid();
+  const accent = ACCENTS[state.workspaces.length % ACCENTS.length];
+  state.workspaces = [...state.workspaces, {
+    id, name:name.trim(), emoji, accent, theme:"light", customBg:null,
+    categories:[{id:"c"+uid(), emoji:"✨", label:"Obecné"}],
+    lists:[{id:"l"+uid(), name:"Obecné"}], templates:[],
+  }];
+  state.activeWorkspaceId = id;
+  saveState();
+  showToast(`Kalendář „${name.trim()}“ vytvořen ✓`);
+  resetDraft(); renderAll();
+}
+function deleteWorkspace(){
+  if(state.workspaces.length <= 1){ showToast("Musí zůstat alespoň jeden kalendář."); return; }
+  const id = state.activeWorkspaceId;
+  state.tasks.filter(t => t.workspaceId === id).forEach(t => {
+    if(t.audioId) idbDelete(t.audioId).catch(()=>{});
+    if(t.reminder && t.reminder.customAudioId) idbDelete(t.reminder.customAudioId).catch(()=>{});
+  });
+  state.workspaces = state.workspaces.filter(w => w.id !== id);
+  state.tasks = state.tasks.filter(t => t.workspaceId !== id);
+  state.activeWorkspaceId = state.workspaces[0].id;
+  saveState(); scheduleReminders();
+  showToast("Kalendář smazán ✓");
+  resetDraft(); renderAll();
+}
+
+// ================= RECIPES =================
+function findRecipe(id){ return state.recipes.find(r => r.id === id); }
+function switchView(view){
+  state.currentView = view;
+  if(view === "recipes"){ openRecipeId = null; } // always land on the list, never jump straight into a recipe
+  if(view === "calendar"){ state.selectedDate = todayISO; state.windowStart = toISO(addDays(TODAY, -1)); }
+  saveState();
+  renderAll();
+}
+function addRecipe(title, emoji, categoryId){
+  if(!title || !title.trim()){ showToast("Napiš prosím název receptu."); return; }
+  const r = { id:"rc"+uid(), title:title.trim(), emoji: emoji||"🍽️", servings:"", notes:"", coverImage:null, gallery:[], categoryId: categoryId||null, sections:[{id:"s"+uid(), name:"Suroviny", isIngredients:true, items:[]}] };
+  state.recipes = [...state.recipes, r];
+  saveState();
+  openRecipeId = r.id;
+  showToast("Recept založen ✓ — teď mu přidej suroviny a postup.");
+  renderAll();
+}
+function deleteRecipe(id){
+  state.recipes = state.recipes.map(r => r.id === id ? {...r, deletedAt: Date.now()} : r);
+  if(openRecipeId === id) openRecipeId = null;
+  saveState();
+  showToast("Recept přesunut do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+  renderAll();
+}
+function permanentlyDeleteRecipe(id){
+  state.recipes = state.recipes.filter(r => r.id !== id);
+  saveState();
+}
+function restoreRecipe(id){
+  state.recipes = state.recipes.map(r => r.id === id ? {...r, deletedAt: null} : r);
+  saveState();
+  showToast("Recept obnoven ✓");
+}
+function updateRecipe(id, patch){
+  state.recipes = state.recipes.map(r => r.id === id ? {...r, ...patch} : r);
+  saveState();
+}
+function closeRecipeDetail(){ openRecipeId = null; renderRecipesView(); }
+function saveRecipeNow(id){
+  saveState();
+  showToast("Recept uložen ✓");
+  closeRecipeDetail();
+}
+function addRecipeSection(recipeId, name){
+  if(!name || !name.trim()){ showToast("Napiš název sekce (např. Těsto, Náplň, Postup)."); return; }
+  const r = findRecipe(recipeId); if(!r) return;
+  const looksLikeSteps = /postup|krok|příprava|priprava/i.test(name);
+  updateRecipe(recipeId, { sections:[...r.sections, {id:"s"+uid(), name:name.trim(), isIngredients:!looksLikeSteps, items:[]}] });
+  showToast("Sekce přidána ✓");
+  renderRecipeDetail();
+}
+function toggleSectionIsIngredients(recipeId, sectionId){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id===sectionId ? {...s, isIngredients: !s.isIngredients} : s) });
+  renderRecipeDetail();
+}
+// Auto-sums total dish weight from ingredient quantities like "250 g mouky",
+// "1,5 kg brambor", "300 ml mléka" — anything without a parseable weight/volume
+// (e.g. "2 vejce", "špetka soli") is simply skipped, not guessed at.
+function computeAutoTotalGrams(recipe){
+  let total = 0;
+  let any = false;
+  recipe.sections.forEach(s => {
+    if(!s.isIngredients) return;
+    s.items.forEach(i => {
+      const m = /(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l)(?!\p{L})/iu.exec(i.text);
+      if(m){
+        any = true;
+        let val = parseFloat(m[1].replace(",", "."));
+        const unit = m[2].toLowerCase();
+        if(unit === "kg" || unit === "l") val *= 1000;
+        total += val;
+      }
+    });
+  });
+  return any ? Math.round(total) : null;
+}
+function computeRecipeNutritionTotals(recipe){
+  let totals = {calories:0, protein:0, fat:0, carbs:0};
+  let anyEntered = false;
+  recipe.sections.forEach(s => {
+    if(!s.isIngredients) return;
+    s.items.forEach(i => {
+      if(i.nutrition){
+        anyEntered = true;
+        totals.calories += Number(i.nutrition.calories)||0;
+        totals.protein += Number(i.nutrition.protein)||0;
+        totals.fat += Number(i.nutrition.fat)||0;
+        totals.carbs += Number(i.nutrition.carbs)||0;
+      }
+    });
+  });
+  if(!anyEntered) return null;
+  return {
+    calories: Math.round(totals.calories),
+    protein: Math.round(totals.protein*10)/10,
+    fat: Math.round(totals.fat*10)/10,
+    carbs: Math.round(totals.carbs*10)/10,
+  };
+}
+function setIngredientNutrition(recipeId, sectionId, itemId, field, value){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id!==sectionId ? s : {
+    ...s, items: s.items.map(i => i.id!==itemId ? i : {
+      ...i, nutrition: { calories:0, protein:0, fat:0, carbs:0, ...(i.nutrition||{}), [field]: Number(value)||0 }
+    })
+  })});
+}
+
+// ================= JÍDELNÍČEK (meal planner) =================
+function findMeal(id){ return state.meals.find(m => m.id === id); }
+function mealLabelById(id){ return state.mealLabels.find(l => l.id === id) || {name:"Jídlo"}; }
+function mealsForDate(date){ return state.meals.filter(m => !m.deletedAt && m.date === date); }
+function mealNutritionFromRecipe(recipe, servingsCount){
+  const autoTotal = computeRecipeNutritionTotals(recipe);
+  const totalToUse = autoTotal || recipe.nutrition || null;
+  const per = scaleNutrition(totalToUse, recipe.servingGrams, recipe.totalGrams);
+  if(!per) return null;
+  const n = Math.max(0.25, Number(servingsCount) || 1);
+  return {
+    calories: Math.round(per.calories * n),
+    protein: Math.round(per.protein * n * 10) / 10,
+    fat: Math.round(per.fat * n * 10) / 10,
+    carbs: Math.round(per.carbs * n * 10) / 10,
+  };
+}
+// Gathers every protein-contributing "entry" for a day — per-ingredient where
+// we have that breakdown (custom meal items, recipe ingredients), or a single
+// whole-meal guess otherwise — then runs it through computeUsableProtein().
+function dayProteinEntries(date){
+  const meals = mealsForDate(date).filter(m => m.eaten);
+  const entries = [];
+  meals.forEach(m => {
+    if(m.items && m.items.length){
+      m.items.forEach(item => {
+        const protein = item.nutrition ? Number(item.nutrition.protein)||0 : 0;
+        if(!protein) return;
+        entries.push({ protein, tier: item.proteinTier || guessProteinTier(item.text), usablePercent: item.proteinUsablePercent ?? null });
+      });
+      return;
+    }
+    if(m.source === "recipe" && m.recipeId){
+      const r = findRecipe(m.recipeId);
+      if(r){
+        const fullTotal = computeRecipeNutritionTotals(r);
+        const ratio = (fullTotal && fullTotal.protein > 0 && m.nutrition) ? (m.nutrition.protein / fullTotal.protein) : 1;
+        let anyIngredient = false;
+        (r.sections||[]).forEach(sec => {
+          if(!sec.isIngredients) return;
+          (sec.items||[]).forEach(ing => {
+            const p = ing.nutrition ? Number(ing.nutrition.protein)||0 : 0;
+            if(!p) return;
+            anyIngredient = true;
+            entries.push({ protein: p*ratio, tier: ing.proteinTier || guessProteinTier(ing.text), usablePercent: ing.proteinUsablePercent ?? null });
+          });
+        });
+        if(anyIngredient) return;
+      }
+    }
+    const protein = m.nutrition ? Number(m.nutrition.protein)||0 : 0;
+    if(protein) entries.push({ protein, tier: guessProteinTier(m.title||""), usablePercent: m.proteinUsablePercent ?? null });
+  });
+  return entries;
+}
+function computeDayMealTotals(date){
+  const meals = mealsForDate(date);
+  const sum = (list) => list.reduce((acc, m) => {
+    const n = m.nutrition;
+    if(!n) return acc;
+    acc.calories += Number(n.calories)||0; acc.protein += Number(n.protein)||0;
+    acc.fat += Number(n.fat)||0; acc.carbs += Number(n.carbs)||0;
+    return acc;
+  }, {calories:0,protein:0,fat:0,carbs:0});
+  const round = (t) => ({ calories:Math.round(t.calories), protein:Math.round(t.protein*10)/10, fat:Math.round(t.fat*10)/10, carbs:Math.round(t.carbs*10)/10 });
+  const aiAnalysis = state.proteinAiAnalysis ? state.proteinAiAnalysis[date] : null;
+  const localEstimate = computeUsableProtein(dayProteinEntries(date));
+  // Flags when the day's food changed since the AI last analyzed it (e.g. a
+  // new meal was logged after pressing the analyze button), so the person is
+  // never shown an AI figure that quietly no longer reflects what they ate.
+  const isStale = !!aiAnalysis && Math.abs(localEstimate.total - aiAnalysis.total) > 0.5;
+  const usableProtein = aiAnalysis
+    ? { total: aiAnalysis.total, usable: aiAnalysis.usable, reason: aiAnalysis.reasoning, fromAI: true, stale: isStale, computedAt: aiAnalysis.computedAt, currentTotal: localEstimate.total }
+    : { ...localEstimate, fromAI: false, stale: false };
+  // Calorie balance: planned meals minus workouts scheduled for the same day
+  // — split into "done" (actually burned) vs "planned" (not done yet), same
+  // eaten/planned split already used for meals, so the numbers stay honest
+  // about what's projected vs what's actually happened.
+  const dayWorkouts = workoutsForDate(date);
+  const caloriesBurnedDone = dayWorkouts.filter(w => w.done).reduce((s,w) => s + (w.estimatedCalories||0), 0);
+  const caloriesBurnedPlanned = dayWorkouts.reduce((s,w) => s + (w.estimatedCalories||0), 0);
+  const workoutsMissingEstimate = dayWorkouts.some(w => w.estimatedCalories == null);
+  const calorieBalance = {
+    workouts: dayWorkouts,
+    burnedDone: caloriesBurnedDone,
+    burnedPlanned: caloriesBurnedPlanned,
+    netEatenMinusDone: round(sum(meals.filter(m=>m.eaten))).calories - caloriesBurnedDone,
+    netPlannedMinusPlanned: round(sum(meals)).calories - caloriesBurnedPlanned,
+    hasWorkouts: dayWorkouts.length > 0,
+    workoutsMissingEstimate,
+  };
+  return { eaten: round(sum(meals.filter(m=>m.eaten))), planned: round(sum(meals)), count: meals.length, usableProtein, calorieBalance };
+}
+function addMealLabel(name){
+  if(!name || !name.trim()){ showToast("Napiš název štítku (např. Svačina 2)."); return; }
+  state.mealLabels = [...state.mealLabels, {id:"ml"+uid(), name:name.trim()}];
+  saveState(); showToast("Štítek přidán ✓"); renderMealsView();
+}
+function deleteMealLabel(id){
+  if(state.mealLabels.length <= 1){ showToast("Musí zůstat alespoň jeden štítek."); return; }
+  const fallback = state.mealLabels.find(l=>l.id!==id).id;
+  state.mealLabels = state.mealLabels.filter(l => l.id !== id);
+  state.meals = state.meals.map(m => m.labelId===id ? {...m, labelId:fallback} : m);
+  saveState(); showToast("Štítek smazán ✓"); renderMealsView();
+}
+function addRecipeCategory(name){
+  if(!name || !name.trim()){ showToast("Napiš prosím název kategorie."); return; }
+  state.recipeCategories = [...state.recipeCategories, {id:"rc"+uid(), name:name.trim()}];
+  saveState(); showToast("Kategorie přidána ✓"); renderModals();
+}
+function deleteRecipeCategory(id){
+  state.recipeCategories = state.recipeCategories.filter(c => c.id !== id);
+  state.recipes = state.recipes.map(r => r.categoryId===id ? {...r, categoryId:null} : r);
+  if(activeRecipeCategoryId === id) activeRecipeCategoryId = "all";
+  saveState(); showToast("Kategorie smazána ✓"); renderModals();
+}
+function toggleMealEaten(id){
+  state.meals = state.meals.map(m => m.id===id ? {...m, eaten: !m.eaten} : m);
+  saveState(); scheduleReminders(); renderMealsView(); renderTopBar();
+  const updated = state.meals.find(m => m.id===id);
+  syncSharedCompletionIfNeeded(updated, "eaten");
+}
+function deleteMeal(id){
+  state.meals = state.meals.map(m => m.id === id ? {...m, deletedAt: Date.now()} : m);
+  saveState(); scheduleReminders(); renderMealsView();
+  showToast("Jídlo přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+}
+function permanentlyDeleteMeal(id){
+  state.meals = state.meals.filter(m => m.id !== id);
+  saveState(); scheduleReminders();
+}
+function restoreMeal(id){
+  state.meals = state.meals.map(m => m.id === id ? {...m, deletedAt: null} : m);
+  saveState(); scheduleReminders();
+  showToast("Jídlo obnoveno ✓");
+}
+function deleteMealSeries(groupId){
+  state.meals = state.meals.map(m => m.recurrenceGroupId === groupId ? {...m, deletedAt: Date.now()} : m);
+  saveState(); scheduleReminders(); renderMealsView();
+  showToast("Celá série přesunuta do archivu ✓");
+}
+
+let mealFormCollapsed = true;
+let dailyOverviewExpanded = false;
+let mealDraft = null;
+function freshMealDraft(){
+  return {
+    editingId: null,
+    date: state.selectedDate,
+    labelId: state.mealLabels[0] ? state.mealLabels[0].id : null,
+    source: "custom",
+    title: "",
+    customItems: [], // [{id, text}] — individual ingredients like "1 rohlík", "100g šunky"
+    recipeId: state.recipes[0] ? state.recipes[0].id : null,
+    servingsCount: 1,
+    recipeAmountMode: "servings", // "servings" | "grams"
+    customGrams: "",
+    nutCalories: "", nutProtein: "", nutFat: "", nutCarbs: "",
+    reminderEnabled: false, reminderMode: "atTime", reminderTime: "12:00", reminderBaseTime: "12:00",
+    reminderAdvanceValue: 15, reminderAdvanceUnit: "minutes",
+    reminderCustomDate: todayISO, reminderCustomTime: "12:00",
+    reminderSound: "bell", reminderCustomAudioId: null,
+    recurrenceType: "none", recurrenceCount: 6, recurrenceCustomDates: [], recurrenceWeekdays: [], recurrenceDurationValue: 2, recurrenceDurationUnit: "weeks",
+  };
+}
+function resetMealDraft(){ mealDraft = freshMealDraft(); }
+function addMealDraftItem(text, amount, unit){
+  if(!text || !text.trim()) return;
+  const u = unit || "g";
+  const isVolume = u === "ml" || u === "dcl" || u === "l";
+  const g = isVolume ? toMl(amount, u) : Number(amount);
+  mealDraft.customItems = [...mealDraft.customItems, {id:uid(), text:text.trim(), grams: g>0 ? g : null, unit: isVolume ? "ml" : "g", nutrition: null, proteinTier: guessProteinTier(text), proteinUsablePercent: null}];
+  renderMealsView();
+}
+function removeMealDraftItem(itemId){
+  mealDraft.customItems = mealDraft.customItems.filter(i => i.id !== itemId);
+  renderMealsView();
+}
+function setMealDraftItemNutrition(itemId, field, value){
+  mealDraft.customItems = mealDraft.customItems.map(i => i.id!==itemId ? i : {
+    ...i, nutrition: { calories:0, protein:0, fat:0, carbs:0, ...(i.nutrition||{}), [field]: Number(value)||0 }
+  });
+}
+// Sums up whatever per-ingredient macros have been entered for the current meal
+// draft's items — mirrors computeRecipeNutritionTotals() so both work the same way.
+function computeMealDraftItemsTotals(){
+  let totals = {calories:0, protein:0, fat:0, carbs:0};
+  let anyEntered = false;
+  mealDraft.customItems.forEach(i => {
+    if(i.nutrition){
+      anyEntered = true;
+      totals.calories += Number(i.nutrition.calories)||0;
+      totals.protein += Number(i.nutrition.protein)||0;
+      totals.fat += Number(i.nutrition.fat)||0;
+      totals.carbs += Number(i.nutrition.carbs)||0;
+    }
+  });
+  if(!anyEntered) return null;
+  return {
+    calories: Math.round(totals.calories),
+    protein: Math.round(totals.protein*10)/10,
+    fat: Math.round(totals.fat*10)/10,
+    carbs: Math.round(totals.carbs*10)/10,
+  };
+}
+function mealOccurrenceDates(){
+  const base = mealDraft.date;
+  if(mealDraft.recurrenceType === "none") return [base];
+  if(mealDraft.recurrenceType === "custom"){
+    const dates = [...new Set([base, ...mealDraft.recurrenceCustomDates])].sort();
+    return dates.length ? dates : [base];
+  }
+  const count = computeRecurrenceCount(mealDraft.recurrenceType, mealDraft.recurrenceWeekdays.length, mealDraft.recurrenceDurationValue, mealDraft.recurrenceDurationUnit);
+  if(mealDraft.recurrenceType === "weekly_days"){
+    return weekdayOccurrenceDates(base, mealDraft.recurrenceWeekdays, count);
+  }
+  const out = [];
+  for(let i=0;i<count;i++){
+    let d;
+    if(mealDraft.recurrenceType === "daily") d = addDays(parseISODate(base), i);
+    else if(mealDraft.recurrenceType === "weekly") d = addDays(parseISODate(base), i*7);
+    else if(mealDraft.recurrenceType === "monthly") d = addMonths(parseISODate(base), i);
+    else d = parseISODate(base);
+    out.push(toISO(d));
+  }
+  return out;
+}
+function buildMealReminderFromDraft(){
+  if(!mealDraft.reminderEnabled) return null;
+  return {
+    enabled:true, mode:mealDraft.reminderMode, time:mealDraft.reminderTime,
+    advanceValue:Number(mealDraft.reminderAdvanceValue), advanceUnit:mealDraft.reminderAdvanceUnit,
+    customDate:mealDraft.reminderCustomDate, customTime:mealDraft.reminderCustomTime,
+    sound:mealDraft.reminderSound, customAudioId:mealDraft.reminderCustomAudioId,
+  };
+}
+function currentMealDraftNutrition(){
+  if(mealDraft.source === "recipe"){
+    const r = findRecipe(mealDraft.recipeId);
+    if(!r) return null;
+    if(mealDraft.recipeAmountMode === "grams"){
+      const grams = Number(mealDraft.customGrams);
+      if(!grams || grams<=0) return null;
+      const autoTotal = computeRecipeNutritionTotals(r);
+      const totalToUse = autoTotal || r.nutrition || null;
+      return scaleNutrition(totalToUse, grams, r.totalGrams);
+    }
+    return mealNutritionFromRecipe(r, mealDraft.servingsCount);
+  }
+  // Custom meal: prefer summing whatever per-ingredient macros were entered
+  // (manually or via AI, per item) — this is what actually adds up correctly
+  // when a meal has several ingredients, instead of guessing one combined number.
+  const itemsTotal = computeMealDraftItemsTotals();
+  if(itemsTotal) return itemsTotal;
+  const any = mealDraft.nutCalories!=="" || mealDraft.nutProtein!=="" || mealDraft.nutFat!=="" || mealDraft.nutCarbs!=="";
+  if(!any) return null;
+  return {
+    calories: Number(mealDraft.nutCalories)||0, protein: Number(mealDraft.nutProtein)||0,
+    fat: Number(mealDraft.nutFat)||0, carbs: Number(mealDraft.nutCarbs)||0,
+  };
+}
+function addMeal(){
+  const itemsTitle = mealDraft.customItems.length ? mealDraft.customItems.map(i=>i.text).join(", ") : "";
+  const title = mealDraft.source === "recipe" ? (findRecipe(mealDraft.recipeId)?.title || "") : (itemsTitle || mealDraft.title.trim());
+  if(!title){ showToast(mealDraft.source==="recipe" ? "Nejdřív si založ nějaký recept." : "Napiš nebo přidej suroviny toho, co jsi (nebo budeš) jíst."); return; }
+  const items = mealDraft.source === "custom" ? mealDraft.customItems.map(i => ({...i})) : [];
+  const nutrition = currentMealDraftNutrition();
+  const reminder = buildMealReminderFromDraft();
+
+  if(mealDraft.editingId){
+    state.meals = state.meals.map(m => m.id===mealDraft.editingId ? {
+      ...m, date:mealDraft.date, labelId:mealDraft.labelId, source:mealDraft.source,
+      title, items, recipeId: mealDraft.source==="recipe" ? mealDraft.recipeId : null,
+      servingsCount: mealDraft.servingsCount, recipeAmountMode: mealDraft.recipeAmountMode, customGrams: mealDraft.customGrams,
+      nutrition, reminder, reminderBaseTime: mealDraft.reminderBaseTime,
+    } : m);
+    saveState(); scheduleReminders();
+    showToast("Jídlo upraveno ✓");
+    mealFormCollapsed = true; resetMealDraft();
+    renderMealsView();
+    return;
+  }
+
+  const dates = mealOccurrenceDates();
+  const groupId = dates.length > 1 ? uid() : null;
+  const newItems = dates.map(date => ({
+    id: uid(), type:"meal", date, labelId: mealDraft.labelId, source: mealDraft.source,
+    title, items: items.map(i=>({...i})), recipeId: mealDraft.source==="recipe" ? mealDraft.recipeId : null,
+    servingsCount: mealDraft.servingsCount, recipeAmountMode: mealDraft.recipeAmountMode, customGrams: mealDraft.customGrams,
+    nutrition: nutrition ? {...nutrition} : null,
+    eaten:false, reminder: reminder ? {...reminder} : null, reminderBaseTime: mealDraft.reminderBaseTime,
+    recurrenceGroupId: groupId, shareId:null, sharedStatus:null, sharedAccepterName:null,
+  }));
+  state.meals = [...state.meals, ...newItems];
+  saveState(); scheduleReminders();
+  state.selectedDate = mealDraft.date; state.windowStart = toISO(addDays(parseISODate(mealDraft.date), -1));
+  showToast(newItems.length>1 ? `Přidáno na ${newItems.length} dní: ${dates.join(", ")} ✓` : "Jídlo přidáno do jídelníčku ✓");
+  mealFormCollapsed = true; resetMealDraft();
+  renderMealsView();
+}
+function editMeal(id){
+  const m = findMeal(id);
+  if(!m) return;
+  mealFormCollapsed = false;
+  mealDraft = {
+    editingId: m.id, date: m.date, labelId: m.labelId, source: m.source,
+    title: (m.source==="custom" && !(m.items&&m.items.length)) ? m.title : "",
+    customItems: (m.items||[]).map(i => ({...i})),
+    recipeId: m.recipeId || (state.recipes[0]?.id||null),
+    servingsCount: m.servingsCount || 1,
+    recipeAmountMode: m.recipeAmountMode || "servings",
+    customGrams: m.customGrams || "",
+    nutCalories: m.nutrition?.calories ?? "", nutProtein: m.nutrition?.protein ?? "",
+    nutFat: m.nutrition?.fat ?? "", nutCarbs: m.nutrition?.carbs ?? "",
+    reminderEnabled: !!(m.reminder && m.reminder.enabled), reminderMode: m.reminder?.mode || "atTime",
+    reminderTime: m.reminder?.time || "12:00", reminderBaseTime: m.reminderBaseTime || "12:00",
+    reminderAdvanceValue: m.reminder?.advanceValue ?? 15, reminderAdvanceUnit: m.reminder?.advanceUnit || "minutes",
+    reminderCustomDate: m.reminder?.customDate || todayISO, reminderCustomTime: m.reminder?.customTime || "12:00",
+    reminderSound: m.reminder?.sound || "bell", reminderCustomAudioId: m.reminder?.customAudioId || null,
+    recurrenceType: "none", recurrenceCount: 6, recurrenceCustomDates: [], recurrenceWeekdays: [], recurrenceDurationValue: 2, recurrenceDurationUnit: "weeks",
+  };
+  showToast("Úprava jídla — proveď změny a ulož je nahoře ✎");
+  renderMealsView();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+function cancelMealEdit(){ mealFormCollapsed = true; resetMealDraft(); renderMealsView(); }
+async function estimateMealNutritionAI(){
+  const title = mealDraft.customItems.length ? mealDraft.customItems.map(i=>i.text).join(", ") : mealDraft.title.trim();
+  if(!title){ showToast("Nejdřív napiš nebo přidej, co jíš."); return; }
+  const btn = document.getElementById("mealNutAiBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "✨ AI počítá…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6", max_tokens:300,
+        messages:[{ role:"user", content:
+          `Odhadni nutriční hodnoty tohoto jídla/porce: "${title}". Odpověz POUZE čistým JSON objektem, bez markdown bloků a bez dalšího textu, přesně: {"calories": číslo, "protein": číslo, "fat": číslo, "carbs": číslo} (kcal a gramy).`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+    mealDraft.nutCalories = Math.round(Number(parsed.calories))||0;
+    mealDraft.nutProtein = Math.round((Number(parsed.protein)||0)*10)/10;
+    mealDraft.nutFat = Math.round((Number(parsed.fat)||0)*10)/10;
+    mealDraft.nutCarbs = Math.round((Number(parsed.carbs)||0)*10)/10;
+    showToast("Makra odhadnuta ✨ — uprav si klidně ručně");
+    renderMealsView();
+  }catch(e){
+    showToast("AI odhad teď není dostupný (funguje jen v prostředí s přístupem k API) — vyplň makra ručně.");
+  }finally{
+    const btn2 = document.getElementById("mealNutAiBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "✨ AI odhad maker"; }
+  }
+}
+
+function deleteRecipeSection(recipeId, sectionId){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.filter(s => s.id !== sectionId) });
+  renderRecipeDetail();
+}
+function addRecipeItem(recipeId, sectionId, text){
+  if(!text || !text.trim()) return;
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id===sectionId ? {...s, items:[...s.items, {id:uid(), text:text.trim(), done:false}]} : s) });
+  renderRecipeDetail();
+}
+function removeRecipeItem(recipeId, sectionId, itemId){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id===sectionId ? {...s, items:s.items.filter(i=>i.id!==itemId)} : s) });
+  renderRecipeDetail();
+}
+function toggleRecipeItem(recipeId, sectionId, itemId){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id===sectionId ? {...s, items:s.items.map(i=>i.id===itemId?{...i,done:!i.done}:i)} : s) });
+  renderRecipeDetail();
+}
+
+// ================= TIMERS / ALARM (stopky, budík) =================
+let timers = []; // {id, label, endAt, durationMs, fired}
+let timerTickHandle = null;
+function startTimer(minutes, label){
+  const mins = Number(minutes);
+  if(!mins || mins <= 0){ showToast("Zadej platný počet minut."); return; }
+  const t = { id:"tm"+uid(), label: label || `Stopky na ${mins} min`, endAt: Date.now()+mins*60000, durationMs: mins*60000, fired:false };
+  timers = [...timers, t];
+  renderTimers();
+  ensureTimerTicking();
+  startAlarmVoiceListening(t.id); // lets you cancel it by voice ("vypni budík") anytime, even while it's still counting down
+  showToast(`⏱️ ${t.label} spuštěny — jde i hlasem zrušit, řekni „vypni budík"`);
+}
+function cancelTimer(id){
+  stopAlarmLoop(id);
+  stopAlarmVoiceListening(id);
+  timers = timers.filter(t => t.id !== id);
+  renderTimers();
+  renderAlarmOverlay();
+}
+function ensureTimerTicking(){
+  if(timerTickHandle) return;
+  timerTickHandle = setInterval(() => {
+    const now = Date.now();
+    timers.forEach((t) => {
+      if(!t.fired && t.endAt <= now){
+        t.fired = true;
+        fireTimerAlarm(t);
+      }
+    });
+    renderTimers();
+    if(!timers.length){ clearInterval(timerTickHandle); timerTickHandle = null; }
+  }, 1000);
+}
+// Loud, repeating, unmistakable alarm — keeps sounding (with vibration on phones)
+// until the person explicitly dismisses it, like a real kitchen timer/alarm clock.
+let alarmLoopIntervals = {};
+function playAlarmBurst(){
+  try{
+    playTone(1046, "square", 0, 0.22, 0.35);
+    playTone(1318, "square", 0.28, 0.22, 0.35);
+    playTone(1046, "square", 0.56, 0.22, 0.35);
+    playTone(1318, "square", 0.84, 0.3, 0.35);
+  }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate([300,150,300,150,300]); }catch(e){}
+}
+function startAlarmLoop(timerId){
+  if(alarmLoopIntervals[timerId]) return;
+  playAlarmBurst();
+  alarmLoopIntervals[timerId] = setInterval(playAlarmBurst, 1500);
+  // safety auto-stop after 3 minutes so it never rings forever if left unattended
+  setTimeout(() => stopAlarmLoop(timerId), 180000);
+}
+function stopAlarmLoop(timerId){
+  if(alarmLoopIntervals[timerId]){ clearInterval(alarmLoopIntervals[timerId]); delete alarmLoopIntervals[timerId]; }
+}
+function dismissAlarm(timerId){
+  stopAlarmLoop(timerId);
+  stopAlarmVoiceListening(timerId);
+  timers = timers.filter(t => t.id !== timerId);
+  renderTimers();
+  renderAlarmOverlay();
+}
+function renderAlarmOverlay(){
+  const el = document.getElementById("alarmOverlayRoot");
+  if(!el) return;
+  const fired = timers.filter(t => t.fired);
+  if(!fired.length){ el.innerHTML = ""; return; }
+  const t = fired[0];
+  el.innerHTML = `
+    <div class="modal-overlay" style="z-index:300;background:rgba(220,38,38,0.88)">
+      <div class="modal-panel" style="max-width:360px;text-align:center">
+        <p style="font-size:56px;margin:0 0 10px;animation:pulseP1 1s ease-in-out infinite">⏰</p>
+        <p class="text-lg font-semi" style="margin:0 0 6px;color:#334155">${escapeHTML(t.label)}</p>
+        <p class="text-sm muted" style="margin:0 0 22px">Je to hotové!</p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:15px;font-size:15px" data-action="dismiss-alarm" data-id="${t.id}">🔕 Vypnout budík</button>
+        ${fired.length>1 ? `<p class="text-xs muted" style="margin-top:10px">+ ${fired.length-1} další zvoní</p>` : ""}
+      </div>
+    </div>`;
+}
+function fireTimerAlarm(t){
+  showToast(`⏰ ${t.label} — je to hotové!`);
+  speakText(`${t.label}. Je to hotové!`);
+  startAlarmLoop(t.id);
+  renderAlarmOverlay();
+  startAlarmVoiceListening(t.id);
+}
+// Lets you say "vypni budík" to silence the alarm without touching the phone —
+// starts listening automatically the moment it rings (unless cooking mode or
+// the assistant is already using the microphone, to avoid fighting over it).
+let alarmListenSessions = {};
+let alarmListenRecs = {};
+let alarmListenErrorStreak = {};
+function startAlarmVoiceListening(timerId){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return;
+  alarmListenSessions[timerId] = (alarmListenSessions[timerId]||0) + 1;
+  alarmListenErrorStreak[timerId] = 0;
+  alarmListenTurn(timerId, alarmListenSessions[timerId]);
+}
+function alarmListenTurn(timerId, session){
+  if(alarmListenSessions[timerId] !== session) return;
+  const timer = timers.find(t=>t.id===timerId);
+  if(!timer) return; // already cancelled/dismissed
+  if((cooking && !cooking.paused) || assistantActive || (workoutSession && workoutSession.listening)){ setTimeout(() => alarmListenTurn(timerId, session), 1000); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR) return;
+  const rec = new SR();
+  alarmListenRecs[timerId] = rec;
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    if(alarmListenSessions[timerId] !== session) return;
+    alarmListenErrorStreak[timerId] = 0;
+    const text = e.results[0][0].transcript.toLowerCase();
+    if(COOK_ALARM_STOP_WORDS.some(w => text.includes(w))){
+      const t = timers.find(x=>x.id===timerId);
+      if(t && t.fired) dismissAlarm(timerId); else cancelTimer(timerId);
+      return;
+    }
+    setTimeout(() => alarmListenTurn(timerId, session), 400);
+  };
+  rec.onerror = (e) => {
+    if(alarmListenSessions[timerId] !== session) return;
+    if(e.error !== "no-speech" && e.error !== "aborted") alarmListenErrorStreak[timerId] = (alarmListenErrorStreak[timerId]||0)+1;
+    if((alarmListenErrorStreak[timerId]||0) >= 8) return; // give up quietly, the ✕ button still works
+    setTimeout(() => alarmListenTurn(timerId, session), 600);
+  };
+  try{ rec.start(); }
+  catch(e){ setTimeout(() => alarmListenTurn(timerId, session), 800); }
+}
+function stopAlarmVoiceListening(timerId){
+  alarmListenSessions[timerId] = (alarmListenSessions[timerId]||0) + 1;
+  const rec = alarmListenRecs[timerId];
+  if(rec){ try{ rec.onresult=null; rec.onerror=null; rec.abort(); }catch(e){} delete alarmListenRecs[timerId]; }
+}
+function parseVoiceTimerCommand(text){
+  const t = text.toLowerCase();
+  if(!/budík|budik|stopky|časovač|casovac|timer|minut|hodin|půl|pul|čtvrt|ctvrt/.test(t)) return null;
+  let minutes = 0;
+  if(/čtvrt\s*hodin|ctvrt\s*hodin/.test(t)) minutes += 15;
+  if(/půl\s*hodin|pul\s*hodin/.test(t)) minutes += 30;
+  const hourMatch = /(\d+)\s*(hodin|hodinu|hodiny)/.exec(t);
+  const hourWordMatch = /\b(jednu|jedna|jeden)\s*hodin/.exec(t);
+  if(hourMatch) minutes += Number(hourMatch[1]) * 60;
+  else if(hourWordMatch) minutes += 60;
+  const minMatch = /(\d+)\s*(minut|minuty|minutu)/.exec(t);
+  if(minMatch) minutes += Number(minMatch[1]);
+  if(!minutes){
+    const bare = /(\d+)/.exec(t);
+    if(bare) minutes = Number(bare[1]);
+  }
+  if(!minutes) return null;
+  return minutes;
+}
+function renderTimers(){
+  const el = document.getElementById("timersWidget");
+  if(!el) return;
+  if(!timers.length){ el.innerHTML = ""; return; }
+  el.innerHTML = `
+    <div class="col gap-2" style="position:fixed;bottom:16px;left:16px;right:16px;max-width:360px;margin:0 auto;z-index:290">
+      ${timers.map(t => {
+        const remain = Math.max(0, t.endAt - Date.now());
+        const mm = String(Math.floor(remain/60000)).padStart(2,"0");
+        const ss = String(Math.floor((remain%60000)/1000)).padStart(2,"0");
+        return `<div class="card row gap-3" style="padding:10px 14px;${t.fired?'background:#fee2e2':''}">
+          <span style="font-size:18px">${t.fired?'⏰':'⏱️'}</span>
+          <div class="grow">
+            <p class="text-xs font-semi" style="margin:0;color:#334155">${escapeHTML(t.label)}</p>
+            <p class="text-sm font-bold" style="margin:0;color:${t.fired?'#dc2626':'#059669'}">${t.fired?'Hotovo!':`${mm}:${ss}`}</p>
+          </div>
+          <button class="icon-btn-sm" data-action="cancel-timer" data-id="${t.id}">✕</button>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+// ================= TEXT-TO-SPEECH (read-aloud) =================
+let currentUtterance = null;
+function speakText(text, onEnd, voiceStyle){
+  if(!("speechSynthesis" in window)){ if(onEnd) onEnd(); return; }
+  try{
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "cs-CZ";
+    u.volume = Math.max(0, Math.min(1, appVolume/100));
+    const voices = window.speechSynthesis.getVoices();
+    const czechVoices = voices.filter(v => /cs/i.test(v.lang));
+    if(voiceStyle === "narrator"){
+      // Warm, deep, deliberate "storyteller grandfather" voice quality — only
+      // the voice itself, the actual wording stays neutral and professional.
+      u.pitch = 0.68;
+      u.rate = 0.88;
+      const malePattern = /male|muž|jiri|jiří|jakub|antonin|antonín|zdenek|zdeněk|michal|petr|tomas|tomáš|karel|honza|jan\b|david|pavel/i;
+      const femalePattern = /female|žena|zena|zuzana|eva\b|klara|klára|tereza|iveta|jana\b|lucie|katerina|kateřina/i;
+      const maleVoice = czechVoices.find(v => malePattern.test(v.name))
+        || czechVoices.find(v => !femalePattern.test(v.name))
+        || czechVoices[0];
+      if(maleVoice) u.voice = maleVoice;
+    } else {
+      u.rate = 0.98;
+      if(czechVoices[0]) u.voice = czechVoices[0];
+    }
+    u.onend = () => { if(onEnd) onEnd(); };
+    u.onerror = () => { if(onEnd) onEnd(); };
+    currentUtterance = u;
+    window.speechSynthesis.speak(u);
+  }catch(e){ if(onEnd) onEnd(); }
+}
+function stopSpeaking(){
+  try{ window.speechSynthesis.cancel(); }catch(e){}
+}
+
+// ================= HANDS-FREE COOKING MODE =================
+// Flattens a recipe's sections into one ordered walk-through. The app reads each
+// step aloud, then listens for a short voice command ("hotovo" / "další" / "zpět" /
+// "stop", or a timer request like "nastav budík na 10 minut") so you never need to
+// touch the phone with messy hands.
+let cooking = null; // {recipeId, plan:[{sectionId,sectionName,itemId,text}], pointer, listening, paused}
+const COOK_NEXT_WORDS = ["hotovo","další","dalsi","splněno","splneno","dokončeno","dokonceno","hotový","hotovy","ano","pokračuj","pokracuj"];
+const COOK_BACK_WORDS = ["zpět","zpet","předchozí","predchozi","vrátit","vratit"];
+const COOK_REPEAT_WORDS = ["zopakuj","opakuj","znovu","co bylo"];
+const COOK_STOP_WORDS = ["stop","konec","pauza","ukonči","ukonci","přestaň","prestan"];
+
+function buildCookingPlan(recipe){
+  const plan = [];
+  recipe.sections.forEach((s) => {
+    s.items.forEach((it) => plan.push({ sectionId:s.id, sectionName:s.name, itemId:it.id, text:it.text }));
+  });
+  return plan;
+}
+function startCookingMode(recipeId){
+  const recipe = findRecipe(recipeId);
+  if(!recipe) return;
+  const plan = buildCookingPlan(recipe);
+  if(!plan.length){ showToast("Recept ještě nemá žádné kroky/suroviny k přečtení."); return; }
+  getAudioCtx(); unlockMediaPlayback();
+  const firstUndone = plan.findIndex(p => {
+    const item = findRecipeItem(recipeId, p.sectionId, p.itemId);
+    return item && !item.done;
+  });
+  cooking = { recipeId, plan, pointer: firstUndone >= 0 ? firstUndone : 0, listening:false, paused:false };
+  openModal("cooking");
+  const cur = plan[cooking.pointer];
+  speakText(`Vaříme ${recipe.title}. Začínáme: ${cur.sectionName}. ${cur.text}`, () => cookingListenTurn());
+}
+function findRecipeItem(recipeId, sectionId, itemId){
+  const r = findRecipe(recipeId);
+  if(!r) return null;
+  const s = r.sections.find(x => x.id === sectionId);
+  if(!s) return null;
+  return s.items.find(i => i.id === itemId) || null;
+}
+let cookingSession = 0;
+let cookingRec = null;
+let cookingErrorStreak = 0;
+function cookingListenTurn(){
+  if(!cooking || cooking.paused) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ cooking.listening=false; renderModals(); return; }
+  const session = cookingSession;
+  cooking.listening = true;
+  renderModals();
+  const rec = new SR();
+  cookingRec = rec;
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    cookingErrorStreak = 0;
+    const text = e.results[0][0].transcript.trim().toLowerCase();
+    handleCookingVoiceCommand(text);
+  };
+  rec.onerror = (e) => {
+    if(session !== cookingSession || !cooking) return;
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      showToast("🎙️ Přístup k mikrofonu je zablokovaný — povol ho v nastavení prohlížeče. Kroky teď potvrzuj tlačítky.");
+      cooking.listening = false; pauseCookingMode();
+      return;
+    }
+    if(e.error === "audio-capture"){
+      showToast("🎙️ Nenašel jsem mikrofon. Kroky potvrzuj tlačítky.");
+      cooking.listening = false; pauseCookingMode();
+      return;
+    }
+    if(e.error !== "no-speech" && e.error !== "aborted") cookingErrorStreak++;
+  };
+  rec.onend = () => {
+    if(session !== cookingSession || !cooking || cooking.paused) return;
+    cooking.listening = false;
+    if(cookingErrorStreak >= 6){
+      showToast("🎙️ Poslouchání se opakovaně nedaří — přepínám na ruční potvrzování tlačítky.");
+      pauseCookingMode();
+      return;
+    }
+    setTimeout(() => { if(cooking && !cooking.paused && cookingSession===session) cookingListenTurn(); }, 500);
+  };
+  try{ rec.start(); }
+  catch(err){
+    cookingErrorStreak++;
+    cooking.listening = false;
+    if(cookingErrorStreak >= 6){ pauseCookingMode(); return; }
+    setTimeout(() => { if(cooking && !cooking.paused && cookingSession===session) cookingListenTurn(); }, 600);
+  }
+}
+function stopCookingListening(){
+  cookingSession++;
+  if(cookingRec){
+    try{ cookingRec.onend=null; cookingRec.onerror=null; cookingRec.onresult=null; cookingRec.abort(); }catch(e){}
+    cookingRec = null;
+  }
+}
+
+// ================= AI VOICE ASSISTANT =================
+// A conversational voice assistant that can control most of the app (create/manage
+// tasks, notes, recipes, timers, workspaces...) and — importantly — asks follow-up
+// questions when something needed is missing (e.g. "na jaké datum?") instead of
+// silently guessing. Anything unexpected/unparseable/offline just gets a spoken
+// apology — it can never crash or leave the app in a broken state, and it always
+// hands control of the microphone back to cooking mode if that was interrupted.
+let assistantActive = false;
+let assistantPhase = "idle"; // idle | listening | thinking | speaking
+let assistantSession = 0;
+let assistantRec = null;
+let assistantConversation = []; // [{role:"user"|"assistant", content:"..."}]
+let assistantTurnCount = 0;
+let assistantLastHeard = "";
+const ASSISTANT_MAX_TURNS = 8;
+let wasCookingListeningBeforeAssistant = false;
+
+function toggleAssistant(){
+  if(assistantActive){ stopAssistantListening(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showToast("🎙️ Hlasový asistent bohužel není v tomto prohlížeči podporován."); return; }
+  getAudioCtx(); unlockMediaPlayback();
+  wasCookingListeningBeforeAssistant = !!(cooking && !cooking.paused);
+  if(cooking) stopCookingListening();
+  assistantActive = true;
+  assistantConversation = [];
+  assistantTurnCount = 0;
+  assistantLastHeard = "";
+  assistantSession++;
+  assistantListenAgain(assistantSession);
+}
+function assistantListenAgain(session){
+  if(session !== assistantSession) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ finishAssistant(); return; }
+  assistantActive = true;
+  assistantPhase = "listening";
+  renderAssistantWidget();
+  const rec = new SR();
+  assistantRec = rec;
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    if(session !== assistantSession) return;
+    const text = e.results[0][0].transcript.trim();
+    if(text) handleAssistantQuery(text, session);
+    else finishAssistant();
+  };
+  rec.onerror = (e) => {
+    if(session !== assistantSession) return;
+    if(e.error === "not-allowed" || e.error === "service-not-allowed") showToast("🎙️ Přístup k mikrofonu je zablokovaný.");
+    else if(e.error !== "no-speech" && e.error !== "aborted") showToast("🎙️ Nerozuměl jsem, zkus to prosím znovu.");
+    finishAssistant();
+  };
+  try{ rec.start(); }
+  catch(e){ finishAssistant(); }
+}
+function stopAssistantListening(){
+  assistantSession++;
+  if(assistantRec){
+    try{ assistantRec.onend=null; assistantRec.onerror=null; assistantRec.onresult=null; assistantRec.abort(); }catch(e){}
+    assistantRec = null;
+  }
+  stopSpeaking();
+  finishAssistant();
+}
+function finishAssistant(){
+  assistantActive = false;
+  assistantPhase = "idle";
+  assistantConversation = [];
+  assistantTurnCount = 0;
+  renderAssistantWidget();
+  if(wasCookingListeningBeforeAssistant){
+    wasCookingListeningBeforeAssistant = false;
+    if(cooking && !cooking.paused) setTimeout(() => { if(cooking && !cooking.paused) cookingListenTurn(); }, 300);
+  }
+}
+async function handleAssistantQuery(text, session){
+  assistantPhase = "thinking";
+  assistantLastHeard = text;
+  renderAssistantWidget();
+  assistantConversation.push({role:"user", content:text});
+  assistantTurnCount++;
+  if(assistantTurnCount > ASSISTANT_MAX_TURNS){
+    speakText("Radši to zkusíme znovu — klepni na asistenta a řekni mi to prosím ještě jednou od začátku.", null, "narrator");
+    finishAssistant();
+    return;
+  }
+  let result = null;
+  try{
+    result = await askAssistantAI();
+  }catch(e){
+    console.warn("Assistant first attempt failed:", e.message);
+    try{
+      result = await askAssistantAI(); // one silent retry — most failures are transient
+    }catch(e2){
+      console.warn("Assistant retry also failed:", e2.message);
+      showToast("🎙️ Asistent: " + e2.message);
+      speakText("Asistent teď bohužel není dostupný. Zkus to prosím znovu.", null, "narrator");
+      finishAssistant();
+      return;
+    }
+  }
+  if(session !== assistantSession) return;
+  assistantConversation.push({role:"assistant", content: JSON.stringify(result)});
+  if(result && result.action === "ask"){
+    const q = (result.speak || "Můžeš to prosím upřesnit?").toString();
+    assistantPhase = "speaking";
+    renderAssistantWidget();
+    speakText(q, () => { if(session === assistantSession) assistantListenAgain(session); }, null, "narrator");
+    return;
+  }
+  executeAssistantAction(result);
+  finishAssistant();
+}
+function resolveAssistantRecipe(title){
+  if(!title || String(title).toLowerCase() === "current") return openRecipeId ? findRecipe(openRecipeId) : (state.recipes[0] || null);
+  const lower = String(title).toLowerCase();
+  return state.recipes.find(r => r.title.toLowerCase() === lower)
+    || state.recipes.find(r => r.title.toLowerCase().includes(lower) || lower.includes(r.title.toLowerCase()))
+    || null;
+}
+function findTaskByTitle(title){
+  if(!title) return null;
+  const lower = String(title).toLowerCase();
+  const tasks = wsTasks().filter(t => t.type === "task");
+  return tasks.find(t => t.title.toLowerCase() === lower)
+    || tasks.find(t => t.title.toLowerCase().includes(lower) || lower.includes(t.title.toLowerCase()))
+    || null;
+}
+function resolveListId(name){
+  const ws = getWorkspace();
+  if(!name) return ws.lists[0].id;
+  const lower = String(name).toLowerCase();
+  const l = ws.lists.find(x => x.name.toLowerCase() === lower) || ws.lists.find(x => x.name.toLowerCase().includes(lower));
+  return l ? l.id : ws.lists[0].id;
+}
+function resolveWorkspaceByName(name){
+  if(!name) return null;
+  const lower = String(name).toLowerCase();
+  return state.workspaces.find(w => w.name.toLowerCase() === lower)
+    || state.workspaces.find(w => w.name.toLowerCase().includes(lower) || lower.includes(w.name.toLowerCase()))
+    || null;
+}
+async function askAssistantAI(){
+  const ws = getWorkspace();
+  const recipeNames = state.recipes.map(r => r.title).join(", ") || "žádné recepty zatím nejsou";
+  const current = openRecipeId ? findRecipe(openRecipeId) : null;
+  const workspaceNames = state.workspaces.map(w => w.name).join(", ");
+  const listNames = ws.lists.map(l => l.name).join(", ");
+  const openTaskTitles = wsTasks().filter(t=>t.type==="task" && !t.done).slice(0,25).map(t=>t.title).join("; ") || "žádné";
+
+  const personalityPrompt = `Tvá osobnost: mluvíš přátelsky, vlídně a s klidnou lidskostí, ale zároveň profesionálně a věcně — jako šikovný a příjemný osobní asistent, se kterým je radost pracovat, ať ho používá kdokoliv (doma i v práci, včetně manažerů). Žádné dětinské oslovování ani pohádkové fráze — jen přirozeně milý, vstřícný a kompetentní tón. Buď stručný a jasný.`;
+
+  const system = `Jsi hlasový asistent uvnitř aplikace "Vibe Calendar" (kalendář, úkoly, poznámky, recepty). ${personalityPrompt} Pole "speak" piš vždy tímhle tónem, i u akcí a otázek.
+
+Umíš SKUTEČNĚ ovládat aplikaci pomocí těchto akcí — nic jiného opravdu neumíš provést:
+
+- create_task {title, date (YYYY-MM-DD), priority (1=nejvyšší…10=nejnižší), listName, reminderEnabled (true/false), reminderTime (HH:MM)}: vytvoří úkol
+- create_note {title, content}: vytvoří poznámku
+- mark_task_done {title}: označí úkol jako hotový
+- delete_task {title}: smaže úkol
+- reschedule_task {title, date}: přeplánuje úkol na jiné datum
+- set_task_priority {title, priority}: změní prioritu úkolu
+- switch_workspace {name}: přepne na jiný kalendář/workspace
+- add_friend {name, phone}: přidá kamaráda
+- create_recipe {title}: založí nový recept
+- add_recipe_item {recipeTitle, sectionName, item}: přidá surovinu/krok do receptu
+- read_recipe_ingredients {title}: nahlas přečte jen suroviny receptu ("current" = právě otevřený)
+- read_recipe_full {title}: přečte celý recept i s postupem
+- start_timer {minutes, label}: spustí kuchyňskou minutku/budík
+- dismiss_alarm {}: vypne právě zvonící budík
+- switch_view {view}: přepne pohled, view je "calendar" nebo "recipes"
+- open_recipe {title}: otevře recept
+- start_cooking {title}: spustí hands-free vaření (čte kroky nahlas)
+- set_app_volume {level 0-100}: nastaví hlasitost zvuků/hlasu PŘÍMO v této appce (budík, čtení nahlas) — NE cizích stránek ani systému telefonu
+- open_youtube_search {query}: otevře vyhledávání na YouTube v nové záložce (NEJDE odsud ovládat přehrávání ani hlasitost cizí stránky)
+- ask {}: použij, když k dokončení požadavku chybí důležitý údaj — polož JEDNU krátkou upřesňující otázku do pole "speak" a NEPROVÁDĚJ žádnou akci, dokud odpověď nedostaneš
+- reply {}: použij pro obecnou odpověď nebo když nic z výše uvedeného nesedí (vysvětli, že to neumíš)
+
+DŮLEŽITÉ PRAVIDLO pro vytváření úkolů (create_task): pokud uživatel neřekl NA JAKÉ DATUM úkol chce, použij akci "ask" a zeptej se na datum (nepředpokládej automaticky "dnes"). Pokud user zatím neřekl, jestli chce upozornění/notifikaci, taky se zeptej (stačí ano/ne). Jakmile máš datum aspoň přibližně a víš o notifikaci, teprve pak proveď create_task. Pokud uživatel řekne "nevím", "je to jedno", "výchozí" nebo se doptávání jasně vyhýbá, použij rozumné výchozí hodnoty (datum dnes, bez notifikace) a pokračuj bez dalšího otravování.
+
+Dnešní datum je ${todayISO} (formát YYYY-MM-DD). Aktuální kalendář/workspace: "${ws.name}". Dostupné kalendáře: ${workspaceNames}. Dostupné seznamy v aktuálním kalendáři: ${listNames}. Otevřené (nesplněné) úkoly: ${openTaskTitles}. Dostupné recepty: ${recipeNames}. Právě otevřený recept: ${current ? current.title : "žádný"}.
+
+Odpovídej VŽDY POUZE čistým JSON objektem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru:
+{"action": "název_akce", "params": {}, "speak": "krátká přirozená odpověď nebo otázka v češtině"}`;
+
+  const messages = [
+    { role: "user", content: system },
+    ...assistantConversation.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content })),
+  ];
+
+  const response = await fetch("/.netlify/functions/ai-proxy", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:600, messages }),
+  });
+  const data = await response.json();
+  if(!response.ok || data.error){
+    throw new Error((data && data.error) || `Asistent vrátil chybu (${response.status}).`);
+  }
+  const rawText = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+  if(!rawText) throw new Error("Asistent vrátil prázdnou odpověď.");
+  // Robustly pull out the first {...} JSON block even if the model added any
+  // stray text around it despite instructions, instead of assuming the whole
+  // reply is clean JSON — this is what made replies intermittently fail before.
+  const jsonStart = rawText.indexOf("{");
+  const jsonEnd = rawText.lastIndexOf("}");
+  const jsonSlice = (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) ? rawText.slice(jsonStart, jsonEnd+1) : rawText;
+  return JSON.parse(jsonSlice);
+}
+function executeAssistantAction(result){
+  if(!result || typeof result !== "object"){ speakText("Omlouvám se, nerozuměl jsem.", null, "narrator"); return; }
+  const action = result.action || "reply";
+  const params = result.params || {};
+  const speak = typeof result.speak === "string" ? result.speak : "";
+  try{
+    switch(action){
+      case "create_task": {
+        const title = (params.title||"").toString().trim();
+        if(!title){ speakText(speak || "Nerozuměl jsem názvu úkolu.", null, "narrator"); return; }
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(params.date||"") ? params.date : todayISO;
+        const priority = Math.min(10, Math.max(1, Number(params.priority)||5));
+        const ws = getWorkspace();
+        const listId = resolveListId(params.listName);
+        const categoryId = ws.categories[0].id;
+        const reminderTime = /^\d{2}:\d{2}$/.test(params.reminderTime||"") ? params.reminderTime : "09:00";
+        const reminder = params.reminderEnabled ? { enabled:true, mode:"atTime", time:reminderTime, advanceValue:30, advanceUnit:"minutes", customDate:date, customTime:reminderTime, sound:"bell", customAudioId:null } : null;
+        const newItem = { id:uid(), workspaceId:state.activeWorkspaceId, listId, categoryId, title, content:"", date, priority, type:"task", done:false, image:null, drawing:null, audioId:null, checklist:[], friendIds:[], reminder, reminderBaseTime:reminderTime };
+        state.tasks = [...state.tasks, newItem];
+        saveState(); scheduleReminders();
+        if(state.currentView !== "calendar") switchView("calendar");
+        state.selectedDate = date; state.windowStart = toISO(addDays(parseISODate(date), -1)); saveState();
+        renderAll();
+        break;
+      }
+      case "create_note": {
+        const title = (params.title||"").toString().trim();
+        if(!title){ speakText(speak || "Nerozuměl jsem názvu poznámky.", null, "narrator"); return; }
+        const ws = getWorkspace();
+        const newItem = { id:uid(), workspaceId:state.activeWorkspaceId, listId:ws.lists[0].id, categoryId:ws.categories[0].id, title, content:(params.content||"").toString(), date:todayISO, priority:5, type:"note", done:false, image:null, drawing:null, audioId:null, checklist:[], friendIds:[], reminder:null };
+        state.tasks = [...state.tasks, newItem];
+        saveState();
+        if(state.currentView !== "calendar") switchView("calendar"); else renderAll();
+        break;
+      }
+      case "mark_task_done": {
+        const task = findTaskByTitle(params.title);
+        if(!task){ speakText(speak || "Ten úkol jsem nenašel.", null, "narrator"); return; }
+        toggleDone(task.id);
+        break;
+      }
+      case "delete_task": {
+        const task = findTaskByTitle(params.title);
+        if(!task){ speakText(speak || "Ten úkol jsem nenašel.", null, "narrator"); return; }
+        deleteTask(task.id);
+        break;
+      }
+      case "reschedule_task": {
+        const task = findTaskByTitle(params.title);
+        if(!task){ speakText(speak || "Ten úkol jsem nenašel.", null, "narrator"); return; }
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(params.date||"")){ speakText(speak || "Nerozuměl jsem datu.", null, "narrator"); return; }
+        moveToDate(task.id, params.date);
+        break;
+      }
+      case "set_task_priority": {
+        const task = findTaskByTitle(params.title);
+        if(!task){ speakText(speak || "Ten úkol jsem nenašel.", null, "narrator"); return; }
+        const priority = Math.min(10, Math.max(1, Number(params.priority)||5));
+        state.tasks = state.tasks.map(t => t.id===task.id ? {...t, priority} : t);
+        saveState(); renderBoard();
+        break;
+      }
+      case "switch_workspace": {
+        const w = resolveWorkspaceByName(params.name);
+        if(!w){ speakText(speak || "Ten kalendář jsem nenašel.", null, "narrator"); return; }
+        state.activeWorkspaceId = w.id; resetDraft(); saveState(); renderAll();
+        break;
+      }
+      case "add_friend": {
+        const name = (params.name||"").toString().trim();
+        if(!name){ speakText(speak || "Nerozuměl jsem jménu.", null, "narrator"); return; }
+        addFriend(name, FRIEND_EMOJIS[0], params.phone||"");
+        break;
+      }
+      case "create_recipe": {
+        const title = (params.title||"").toString().trim();
+        if(!title){ speakText(speak || "Nerozuměl jsem názvu receptu.", null, "narrator"); return; }
+        addRecipe(title, "🍽️");
+        switchView("recipes");
+        break;
+      }
+      case "add_recipe_item": {
+        const r = resolveAssistantRecipe(params.recipeTitle);
+        const item = (params.item||"").toString().trim();
+        if(!r || !item){ speakText(speak || "Nerozuměl jsem, co přidat a do kterého receptu.", null, "narrator"); return; }
+        let section = r.sections.find(s => (params.sectionName||"") && s.name.toLowerCase().includes(String(params.sectionName).toLowerCase()));
+        if(!section) section = r.sections.find(s=>s.isIngredients) || r.sections[0];
+        if(!section){ speakText("Ten recept ještě nemá žádnou sekci.", null, "narrator"); return; }
+        addRecipeItem(r.id, section.id, item);
+        switchView("recipes"); openRecipeId = r.id; renderRecipesView();
+        break;
+      }
+      case "open_youtube_search": {
+        const q = (params.query||"").toString();
+        if(q) window.open("https://www.youtube.com/results?search_query="+encodeURIComponent(q), "_blank");
+        break;
+      }
+      case "set_app_volume": {
+        const level = Number(params.level);
+        appVolume = isNaN(level) ? 100 : Math.max(0, Math.min(100, level));
+        break;
+      }
+      case "read_recipe_ingredients": {
+        const r = resolveAssistantRecipe(params.title);
+        if(!r){ speakText(speak || "Ten recept jsem nenašel.", null, "narrator"); return; }
+        const parts = [];
+        r.sections.filter(s=>s.isIngredients).forEach(s => { parts.push(s.name+"."); s.items.forEach(i=>parts.push(i.text)); });
+        if(!parts.length){ speakText("Tenhle recept ještě nemá vyplněné suroviny.", null, "narrator"); return; }
+        switchView("recipes"); openRecipeId = r.id; renderRecipesView();
+        speakText(speak || `Suroviny na ${r.title}.`, () => speakText(parts.join(" "), null, "narrator"), "narrator");
+        return;
+      }
+      case "read_recipe_full": {
+        const r = resolveAssistantRecipe(params.title);
+        if(!r){ speakText(speak || "Ten recept jsem nenašel.", null, "narrator"); return; }
+        switchView("recipes"); openRecipeId = r.id; renderRecipesView();
+        const parts = [`Recept ${r.title}.`];
+        r.sections.forEach(s => { parts.push(s.name+"."); s.items.forEach(i=>parts.push(i.text)); });
+        speakText(parts.join(" "), null, "narrator");
+        return;
+      }
+      case "start_timer": {
+        const mins = Number(params.minutes);
+        if(mins > 0) startTimer(mins, params.label || `Stopky na ${mins} min`);
+        break;
+      }
+      case "dismiss_alarm": {
+        const fired = timers.find(t => t.fired);
+        if(fired) dismissAlarm(fired.id);
+        break;
+      }
+      case "switch_view": {
+        if(params.view === "calendar" || params.view === "recipes") switchView(params.view);
+        break;
+      }
+      case "open_recipe": {
+        const r = resolveAssistantRecipe(params.title);
+        if(!r){ speakText(speak || "Ten recept jsem nenašel.", null, "narrator"); return; }
+        switchView("recipes"); openRecipeId = r.id; renderRecipesView();
+        break;
+      }
+      case "start_cooking": {
+        const r = resolveAssistantRecipe(params.title);
+        if(!r){ speakText(speak || "Ten recept jsem nenašel.", null, "narrator"); return; }
+        switchView("recipes"); openRecipeId = r.id; renderRecipesView();
+        if(speak) speakText(speak, () => startCookingMode(r.id), null, "narrator");
+        else startCookingMode(r.id);
+        return;
+      }
+      case "reply":
+      default:
+        break;
+    }
+  }catch(e){ /* an assistant action must never crash the app */ }
+  speakText(speak || "Hotovo.", null, "narrator");
+}
+
+// ---------- Small, unobtrusive assistant widget (no robot icon) ----------
+function renderAssistantWidget(){
+  const el = document.getElementById("assistantWidget");
+  if(!el) return;
+  // The standalone floating chat assistant is turned off — the person only
+  // wants the individual AI functions scattered around the app (macro/title
+  // estimates, protein analysis, etc.), not a general-purpose assistant pill.
+  // Everything the assistant is built on stays in the code untouched and
+  // dormant; this just stops it from ever rendering or being reachable.
+  el.innerHTML = "";
+}
+function assistantHelpModalHTML(){
+  const groups = [
+    { title: "📋 Úkoly a poznámky", items: [
+      "„Přidej úkol koupit mléko“ (zeptá se na datum a upozornění)",
+      "„Označ úkol koupit mléko jako hotový“",
+      "„Smaž úkol koupit mléko“",
+      "„Přesuň úkol koupit mléko na pátek“",
+      "„Nastav úkolu koupit mléko nejvyšší prioritu“",
+      "„Přidej poznámku — nápad na dovolenou“",
+    ]},
+    { title: "🍳 Recepty a vaření", items: [
+      "„Přečti mi jen suroviny na bábovku“",
+      "„Spusť hands-free vaření bábovky“",
+      "„Založ nový recept guláš“",
+      "„Přidej do receptu bábovka surovinu 2 vejce“",
+    ]},
+    { title: "⏱️ Budík a appka", items: [
+      "„Nastav budík na 15 minut“",
+      "„Vypni budík“",
+      "„Ztlum zvuky aplikace na polovinu“",
+      "„Pusť mi na YouTube hudbu do kuchyně“",
+    ]},
+    { title: "🗂️ Organizace", items: [
+      "„Přepni na recepty“ / „na kalendář“",
+      "„Přepni na kalendář Pracovní“",
+      "„Přidej kamaráda Petra“",
+    ]},
+  ];
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">✨ Co všechno asistent umí</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 12px">Klepni na „Asistent" vpravo dole a řekni si o cokoliv z tohohle (nebo podobné). Pokud bude něco chybět (např. datum úkolu), sám se doptá.</p>
+        ${groups.map(g => `
+          <p class="text-xs font-semi" style="margin:12px 0 6px;color:#334155">${g.title}</p>
+          <div class="col gap-1.5">
+            ${g.items.map(e => `<div style="background:#f8fafc;border-radius:12px;padding:8px 12px;color:#475569" class="text-xs">${e}</div>`).join("")}
+          </div>
+        `).join("")}
+        <p class="text-xs muted" style="margin-top:14px">⚠️ Asistent umí jen věci uvnitř téhle appky (a otevřít vyhledávání na YouTube) — nedokáže ovládat hlasitost cizích stránek ani jiné aplikace v telefonu. Vyžaduje prostředí s přístupem k API.</p>
+      </div>
+    </div>`;
+}
+
+
+const COOK_ALARM_STOP_WORDS = ["vypni budík","vypni budik","zastav budík","zastav budik","vypnout budík","vypnout budik","zastavit budík","zastavit budik","vypni alarm","zastav alarm","vypnout alarm","umlč budík","umlc budik","ztiš budík","ztis budik"];
+function handleCookingVoiceCommand(text){
+  if(!cooking) return;
+  if(COOK_ALARM_STOP_WORDS.some(w => text.includes(w))){
+    const fired = timers.find(t => t.fired);
+    if(fired){ dismissAlarm(fired.id); speakText("Budík vypnut.", () => {}); }
+    return; // keep listening loop going, don't advance the cooking step
+  }
+  const timerMinutes = parseVoiceTimerCommand(text);
+  if(timerMinutes){
+    const cur = cooking.plan[cooking.pointer];
+    startTimer(timerMinutes, `Vaření: ${cur.sectionName}`);
+    speakText(`Budík nastaven na ${timerMinutes} minut.`, () => {});
+    return; // keep listening loop going (onend restarts it), don't advance step
+  }
+  if(COOK_NEXT_WORDS.some(w => text.includes(w))){ cookingAdvance(); return; }
+  if(COOK_BACK_WORDS.some(w => text.includes(w))){ cookingBack(); return; }
+  if(COOK_REPEAT_WORDS.some(w => text.includes(w))){ cookingRepeat(); return; }
+  if(COOK_STOP_WORDS.some(w => text.includes(w))){ pauseCookingMode(); return; }
+  // unrecognized phrase — just keep listening (onend loop continues automatically)
+}
+function cookingAdvance(){
+  if(!cooking) return;
+  stopCookingListening();
+  const cur = cooking.plan[cooking.pointer];
+  toggleRecipeItemSilent(cooking.recipeId, cur.sectionId, cur.itemId, true);
+  if(cooking.pointer >= cooking.plan.length - 1){
+    finishCookingMode();
+    return;
+  }
+  cooking.pointer++;
+  const next = cooking.plan[cooking.pointer];
+  const enteringNewSection = next.sectionId !== cur.sectionId;
+  renderModals();
+  speakText(enteringNewSection ? `Teď: ${next.sectionName}. ${next.text}` : next.text, () => cookingListenTurn());
+}
+function cookingBack(){
+  if(!cooking) return;
+  stopCookingListening();
+  if(cooking.pointer <= 0) { cookingRepeat(); return; }
+  cooking.pointer--;
+  const cur = cooking.plan[cooking.pointer];
+  toggleRecipeItemSilent(cooking.recipeId, cur.sectionId, cur.itemId, false);
+  renderModals();
+  speakText(`Zpět na: ${cur.text}`, () => cookingListenTurn());
+}
+function cookingRepeat(){
+  if(!cooking) return;
+  stopCookingListening();
+  const cur = cooking.plan[cooking.pointer];
+  speakText(cur.text, () => cookingListenTurn());
+}
+function toggleRecipeItemSilent(recipeId, sectionId, itemId, done){
+  const r = findRecipe(recipeId); if(!r) return;
+  updateRecipe(recipeId, { sections: r.sections.map(s => s.id===sectionId ? {...s, items:s.items.map(i=>i.id===itemId?{...i,done}:i)} : s) });
+}
+function finishCookingMode(){
+  const recipe = findRecipe(cooking.recipeId);
+  speakText(`Hotovo! Recept ${recipe ? recipe.title : ""} je celý dokončený. Dobrou chuť!`, () => {});
+  cooking.finished = true;
+  renderModals();
+}
+function pauseCookingMode(){
+  if(!cooking) return;
+  cooking.paused = true;
+  cooking.listening = false;
+  stopSpeaking();
+  stopCookingListening();
+  renderModals();
+}
+function resumeCookingMode(){
+  if(!cooking) return;
+  cooking.paused = false;
+  cookingErrorStreak = 0;
+  const cur = cooking.plan[cooking.pointer];
+  speakText(cur.text, () => cookingListenTurn());
+}
+function exitCookingMode(){
+  stopSpeaking();
+  stopCookingListening();
+  cooking = null;
+  closeModal();
+  renderRecipeDetail();
+}
+
+
+
+// ---------- Form checklist editor ----------
+function addChecklistItem(text){
+  if(!text || !text.trim()) return;
+  draft.formChecklist = [...draft.formChecklist, {id:uid(), text:text.trim(), done:false}];
+  renderChecklistEditor();
+  const input = document.getElementById("checklistInput");
+  if(input) input.value = "";
+}
+function removeChecklistItem(id){
+  draft.formChecklist = draft.formChecklist.filter(i => i.id !== id);
+  renderChecklistEditor();
+}
+
+// ---------- Recurrence custom dates ----------
+function addRecurrenceDate(date){
+  if(!date) return;
+  if(!draft.recurrenceCustomDates.includes(date)) draft.recurrenceCustomDates = [...draft.recurrenceCustomDates, date].sort();
+  renderRecurrenceEditor();
+}
+function removeRecurrenceDate(date){
+  draft.recurrenceCustomDates = draft.recurrenceCustomDates.filter(d => d !== date);
+  renderRecurrenceEditor();
+}
+
+// ---------- Image / background upload ----------
+async function handleImageUpload(fileList){
+  if(!fileList || !fileList.length) return;
+  const files = Array.from(fileList);
+  try{
+    const dataUrls = await Promise.all(files.map(f => resizeImageFile(f, 900, 0.82)));
+    draft.formImages = [...draft.formImages, ...dataUrls];
+    showToast(dataUrls.length>1 ? `Přidáno ${dataUrls.length} fotek k úkolu ✓` : "Fotka přidána k úkolu ✓");
+    renderAttachmentsPreview();
+  }catch(e){ showToast("Nahrání fotky se nezdařilo."); }
+}
+function removeDraftImage(index){
+  draft.formImages = draft.formImages.filter((_,i)=>i!==index);
+  renderAttachmentsPreview();
+}
+async function handleBgUpload(file){
+  if(!file) return;
+  try{
+    const dataUrl = await resizeImageFile(file, 1400, 0.85);
+    updateWorkspace({ customBg:dataUrl, theme:"photo" });
+    showToast("Vlastní pozadí nastaveno ✓");
+    renderAll();
+  }catch(e){ showToast("Nahrání pozadí se nezdařilo."); }
+}
+async function handleRecipeCoverUpload(recipeId, file){
+  if(!file) return;
+  try{
+    const dataUrl = await resizeImageFile(file, 1000, 0.85);
+    updateRecipe(recipeId, { coverImage: dataUrl });
+    showToast("Fotka pokrmu nastavena ✓");
+    renderRecipeDetail();
+  }catch(e){ showToast("Nahrání fotky se nezdařilo."); }
+}
+function removeRecipeCover(recipeId){
+  updateRecipe(recipeId, { coverImage: null });
+  renderRecipeDetail();
+}
+async function handleRecipeGalleryUpload(recipeId, fileList){
+  if(!fileList || !fileList.length) return;
+  const r = findRecipe(recipeId);
+  if(!r) return;
+  const files = Array.from(fileList);
+  try{
+    const dataUrls = await Promise.all(files.map(f => resizeImageFile(f, 900, 0.82)));
+    const current = findRecipe(recipeId);
+    updateRecipe(recipeId, { gallery: [...(current.gallery||[]), ...dataUrls] });
+    showToast(`Přidáno ${dataUrls.length} fotek ✓`);
+    renderRecipeDetail();
+  }catch(e){ showToast("Nahrání fotek se nezdařilo."); }
+}
+function removeRecipeGalleryPhoto(recipeId, index){
+  const r = findRecipe(recipeId); if(!r) return;
+  const gallery = [...(r.gallery||[])];
+  gallery.splice(index, 1);
+  updateRecipe(recipeId, { gallery });
+  renderRecipeDetail();
+}
+async function handleReminderAudioUpload(file){
+  if(!file) return;
+  if(file.size > 15 * 1024 * 1024){
+    showToast("Soubor je hodně velký (nad 15 MB) — zkus kratší melodii nebo výřez písně.");
+  }
+  try{
+    const id = await idbSet(file);
+    draft.reminderCustomAudioId = id;
+    draft.reminderCustomAudioName = file.name;
+    if(customAudioPlayer){ customAudioPlayer.pause(); } previewPlaying = false;
+    showToast(`Melodie „${file.name}“ nahrána ✓ — vyzkoušej ▶️`);
+    renderReminderSection();
+  }catch(e){ showToast("Nahrání melodie se nezdařilo. Zkus prosím jiný soubor."); }
+}
+
+// ---------- Drawing canvas ----------
+let drawColor = "#334155";
+let drawingActive = false;
+let drawTarget = null; // null = task draft (default); {type:"note", noteId} = a specific note
+function openDrawModal(target){ drawTarget = target || null; openModal("draw"); }
+function clearDrawCanvas(){
+  const c = document.getElementById("drawCanvas");
+  const ctx = c.getContext("2d");
+  ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,c.width,c.height);
+}
+function saveDrawing(){
+  const c = document.getElementById("drawCanvas");
+  const dataUrl = c.toDataURL("image/png");
+  if(drawTarget && drawTarget.type === "note"){
+    const n = findNote(drawTarget.noteId);
+    updateNote(drawTarget.noteId, { drawings: [...(n?.drawings||[]), dataUrl] });
+    closeModal();
+    showToast("Kresba uložena k poznámce ✓");
+    renderNoteDetail();
+  } else if(drawTarget && drawTarget.type === "document"){
+    const doc = findDocument(drawTarget.documentId);
+    updateDocument(drawTarget.documentId, { drawings: [...(doc?.drawings||[]), dataUrl] });
+    closeModal();
+    showToast("Kresba uložena k dokumentu ✓");
+    renderDocumentDetail();
+  } else if(drawTarget && drawTarget.type === "workout"){
+    const w = findWorkout(drawTarget.workoutId);
+    updateWorkout(drawTarget.workoutId, { drawings: [...(w?.drawings||[]), dataUrl] });
+    closeModal();
+    showToast("Kresba uložena k tréninku ✓");
+    renderWorkoutDetail();
+  } else {
+    draft.formDrawings = [...draft.formDrawings, dataUrl];
+    closeModal();
+    showToast("Kresba uložena k úkolu ✓");
+    renderAttachmentsPreview();
+  }
+  drawTarget = null;
+}
+
+// ---------- Voice dictation ----------
+let dictationRec = null, dictationField = null;
+function toggleDictation(field){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showToast("Diktování bohužel není v tomto prohlížeči podporováno."); return; }
+  if(dictationRec && dictationField === field){ dictationRec.stop(); return; }
+  const rec = new SR();
+  rec.lang = "cs-CZ"; rec.continuous = field==="content"; rec.interimResults = false;
+  rec.onresult = (e) => {
+    let text = "";
+    for(let i=e.resultIndex;i<e.results.length;i++) text += e.results[i][0].transcript;
+    if(field === "title") draft.formTitle = draft.formTitle ? draft.formTitle+" "+text : text;
+    else draft.formContent = draft.formContent ? draft.formContent+" "+text : text;
+    syncTextFields();
+  };
+  rec.onerror = () => { showToast("Diktování se nezdařilo — zkontroluj přístup k mikrofonu."); dictationRec=null; renderDictationButtons(); };
+  rec.onend = () => { dictationRec=null; dictationField=null; renderDictationButtons(); };
+  try{ rec.start(); dictationRec=rec; dictationField=field; renderDictationButtons(); }
+  catch(e){ showToast("Diktování se nepodařilo spustit."); }
+}
+function syncTextFields(){
+  const t = document.getElementById("formTitleInput"); if(t) t.value = draft.formTitle;
+  const c = document.getElementById("formContentInput"); if(c) c.value = draft.formContent;
+}
+
+// ---------- Dictate freely, then have AI tidy it into clear structured notes ----------
+// Different from the plain "toggle-dictation-content" above: this one lets you
+// ramble naturally (continuous listening across pauses), and once you stop it,
+// sends the raw transcript off to be cleaned up into tidy bullet-point notes —
+// filler words removed, structure added — while never discarding what you said
+// if that cleanup step isn't reachable (falls back to the plain transcript).
+let organizedDictationActive = false;
+let organizedDictationRec = null;
+let organizedDictationAccum = "";
+function toggleOrganizedNoteDictation(){
+  if(organizedDictationActive){ stopOrganizedNoteDictation(true); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showToast("🎙️ Diktování bohužel není v tomto prohlížeči podporováno."); return; }
+  organizedDictationActive = true;
+  organizedDictationAccum = "";
+  const rec = new SR();
+  organizedDictationRec = rec;
+  rec.lang = "cs-CZ"; rec.continuous = true; rec.interimResults = false;
+  rec.onresult = (e) => {
+    for(let i=e.resultIndex; i<e.results.length; i++){
+      if(e.results[i].isFinal) organizedDictationAccum += (organizedDictationAccum ? " " : "") + e.results[i][0].transcript;
+    }
+  };
+  rec.onerror = (e) => {
+    if(e.error !== "no-speech" && e.error !== "aborted"){ showToast("🎙️ Diktování se přerušilo."); stopOrganizedNoteDictation(true); }
+  };
+  rec.onend = () => { if(organizedDictationActive){ try{ rec.start(); }catch(err){ stopOrganizedNoteDictation(true); } } };
+  try{
+    rec.start();
+    showToast("🎙️ Poslouchám — klidně mluv volně, appka to pak uspořádá. Klepni znovu, až domluvíš.");
+    renderForm();
+  }catch(e){ organizedDictationActive = false; showToast("Diktování se nepodařilo spustit."); }
+}
+function stopOrganizedNoteDictation(process){
+  organizedDictationActive = false;
+  if(organizedDictationRec){
+    try{ organizedDictationRec.onend=null; organizedDictationRec.onerror=null; organizedDictationRec.onresult=null; organizedDictationRec.abort(); }catch(e){}
+    organizedDictationRec = null;
+  }
+  renderForm();
+  if(process && organizedDictationAccum.trim()) organizeNoteText(organizedDictationAccum.trim());
+}
+async function organizeNoteText(rawText){
+  showToast("✨ Upravuji do přehledných poznámek…");
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 800,
+        messages: [{ role:"user", content:
+          `Uprav tenhle nadiktovaný, možná nesouvislý mluvený text do přehledných a stručných poznámek v češtině — použij odrážky nebo krátké odstavce, oprav zjevné chyby z diktování a odstraň slovní vatu ("ehm", zbytečná opakování), ale zachovej úplně všechny věcné informace, nic si nevymýšlej navíc. Odpověz POUZE upraveným textem poznámek samotným, bez úvodu, bez vysvětlování, bez uvozovek.\n\nText: "${rawText}"`
+        }],
+      }),
+    });
+    const data = await response.json();
+    if(!response.ok || data.error) throw new Error((data && data.error) || `Chyba (${response.status})`);
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    if(!text) throw new Error("Prázdná odpověď.");
+    draft.formContent = draft.formContent ? draft.formContent + "\n\n" + text : text;
+    syncTextFields();
+    showToast("Poznámky uspořádány ✨");
+  }catch(e){
+    // Never lose what was said — fall back to the plain transcript if AI cleanup isn't reachable.
+    draft.formContent = draft.formContent ? draft.formContent + "\n\n" + rawText : rawText;
+    syncTextFields();
+    showToast("AI úprava teď není dostupná (vyžaduje nasazenou appku s přístupem k API) — vložil jsem aspoň přesný přepis toho, cos řekl/a.");
+  }
+}
+
+// ---------- Repeated "keep talking, each pause = one new checklist item" dictation ----------
+// Works for the task/note checklist AND for recipe section items (see `target`).
+let checklistDictateActive = false;
+let checklistDictateTarget = null; // {type:"form"} | {type:"recipe", recipeId, sectionId}
+let checklistDictateSession = 0;   // invalidates callbacks from a stopped/replaced instance
+let checklistDictateRec = null;
+let checklistDictateErrorStreak = 0;
+// Simple one-shot dictation for a single field (title, notes, servings, any
+// text input) — say it once, it fills the field, done. Used across recipes
+// and the meal planner wherever there's a 🎙️ next to a text field.
+function dictateOnceInto(targetId){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showToast("🎙️ Diktování bohužel není v tomto prohlížeči podporováno."); return; }
+  const el = document.getElementById(targetId);
+  if(!el) return;
+  showToast("🎙️ Poslouchám…");
+  const rec = new SR();
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript.trim();
+    if(!text) return;
+    el.value = el.value ? el.value + " " + text : text;
+    el.dispatchEvent(new Event("input", {bubbles:true}));
+    el.dispatchEvent(new Event("change", {bubbles:true}));
+  };
+  rec.onerror = (e) => {
+    if(e.error !== "no-speech" && e.error !== "aborted") showToast("🎙️ Nerozuměl jsem, zkus to prosím znovu.");
+  };
+  try{ rec.start(); }catch(e){ showToast("🎙️ Diktování se nepodařilo spustit."); }
+}
+function toggleChecklistDictation(target){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ showToast("Diktování bohužel není v tomto prohlížeči podporováno."); return; }
+  if(checklistDictateActive){ stopChecklistDictation(); return; }
+  checklistDictateActive = true;
+  checklistDictateTarget = target;
+  checklistDictateErrorStreak = 0;
+  checklistDictateSession++;
+  updateDictateButtons();
+  showToast("🎙️ Poslouchám — řekni krok, po pauze přidám další. Klepnutím na mikrofon ukončíš.");
+  startChecklistDictationTurn(checklistDictateSession);
+}
+function startChecklistDictationTurn(session){
+  if(!checklistDictateActive || session !== checklistDictateSession) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SR();
+  checklistDictateRec = rec;
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    checklistDictateErrorStreak = 0;
+    const text = e.results[0][0].transcript.trim();
+    if(text) addDictatedChecklistItem(text);
+  };
+  rec.onerror = (e) => {
+    if(session !== checklistDictateSession) return;
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      showToast("🎙️ Přístup k mikrofonu je zablokovaný — povol ho v nastavení prohlížeče.");
+      stopChecklistDictation();
+      return;
+    }
+    if(e.error === "audio-capture"){
+      showToast("🎙️ Nenašel jsem mikrofon.");
+      stopChecklistDictation();
+      return;
+    }
+    if(e.error !== "no-speech" && e.error !== "aborted") checklistDictateErrorStreak++;
+  };
+  rec.onend = () => {
+    if(session !== checklistDictateSession || !checklistDictateActive) return;
+    if(checklistDictateErrorStreak >= 5){
+      showToast("🎙️ Diktování se opakovaně nedaří spustit — zkus to prosím znovu.");
+      stopChecklistDictation();
+      return;
+    }
+    setTimeout(() => startChecklistDictationTurn(session), 500);
+  };
+  try{ rec.start(); }
+  catch(err){
+    checklistDictateErrorStreak++;
+    if(checklistDictateErrorStreak >= 5){ stopChecklistDictation(); return; }
+    setTimeout(() => startChecklistDictationTurn(session), 600);
+  }
+}
+function stopChecklistDictation(){
+  checklistDictateActive = false;
+  checklistDictateTarget = null;
+  checklistDictateSession++;
+  if(checklistDictateRec){
+    try{ checklistDictateRec.onend=null; checklistDictateRec.onerror=null; checklistDictateRec.onresult=null; checklistDictateRec.abort(); }catch(e){}
+    checklistDictateRec = null;
+  }
+  updateDictateButtons();
+}
+function addDictatedChecklistItem(text){
+  const target = checklistDictateTarget;
+  if(!target) return;
+  if(target.type === "form") addChecklistItem(text);
+  else if(target.type === "recipe") addRecipeItem(target.recipeId, target.sectionId, text);
+  else if(target.type === "note") addNoteChecklistItem(target.noteId, text);
+  else if(target.type === "document") addDocumentChecklistItem(target.documentId, text);
+  else if(target.type === "workout"){
+    const minInp = document.getElementById("workoutChecklistMinutesInput");
+    addWorkoutChecklistItem(target.workoutId, text, minInp ? minInp.value : 5);
+  }
+}
+function updateDictateButtons(){
+  const btn = document.getElementById("checklistDictateBtn");
+  if(btn){ btn.style.background = checklistDictateActive && checklistDictateTarget?.type==="form" ? "#fb7185" : ""; btn.style.color = checklistDictateActive && checklistDictateTarget?.type==="form" ? "#fff" : ""; }
+  document.querySelectorAll("[data-recipe-dictate-btn]").forEach((b) => {
+    const active = checklistDictateActive && checklistDictateTarget?.type==="recipe" && checklistDictateTarget.sectionId === b.dataset.sectionId;
+    b.style.background = active ? "#fb7185" : "";
+    b.style.color = active ? "#fff" : "";
+  });
+  const noteBtn = document.getElementById("noteChecklistDictateBtn");
+  if(noteBtn){
+    const active = checklistDictateActive && checklistDictateTarget?.type==="note";
+    noteBtn.style.background = active ? "#fb7185" : "";
+    noteBtn.style.color = active ? "#fff" : "";
+  }
+  const docBtn = document.getElementById("documentChecklistDictateBtn");
+  if(docBtn){
+    const active = checklistDictateActive && checklistDictateTarget?.type==="document";
+    docBtn.style.background = active ? "#fb7185" : "";
+    docBtn.style.color = active ? "#fff" : "";
+  }
+  const workoutBtn = document.getElementById("workoutChecklistDictateBtn");
+  if(workoutBtn){
+    const active = checklistDictateActive && checklistDictateTarget?.type==="workout";
+    workoutBtn.style.background = active ? "#fb7185" : "";
+    workoutBtn.style.color = active ? "#fff" : "";
+  }
+}
+
+// ---------- Audio recording (voice note attached to task or note) ----------
+let mediaRecorder = null, recordedChunks = [], isRecording = false;
+let recordingTarget = null; // null = task draft; {type:"note", noteId} = a specific note
+async function toggleRecording(target){
+  if(isRecording){ mediaRecorder.stop(); return; }
+  recordingTarget = target || null;
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRecorder = new MediaRecorder(stream);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => recordedChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordedChunks, {type:"audio/webm"});
+      const id = await idbSet(blob);
+      if(recordingTarget && recordingTarget.type === "note"){
+        const n = findNote(recordingTarget.noteId);
+        updateNote(recordingTarget.noteId, { audioIds: [...(n?.audioIds||[]), id] });
+        renderNoteDetail();
+      } else if(recordingTarget && recordingTarget.type === "document"){
+        const doc = findDocument(recordingTarget.documentId);
+        updateDocument(recordingTarget.documentId, { audioIds: [...(doc?.audioIds||[]), id] });
+        renderDocumentDetail();
+      } else if(recordingTarget && recordingTarget.type === "workout"){
+        const w = findWorkout(recordingTarget.workoutId);
+        updateWorkout(recordingTarget.workoutId, { audioIds: [...(w?.audioIds||[]), id] });
+        renderWorkoutDetail();
+      } else {
+        draft.formAudioIds = [...draft.formAudioIds, id];
+        renderAttachmentsPreview();
+      }
+      showToast("Hlasová nahrávka přidána ✓");
+      stream.getTracks().forEach(t => t.stop());
+      isRecording = false;
+      recordingTarget = null;
+      renderAttachmentsButtons();
+    };
+    mediaRecorder.start(); isRecording = true;
+    if(target && target.type === "note") renderNoteDetail();
+    else if(target && target.type === "document") renderDocumentDetail();
+    else if(target && target.type === "workout") renderWorkoutDetail();
+    else renderAttachmentsButtons();
+  }catch(e){
+    showToast("Mikrofon není v tomto prostředí dostupný.");
+  }
+}
+
+// ---------- AI title suggestion (Anthropic API — works when hosted with API access) ----------
+async function generateAITitle(){
+  if(!draft.formContent.trim()){ showToast("Nejdřív nadiktuj nebo napiš obsah poznámky."); return; }
+  const btn = document.getElementById("aiTitleBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "✨ AI přemýšlí…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6", max_tokens:1000,
+        messages:[{ role:"user", content:`Na základě následující poznámky vymysli krátký, výstižný název v češtině (maximálně 6 slov), který dává z kontextu dokonalý smysl. Odpověz POUZE samotným názvem, bez uvozovek a bez jakéhokoliv dalšího textu.\n\nPoznámka: """${draft.formContent.trim()}"""` }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    if(text){ draft.formTitle = text.replace(/^["„“]|["“”]$/g,""); showToast("Název navržen pomocí AI ✨"); syncTextFields(); }
+    else showToast("AI se nepodařilo vymyslet název, zkus to znovu.");
+  }catch(e){
+    showToast("AI návrh vyžaduje běh v prostředí s přístupem k API (např. Claude náhled).");
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = "✨ Navrhnout název pomocí AI"; }
+  }
+}
+
+// ---------- Nutrition (AI-estimated from ingredients) ----------
+function scaleNutrition(nutrition, servingGrams, totalGrams){
+  if(!nutrition || !servingGrams || !totalGrams) return null;
+  const ratio = servingGrams / totalGrams;
+  return {
+    calories: Math.round(nutrition.calories * ratio),
+    protein: Math.round(nutrition.protein * ratio * 10) / 10,
+    fat: Math.round(nutrition.fat * ratio * 10) / 10,
+    carbs: Math.round(nutrition.carbs * ratio * 10) / 10,
+  };
+}
+async function computeNutritionAI(recipeId){
+  const r = findRecipe(recipeId);
+  if(!r) return;
+  const ingredientSections = r.sections.filter(s => s.isIngredients && s.items.length);
+  if(!ingredientSections.length){ showToast("Nejdřív přidej suroviny receptu a označ sekci jako „🥕 Suroviny“."); return; }
+  const btn = document.getElementById("nutritionBtn-"+recipeId);
+  if(btn){ btn.disabled = true; btn.textContent = "✨ AI počítá…"; }
+  const allIngredients = [];
+  ingredientSections.forEach(s => s.items.forEach(i => allIngredients.push({sectionId:s.id, itemId:i.id, text:i.text})));
+  const listText = allIngredients.map((ing, idx) => `${idx+1}. ${ing.text}`).join("\n");
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 1200,
+        messages: [{ role:"user", content:
+          `Recept: ${r.title}\n\nOdhadni nutriční hodnoty KE KAŽDÉ jednotlivé surovině v uvedeném množství (přesně jak je napsaná):\n${listText}\n\nOdpověz POUZE čistým JSON polem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru — jedna položka pro každou surovinu ve STEJNÉM pořadí jako v seznamu:\n[{"calories": číslo, "protein": číslo, "fat": číslo, "carbs": číslo}, ...]\ncalories jsou kcal, protein/fat/carbs jsou gramy — vše pro dané množství té suroviny (ne na 100 g).`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = text.replace(/```json|```/g,"").trim();
+    const parsed = JSON.parse(cleaned);
+    if(!Array.isArray(parsed) || parsed.length !== allIngredients.length) throw new Error("shape mismatch");
+    allIngredients.forEach((ing, idx) => {
+      const v = parsed[idx] || {};
+      setIngredientNutrition(recipeId, ing.sectionId, ing.itemId, "calories", Math.round(Number(v.calories))||0);
+      setIngredientNutrition(recipeId, ing.sectionId, ing.itemId, "protein", Math.round((Number(v.protein)||0)*10)/10);
+      setIngredientNutrition(recipeId, ing.sectionId, ing.itemId, "fat", Math.round((Number(v.fat)||0)*10)/10);
+      setIngredientNutrition(recipeId, ing.sectionId, ing.itemId, "carbs", Math.round((Number(v.carbs)||0)*10)/10);
+    });
+    showToast(`Nutrice vyplněna u ${allIngredients.length} surovin ✨ — uprav si klidně ručně`);
+    renderRecipeDetail();
+  }catch(e){
+    showToast("AI odhad teď není dostupný (funguje jen v prostředí s přístupem k API) — vyplň prosím hodnoty ručně u surovin níže.");
+  }finally{
+    const btn2 = document.getElementById("nutritionBtn-"+recipeId);
+    if(btn2){ btn2.disabled = false; btn2.textContent = "✨ Zkusit AI odhad k surovinám"; }
+  }
+}
+
+// One holistic AI call per day, on demand — sends the whole day's eaten foods
+// (with their protein content) at once, so the model can reason across the
+// entire day (spot legume+grain combos across different meals, correctly
+// weigh mixed-ingredient items like "rohlík se šunkou") instead of the app
+// guessing item-by-item. This is the precise path; computeDayMealTotals()
+// still shows the instant local estimate automatically whenever this hasn't
+// been run yet (or is out of reach, e.g. offline), so something sensible is
+// always visible without waiting on a network call.
+// ================= PHOTO-BASED MEAL LOGGING (vyfoť jídlo, AI spočítá makra) =================
+// Multi-turn conversation with the vision model: it can either return a final
+// macro estimate, or — when genuinely unsure about something material (exact
+// portion, what's under a sauce, whether it's diet or regular) — ask ONE
+// short clarifying question instead of silently guessing. The person can
+// always short-circuit with "prostě odhadni" to force a final answer.
+let mealPhotoState = null; // { imageDataUrl, note, messages, status, question, resultItems, reasoning, rounds }
+function openMealPhotoCapture(){
+  mealPhotoState = { imageDataUrl:null, note:"", messages:[], status:"idle", question:null, resultItems:null, reasoning:null, rounds:0 };
+  openModal("mealPhoto");
+}
+async function handleMealPhotoUpload(fileList){
+  if(!fileList || !fileList.length || !mealPhotoState) return;
+  try{
+    const dataUrl = await resizeImageFile(fileList[0], 1100, 0.85);
+    mealPhotoState.imageDataUrl = dataUrl;
+    renderModals();
+  }catch(e){ showToast("Nahrání fotky se nezdařilo."); }
+}
+function mealPhotoPrompt(){
+  return `Jsi zkušený nutriční poradce, který odhaduje makroživiny z fotek jídla. Podívej se pečlivě na fotku. ${mealPhotoState.note ? `Poznámka od uživatele: "${mealPhotoState.note}"` : ""}
+
+Postupuj takto:
+1. Identifikuj VŠECHNY jednotlivé jedlé položky na fotce zvlášť (např. u talíře "kuřecí prsa", "rýže", "zeleninová obloha" jako tři samostatné položky, ne jedno "jídlo").
+2. Odhadni gramáž KAŽDÉ položky pomocí vizuálních vodítek — velikost talíře/misky (běžný talíř ~26 cm), velikost příboru, poměr k dlani nebo jiným předmětům v záběru, výška/objem u nápojů a mís.
+3. Zohledni viditelný způsob přípravy (smažené v oleji / grilované / dušené / syrové) — výrazně mění tuk a kalorie.
+4. Pokud je na fotce čitelný obal se štítkem (např. kefir, sušenka z obchodu), použij reálné typické hodnoty pro daný typ výrobku, ne obecný odhad.
+5. Pokud u něčeho PODSTATNÉHO nejsi jistá (přesná porce, co přesně je uvnitř bagety/wrapu, light vs. normální verze, kolik bylo skutečně snědeno), POLOŽ JEDNU KRÁTKOU KONKRÉTNÍ UPŘESŇUJÍCÍ OTÁZKU místo hádání. Pokud poznámka uživatele už otázku vyjasňuje, zohledni to a needsClarification bude false.
+
+Odpověz POUZE čistým JSON objektem, bez markdown a bez dalšího textu, přesně v JEDNOM z těchto dvou tvarů:
+Pokud potřebuješ upřesnit: {"needsClarification": true, "question": "otázka v češtině"}
+Pokud máš dost informací: {"needsClarification": false, "items": [{"name": "název položky", "grams": číslo, "calories": číslo, "protein": číslo, "fat": číslo, "carbs": číslo}], "reasoning": "krátké shrnutí v češtině — co jsi rozpoznala, jak jsi odhadla porci, a jak jistá si tím jsi"}`;
+}
+async function submitMealPhoto(){
+  if(!mealPhotoState || !mealPhotoState.imageDataUrl){ showToast("Nejdřív vyfoť nebo nahraj fotku jídla."); return; }
+  const base64 = mealPhotoState.imageDataUrl.split(",")[1];
+  mealPhotoState.messages = [{ role:"user", content: [
+    { type:"image", source:{ type:"base64", media_type:"image/jpeg", data: base64 } },
+    { type:"text", text: mealPhotoPrompt() },
+  ]}];
+  await runMealPhotoTurn();
+}
+async function answerMealPhotoQuestion(answerText){
+  if(!mealPhotoState || !answerText || !answerText.trim()) return;
+  mealPhotoState.messages.push({ role:"user", content: `Odpověď na otázku: ${answerText.trim()}\n\nZkus to teď prosím spočítat na základě mé odpovědi, ve stejném JSON formátu jako předtím (needsClarification true/false).` });
+  await runMealPhotoTurn();
+}
+async function forceMealPhotoEstimate(){
+  if(!mealPhotoState) return;
+  mealPhotoState.messages.push({ role:"user", content: `Nemám další upřesnění — udělej prosím svůj nejlepší možný odhad a odpověz ve formátu {"needsClarification": false, "items": [...], "reasoning": "..."}.` });
+  await runMealPhotoTurn(true);
+}
+async function runMealPhotoTurn(forceFinal){
+  mealPhotoState.status = "thinking";
+  mealPhotoState.lastForceFinal = !!forceFinal;
+  renderModals();
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      // 2000 tokens (not 600) — a photo of a full table with several dishes
+      // needs enough room for every item plus reasoning; too small a limit
+      // silently truncates the JSON mid-response and looked like "AI is
+      // unavailable" even though the call itself succeeded.
+      body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens: 2000, messages: mealPhotoState.messages }),
+    });
+    if(!response.ok) throw new Error("http-"+response.status);
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    if(!text) throw new Error("empty-response");
+    let cleaned = text.replace(/```json|```/g,"").trim();
+    // Defensive extraction: if the model added any stray text around the
+    // JSON, pull out just the outermost {...} block instead of failing outright.
+    const firstBrace = cleaned.indexOf("{"), lastBrace = cleaned.lastIndexOf("}");
+    if(firstBrace !== -1 && lastBrace > firstBrace) cleaned = cleaned.slice(firstBrace, lastBrace+1);
+    const v = JSON.parse(cleaned);
+    mealPhotoState.messages.push({ role:"assistant", content: text });
+    mealPhotoState.rounds++;
+    if(v.needsClarification && !forceFinal && mealPhotoState.rounds < 3){
+      mealPhotoState.status = "question";
+      mealPhotoState.question = String(v.question||"").slice(0,300);
+    } else {
+      mealPhotoState.status = "done";
+      mealPhotoState.resultItems = Array.isArray(v.items) ? v.items.map(it => ({
+        name: String(it.name||"Položka").slice(0,80),
+        grams: Math.round(Number(it.grams))||100,
+        calories: Math.round(Number(it.calories))||0,
+        protein: Math.round((Number(it.protein)||0)*10)/10,
+        fat: Math.round((Number(it.fat)||0)*10)/10,
+        carbs: Math.round((Number(it.carbs)||0)*10)/10,
+      })) : [];
+      mealPhotoState.reasoning = String(v.reasoning||"").slice(0,400);
+    }
+  }catch(e){
+    mealPhotoState.status = "error";
+    mealPhotoState.errorDetail = e && e.message ? e.message : "unknown";
+  }
+  renderModals();
+}
+function applyMealPhotoResult(){
+  if(!mealPhotoState || !mealPhotoState.resultItems) return;
+  if(!mealDraft) resetMealDraft();
+  mealDraft.source = "custom";
+  mealPhotoState.resultItems.forEach(it => {
+    mealDraft.customItems = [...mealDraft.customItems, {
+      id: uid(), text: it.name, grams: it.grams, unit:"g",
+      nutrition: { calories: it.calories, protein: it.protein, fat: it.fat, carbs: it.carbs },
+      proteinTier: guessProteinTier(it.name), proteinUsablePercent: null,
+    }];
+    // A photo-identified item is just as real a data point as a typed one —
+    // remembering it means the NEXT time this food comes up (photo or text),
+    // it's instant and free instead of needing AI again.
+    cacheFoodNutrition(it.name, it.grams, {calories: it.calories, protein: it.protein, fat: it.fat, carbs: it.carbs});
+  });
+  mealPhotoState = null;
+  closeModal();
+  showToast("Jídlo přidáno z fotky ✓ — uprav si klidně ručně před uložením");
+  renderMealsView();
+}
+function mealPhotoModalHTML(){
+  if(!mealPhotoState) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const s = mealPhotoState;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:400px">
+        <div class="row between" style="margin-bottom:12px">
+          <h3 style="margin:0;font-size:18px;color:#334155">📷 Vyfotit jídlo</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        ${s.imageDataUrl ? `<img src="${s.imageDataUrl}" style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:12px" />` : `
+          <div class="row gap-2" style="margin-bottom:12px">
+            <label class="card row gap-2 grow" style="padding:20px 10px;justify-content:center;cursor:pointer;color:#0284c7;font-weight:600;text-align:center">
+              📷 Vyfotit
+              <input type="file" accept="image/*" capture="environment" style="display:none" data-action="upload-meal-photo" />
+            </label>
+            <label class="card row gap-2 grow" style="padding:20px 10px;justify-content:center;cursor:pointer;color:#7c3aed;font-weight:600;text-align:center">
+              🖼️ Z galerie
+              <input type="file" accept="image/*" style="display:none" data-action="upload-meal-photo" />
+            </label>
+          </div>
+        `}
+        ${s.status==="idle" ? `
+          <label class="label">Poznámka (nepovinné) — např. „snědl jsem jen půlku"</label>
+          <textarea id="mealPhotoNote" class="field" rows="2" placeholder="Cokoliv, co AI pomůže odhadnout přesněji…" style="margin-bottom:12px">${escapeHTML(s.note)}</textarea>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="submit-meal-photo" ${!s.imageDataUrl?'disabled style="opacity:0.5"':''}>✨ AI: Rozpoznat makra z fotky</button>
+        ` : ""}
+        ${s.status==="thinking" ? `<p class="text-sm muted" style="text-align:center;padding:16px 0">🧠 AI se dívá na fotku…</p>` : ""}
+        ${s.status==="question" ? `
+          <div style="background:#fffbeb;border-radius:14px;padding:12px;margin-bottom:12px">
+            <p class="text-sm font-med" style="margin:0;color:#92400e">🤔 ${escapeHTML(s.question)}</p>
+          </div>
+          <input id="mealPhotoAnswer" class="field" placeholder="Tvoje odpověď…" style="margin-bottom:10px" />
+          <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" data-action="answer-meal-photo">✅ Odpovědět</button>
+          <button class="chip" style="width:100%;justify-content:center" data-action="force-meal-photo-estimate">Nevím / prostě odhadni</button>
+        ` : ""}
+        ${s.status==="done" ? `
+          <p class="text-xs muted" style="margin:0 0 8px">${escapeHTML(s.reasoning||"")}</p>
+          <div class="col gap-2" style="margin-bottom:14px">
+            ${s.resultItems.map(it => `
+              <div style="background:#f8fafc;border-radius:12px;padding:10px 12px">
+                <p class="text-sm font-med" style="margin:0;color:#334155">${escapeHTML(it.name)} <span class="text-xs muted">(${it.grams} g)</span></p>
+                <p class="text-xs muted" style="margin:2px 0 0">${displayEnergy(it.calories)} · B ${it.protein}g · T ${it.fat}g · S ${it.carbs}g</p>
+              </div>`).join("")}
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="apply-meal-photo-result">✅ Použít v jídle</button>
+        ` : ""}
+        ${s.status==="error" ? `
+          <p class="text-sm" style="color:#dc2626;text-align:center;padding:12px 0 6px">AI teď není dostupná — zkus to prosím znovu.</p>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="retry-meal-photo">🔄 Zkusit znovu</button>
+        ` : ""}
+      </div>
+    </div>`;
+}
+async function analyzeDayProteinAI(date){
+  const meals = mealsForDate(date).filter(m => m.eaten);
+  const lines = [];
+  meals.forEach(m => {
+    if(m.items && m.items.length){
+      m.items.forEach(i => { if(i.nutrition && i.nutrition.protein) lines.push(`${i.text}${i.grams?` (${i.grams} ${i.unit||"g"})`:""} — ${i.nutrition.protein} g bílkovin`); });
+    } else if(m.nutrition && m.nutrition.protein){
+      lines.push(`${m.title} — ${m.nutrition.protein} g bílkovin`);
+    }
+  });
+  if(!lines.length){ showToast("U snědených jídel dnes nejsou zadaná žádná makra bílkovin."); return; }
+  const btn = document.getElementById("analyzeProteinBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🧠 AI analyzuje…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 500,
+        messages: [{ role:"user", content:
+          `Tohle je seznam všech snědených potravin za jeden den, s jejich obsahem bílkovin:\n${lines.join("\n")}\n\nSpočítej REÁLNĚ VYUŽITELNÉ bílkoviny podle stravitelnosti/kvality zdroje bílkoviny, podle těchto pravidel:\n- Živočišné zdroje (maso, ryby, vejce, mléčné výrobky) = 100 % využitelnost\n- Izolované rostlinné proteiny (sójový/hrachový protein prášek) = 90 %\n- Celistvé rostlinné potraviny (luštěniny, obiloviny, ořechy) SAMOSTATNĚ = 70 %\n- Pokud se za CELÝ DEN kombinovaly luštěniny i obiloviny (i z různých jídel), doplnilo se aminokyselinové spektrum — u těchto zdrojů zvedni využitelnost na 80 %\n- U položek kombinujících víc druhů potravin v jedné (např. "rohlík se šunkou") uvaž reálný poměr bílkoviny z každé složky\n\nOdpověz POUZE čistým JSON objektem, bez markdown a bez dalšího textu:\n{"totalProtein": číslo, "usableProtein": číslo, "reasoning": "krátké odůvodnění v češtině, 1-3 věty"}\nČísla v gramech, zaokrouhli na 1 desetinné místo.`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = text.replace(/```json|```/g,"").trim();
+    const v = JSON.parse(cleaned);
+    if(!state.proteinAiAnalysis) state.proteinAiAnalysis = {};
+    state.proteinAiAnalysis[date] = {
+      total: Math.round((Number(v.totalProtein)||0)*10)/10,
+      usable: Math.round((Number(v.usableProtein)||0)*10)/10,
+      reasoning: String(v.reasoning||"").slice(0,500),
+      computedAt: Date.now(),
+    };
+    saveState();
+    showToast("Analýza hotova ✨");
+    renderMealsView();
+  }catch(e){
+    showToast("AI analýza teď není dostupná (funguje jen v prostředí s přístupem k API) — appka zatím ukazuje rychlý odhad podle kategorie potravin.");
+  }finally{
+    const btn2 = document.getElementById("analyzeProteinBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🧠 AI: Přesná analýza bílkovin za dnešek"; }
+  }
+}
+async function estimateMealItemsNutritionAI(){
+  const items = mealDraft.customItems;
+  if(!items.length){ showToast("Nejdřív přidej aspoň jednu surovinu."); return; }
+
+  // Check memory first — anything already learned gets filled instantly for
+  // free, no AI call at all. Only genuinely new items go to the model.
+  const uncached = [];
+  let cacheHits = 0;
+  items.forEach(item => {
+    const cached = getCachedFoodNutrition(item.text);
+    if(cached){
+      const scaled = scaleFoodFromCache(cached, item.grams || 100);
+      setMealDraftItemNutrition(item.id, "calories", scaled.calories);
+      setMealDraftItemNutrition(item.id, "protein", scaled.protein);
+      setMealDraftItemNutrition(item.id, "fat", scaled.fat);
+      setMealDraftItemNutrition(item.id, "carbs", scaled.carbs);
+      cacheHits++;
+    } else {
+      uncached.push(item);
+    }
+  });
+  if(!uncached.length){
+    showToast(`✅ Vyplněno z paměti appky (${cacheHits}× zdarma, bez AI) ⚡`);
+    renderMealsView();
+    return;
+  }
+
+  const btn = document.getElementById("mealItemsNutAiBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "✨ AI počítá…"; }
+  const listText = uncached.map((i, idx) => `${idx+1}. ${i.text}${i.grams ? ` (${i.grams} ${i.unit||"g"})` : ""}`).join("\n");
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 1200,
+        messages: [{ role:"user", content:
+          `Odhadni nutriční hodnoty KE KAŽDÉ jednotlivé surovině v uvedeném množství (přesně jak je napsaná, pokud množství chybí odhadni typickou porci):\n${listText}\n\nOdpověz POUZE čistým JSON polem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru — jedna položka pro každou surovinu ve STEJNÉM pořadí jako v seznamu:\n[{"calories": číslo, "protein": číslo, "fat": číslo, "carbs": číslo}, ...]\ncalories jsou kcal, protein/fat/carbs jsou gramy — vše pro dané množství té suroviny (ne na 100 g).`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = text.replace(/```json|```/g,"").trim();
+    const parsed = JSON.parse(cleaned);
+    if(!Array.isArray(parsed) || parsed.length !== uncached.length) throw new Error("shape mismatch");
+    uncached.forEach((item, idx) => {
+      const v = parsed[idx] || {};
+      const calories = Math.round(Number(v.calories))||0;
+      const protein = Math.round((Number(v.protein)||0)*10)/10;
+      const fat = Math.round((Number(v.fat)||0)*10)/10;
+      const carbs = Math.round((Number(v.carbs)||0)*10)/10;
+      setMealDraftItemNutrition(item.id, "calories", calories);
+      setMealDraftItemNutrition(item.id, "protein", protein);
+      setMealDraftItemNutrition(item.id, "fat", fat);
+      setMealDraftItemNutrition(item.id, "carbs", carbs);
+      cacheFoodNutrition(item.text, item.grams, {calories, protein, fat, carbs}); // learn for next time
+    });
+    showToast(`Nutrice vyplněna u ${uncached.length} surovin ✨${cacheHits ? ` (+ ${cacheHits} zdarma z paměti ⚡)` : ""} — uprav si klidně ručně`);
+    renderMealsView();
+  }catch(e){
+    showToast("AI odhad teď není dostupný (funguje jen v prostředí s přístupem k API) — vyplň prosím hodnoty ručně u surovin níže.");
+  }finally{
+    const btn2 = document.getElementById("mealItemsNutAiBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "✨ AI odhad k surovinám"; }
+  }
+}
+
+function downloadICS(task){
+  const dt = task.date.replace(/-/g,"");
+  const ics = ["BEGIN:VCALENDAR","VERSION:2.0","BEGIN:VEVENT",`DTSTART;VALUE=DATE:${dt}`,`SUMMARY:${catById(task.categoryId).emoji} ${task.title}`,"END:VEVENT","END:VCALENDAR"].join("\n");
+  const blob = new Blob([ics], {type:"text/calendar"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${task.title.slice(0,20)}.ics`; a.click();
+  URL.revokeObjectURL(url);
+  showToast("Událost exportována do .ics ✓");
+}
+function copyLink(task){
+  const url = buildShareURL(task);
+  try{ navigator.clipboard.writeText(url); showToast("Odkaz zkopírován ✓ Kamarád ho může otevřít i bez appky."); }
+  catch(e){ showToast("Nepodařilo se zkopírovat — zkus dlouze podržet a zkopírovat ručně."); }
+}
+function whatsappText(task){ return `${catById(task.categoryId).emoji} ${task.title}\n📅 ${task.date}\n\n${buildShareURL(task)}`; }
+function shareStatusLabel(status, accepterName){
+  const who = accepterName ? accepterName : "Kamarád";
+  const map = {
+    sent: "📤 Odesláno — zatím neotevřeno",
+    seen: `👀 ${who} si odkaz otevřel/a`,
+    accepted: `✅ ${who} úkol přijal/a`,
+    declined: `➖ ${who} zavřel/a bez přidání`,
+    completed: `🎉 ${who} úkol dokončil/a!`,
+  };
+  return map[status] || "📤 Odesláno";
+}
+// All the people you might want to share/delegate something with, combined
+// from both lists (Friends used for sharing, Family/blízcí used for
+// anniversaries) — one simple picker instead of two separate, confusing lists.
+function allShareableContacts(){
+  // Jen Přátelé — Rodina a blízcí (v Nastavení) slouží čistě pro
+  // narozeninová/svátková upozornění a záměrně se do sdílení/delegování
+  // nemíchá, ať se to nepletě.
+  return state.friends.map(f => ({ id:"f_"+f.id, name:f.name, emoji:f.emoji||"👤", raw:f, kind:"friend" }));
+}
+function shareTaskModalHTML(taskId){
+  const task = state.tasks.find(t => t.id === taskId);
+  if(!task) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const contacts = allShareableContacts();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">👥 Sdílet / delegovat úkol</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(task.title)}</p>
+        ${task.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:8px 10px;margin-bottom:12px" class="text-xs" style="color:#059669">${shareStatusLabel(task.sharedStatus, task.sharedAccepterName)}</div>` : ""}
+
+        <p class="text-xs font-semi muted" style="margin:0 0 6px">Poslat konkrétní osobě</p>
+        ${contacts.length ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:14px">
+            ${contacts.map(c => `<button class="chip" data-action="share-to-contact" data-id="${task.id}" data-sub="${c.id}">${c.emoji} ${escapeHTML(c.name)}</button>`).join("")}
+          </div>
+        ` : `<p class="text-xs muted" style="margin:0 0 14px">Zatím nemáš nikoho přidaného — přidej lidi v Nastavení (🎂 Rodina a blízcí) nebo přes „Spravovat přátele".</p>`}
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" data-action="share-generic" data-id="${task.id}">📤 Sdílet (nabídne vše v telefonu)</button>
+        <div class="row gap-2 wrapf" style="margin-bottom:10px">
+          <button data-action="share-via" data-id="${task.id}" data-sub="whatsapp" class="chip" style="background:#dcfce7;color:#15803d">WhatsApp</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="email" class="chip">E-mail</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="sms" class="chip">SMS</button>
+          <button data-action="share-via" data-id="${task.id}" data-sub="copy" class="chip">📋 Kopírovat odkaz</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Ten, komu to pošleš, nemusí appku mít — odkaz se otevře v prohlížeči a jde si úkol přidat jedním klepnutím.</p>
+        <button class="chip" style="width:100%;justify-content:center" data-action="export-ics" data-id="${task.id}">📅 Exportovat do kalendáře (Google/Apple)</button>
+      </div>
+    </div>`;
+}
+
+// ---------- Real friend sharing / delegation via self-contained link ----------
+// Encodes the essential task fields into the URL itself (base64 in the hash), so
+// ANYONE who opens the link — with or without the app already "installed" — sees
+// a read-only preview in their browser and can add it to their own calendar,
+// download it as .ics for Google/Apple/Outlook, or send a done-confirmation back.
+// ================= DELEGATED TASK STATUS SYNC =================
+// Lets you see when a friend opened, accepted, or completed a task you sent
+// them — even though they're using their own separate copy of the app on
+// their own device. Since there's no dedicated backend, this uses a free,
+// no-signup, CORS-friendly JSON storage service (jsonblob.com) as a tiny
+// shared "status board": one blob per shared task, holding just its status.
+// If the service is ever unreachable, sharing/importing still works exactly
+// as before — only the live status tracking is skipped, silently and safely.
+const SHARE_STATUS_API = "https://jsonblob.com/api/jsonBlob";
+// A tiny retry helper — free third-party services like jsonblob occasionally
+// have a transient hiccup (timeout, brief rate-limit); retrying 2-3 times
+// with a short pause turns "silently doesn't work" into "quietly recovers"
+// for the vast majority of real-world failures.
+async function withRetry(fn, attempts){
+  const max = attempts || 3;
+  let lastErr = null;
+  for(let i=0;i<max;i++){
+    try{ return await fn(); }
+    catch(e){ lastErr = e; if(i < max-1) await new Promise(r => setTimeout(r, 400 * (i+1))); }
+  }
+  throw lastErr;
+}
+async function createShareStatusRecord(data){
+  try{
+    return await withRetry(async () => {
+      const res = await fetch(SHARE_STATUS_API, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ ...data, createdAt: Date.now(), updatedAt: Date.now() }),
+      });
+      if(!res.ok) throw new Error("http-"+res.status);
+      const loc = res.headers.get("Location") || res.headers.get("location") || "";
+      const id = loc.split("/").filter(Boolean).pop();
+      if(!id) throw new Error("no-location-header");
+      return id;
+    });
+  }catch(e){ return null; }
+}
+async function fetchShareStatusRecord(shareId){
+  if(!shareId) return null;
+  try{
+    return await withRetry(async () => {
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`);
+      if(!res.ok) throw new Error("http-"+res.status);
+      return await res.json();
+    }, 2);
+  }catch(e){ return null; }
+}
+async function updateShareStatusRecord(shareId, patch){
+  if(!shareId) return false;
+  try{
+    await withRetry(async () => {
+      const current = (await fetchShareStatusRecord(shareId)) || {};
+      const merged = { ...current, ...patch, updatedAt: Date.now() };
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`, {
+        method: "PUT", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(merged),
+      });
+      if(!res.ok) throw new Error("http-"+res.status);
+    });
+    return true;
+  }catch(e){ return false; }
+}
+// Makes sure a task has a shareId (creating the status record the first time
+// it's ever shared), then returns it. Safe to call repeatedly — reuses the
+// existing id on subsequent shares of the same task.
+async function ensureTaskShareId(task){
+  if(task.shareId) return task.shareId;
+  const id = await createShareStatusRecord({ taskTitle: task.title, status: "sent", senderSubscription: state.pushSubscription || null });
+  if(id){
+    state.tasks = state.tasks.map(t => t.id===task.id ? {...t, shareId:id, sharedStatus:"sent"} : t);
+    saveState();
+  }
+  return id;
+}
+// Checks the live status of every task *you* have shared, and lets you know
+// if anything changed since you last looked (opened / accepted / completed).
+async function refreshSharedStatuses(silent){
+  // Zahrnuje jak MOJE odeslané položky (shareId), tak položky, co jsem PŘIJAL
+  // od někoho jiného (sharedFromId) — dřív se kontrolovala jen odesílatelova
+  // strana, takže se změny druhé strany nikdy nepropsaly zpátky.
+  const collect = (arrName) => state[arrName]
+    .filter(x => x.shareId || x.sharedFromId)
+    .map(x => ({item:x, arr:arrName}));
+  const mine = [...collect("tasks"), ...collect("meals"), ...collect("workouts")];
+  if(!mine.length) return { checked:0, failed:0, changed:false };
+  let anyChange = false;
+  let failed = 0;
+  const typeLabel = {tasks:"task", meals:"meal", workouts:"workout"};
+  for(const {item, arr} of mine){
+    const linkId = item.shareId || item.sharedFromId;
+    const record = await fetchShareStatusRecord(linkId);
+    if(!record){ failed++; continue; }
+    // Stav (odeslano/videno/prijato/hotovo) se hlásí odesílateli — jen ten má shareId.
+    // Upozornění na skutečnou změnu se ukazuje VŽDY, bez ohledu na "silent" —
+    // to jen ztišuje hlášky "nic se nezměnilo" u ručního tlačítka, nikdy ne
+    // opravdovou zprávu, že druhá strana něco udělala.
+    if(item.shareId && record.status && record.status !== item.sharedStatus){
+      anyChange = true;
+      state[arr] = state[arr].map(x => x.id===item.id ? {...x, sharedStatus:record.status, sharedAccepterName:record.accepterName||null} : x);
+      const who = record.accepterName ? record.accepterName : "Někdo";
+      const label = { seen:"si to otevřel/a", accepted:"to přijal/a", declined:"to odmítl/a", completed:"to dokončil/a ✓" }[record.status];
+      if(label) showSharedUpdateBanner(`👥 ${who} ${label}`, item.title, item.id, typeLabel[arr]);
+    }
+    // Checklist se slučuje OBOUSMĚRNĚ — funguje pro odesílatele i příjemce.
+    // Data se aktualizují VŽDY (tiše), ale skutečné upozornění (banner i
+    // push) se ukáže jen ve chvíli, kdy se seznam dorovná na kompletně
+    // hotový — ne po každé jednotlivé položce, ať appka neotravuje
+    // notifikacemi třeba během celého nákupu.
+    if(record.checklist){
+      const current = state[arr].find(x=>x.id===item.id) || item;
+      const wasAllDone = allChecklistItemsDone(current);
+      const merged = mergeChecklistFromRecord(current, record.checklist);
+      if(merged.checklist !== item.checklist){
+        anyChange = true;
+        state[arr] = state[arr].map(x => x.id===item.id ? merged : x);
+        const nowAllDone = allChecklistItemsDone(merged);
+        if(nowAllDone && !wasAllDone){
+          showSharedUpdateBanner(`🎉 Celý seznam je hotový`, item.title, item.id, typeLabel[arr]);
+        }
+      }
+    }
+  }
+  if(anyChange){ saveState(); renderAll(); if(currentModal) renderModals(); }
+  return { checked: mine.length, failed, changed: anyChange };
+}
+// When a task imported from a friend (has sharedFromId) is toggled done or
+// undone locally, that flows back to the sender's status board automatically.
+function syncSharedCompletionIfNeeded(item, doneField){
+  if(!item) return;
+  const linkId = item.shareId || item.sharedFromId;
+  if(!linkId) return;
+  updateShareStatusRecord(linkId, { status: item[doneField] ? "completed" : "accepted" });
+  if(item[doneField]) notifyOtherPartyOfChange(item, item.title || item.name, "🎉 Celé je to hotové!");
+}
+
+// ---------- Živá smyčka kontroly sdílených položek ----------
+// Dokud je appka na popředí, kontroluje stav sdílených úkolů/jídel/tréninků
+// každých 8 vteřin — dost rychle, aby to působilo prakticky naživo, když má
+// druhá strana appku otevřenou taky, ale ne tak často, aby to zbytečně
+// bušilo do baterie nebo dat, když appku nikdo nesleduje.
+// ---------- Skutečné push notifikace (fungují i s appkou zavřenou) ----------
+// Appka telefonu se "přihlásí k odběru" u prohlížeče (Google/Apple/Mozilla),
+// ten jí dá jedinečný "subscription" objekt. Ten appka přiloží ke sdílené
+// položce (stejný jsonblob záznam, co appka už používá na stav a checklist),
+// takže druhá strana ho tam najde a může na něj poslat push přes malou
+// Netlify funkci — appka sama žádný push neposílá, jen o to požádá.
+const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
+function urlBase64ToUint8Array(base64String){
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+async function enablePushNotifications(){
+  if(!("serviceWorker" in navigator) || !("PushManager" in window)){
+    showToast("Tenhle prohlížeč push notifikace bohužel nepodporuje.");
+    return false;
+  }
+  try{
+    const permission = await Notification.requestPermission();
+    if(permission !== "granted"){
+      showToast("Bez povolení appka nemůže posílat upozornění mimo sebe.");
+      return false;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    state.pushSubscription = sub.toJSON();
+    saveState();
+    showToast("🔔 Push upozornění zapnuta ✓");
+    return true;
+  }catch(e){
+    showToast("Zapnutí push upozornění se nezdařilo — zkus to prosím znovu.");
+    return false;
+  }
+}
+async function disablePushNotifications(){
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub) await sub.unsubscribe();
+  }catch(e){ /* i kdyby selhalo, appka si lokálně stejně přestane pamatovat odběr */ }
+  state.pushSubscription = null;
+  saveState();
+  showToast("Push upozornění vypnuta.");
+}
+// Zavolá malou Netlify funkci, co doručí push na dané zařízení — appka sama
+// nic neposílá, jen o to požádá server (funkce žije v netlify/functions).
+async function sendPushTo(subscription, title, message, url){
+  if(!subscription) return;
+  try{
+    await fetch("/.netlify/functions/send-push", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ subscription, title, message, url: url || "./" }),
+    });
+  }catch(e){ /* tichý neúspěch — appka to zkusí zase příště při další změně */ }
+}
+// Po každé změně sdílené položky appka zkusí poslat push druhé straně —
+// najde její "subscription" v tom samém sdíleném záznamu, kam appka už
+// ukládá stav a checklist.
+async function notifyOtherPartyOfChange(item, title, message){
+  const linkId = item.shareId || item.sharedFromId;
+  if(!linkId) return;
+  const record = await fetchShareStatusRecord(linkId);
+  if(!record) return;
+  const isSender = !!item.shareId;
+  const theirSub = isSender ? record.receiverSubscription : record.senderSubscription;
+  if(theirSub) sendPushTo(theirSub, title, message);
+}
+
+let liveShareSyncInterval = null;
+function startLiveShareSyncLoop(){
+  if(liveShareSyncInterval) return; // už běží
+  liveShareSyncInterval = setInterval(() => {
+    if(document.visibilityState === "visible") refreshSharedStatuses(true);
+  }, 8000);
+}
+function stopLiveShareSyncLoop(){
+  clearInterval(liveShareSyncInterval);
+  liveShareSyncInterval = null;
+}
+
+// ---------- Živá synchronizace jednotlivých kroků v checklistu úkolu ----------
+// Úkol může mít dvě "role" vůči sdílenému záznamu:
+//  - je to MŮJ původní úkol, co jsem odeslal (task.shareId)
+//  - je to úkol, co jsem PŘIJAL od někoho jiného (task.sharedFromId)
+// V obou případech odškrtnutí kroku pošle aktuální stav checklistu do
+// společného záznamu, a druhá strana ho při další kontrole stáhne zpátky.
+// Páruje se podle TEXTU kroku, ne podle ID — obě kopie mají svá vlastní ID.
+function taskShareLinkId(task){
+  return task.shareId || task.sharedFromId || null;
+}
+async function pushChecklistToShare(task){
+  const linkId = taskShareLinkId(task);
+  if(!linkId) return;
+  const checklist = (task.checklist||[]).map(c => ({ text:c.text, done:!!c.done }));
+  await updateShareStatusRecord(linkId, { checklist });
+}
+function mergeChecklistFromRecord(task, remoteChecklist){
+  if(!Array.isArray(remoteChecklist) || !task.checklist) return task;
+  const doneByText = {};
+  remoteChecklist.forEach(r => { if(r && r.text) doneByText[r.text] = !!r.done; });
+  const merged = task.checklist.map(c => doneByText.hasOwnProperty(c.text) ? {...c, done:doneByText[c.text]} : c);
+  const changed = merged.some((c,i) => c.done !== task.checklist[i].done);
+  return changed ? {...task, checklist:merged} : task;
+}
+
+// ---------- Generic sharing for meals & workouts (same reliable engine as
+// tasks — same retry-hardened network calls, same shareId/status tracking).
+// Centrální registr, díky kterému funguje sdílení stejně pro všechny typy —
+// stačí přidat sem jeden řádek pro nový typ, zbytek systému (odkaz, stav
+// přijetí, dokončení) funguje automaticky.
+const SHAREABLE_STORES = {
+  meal: { get: () => state.meals, set: (a) => state.meals = a, icon:"🍽️", label:"jídlo" },
+  workout: { get: () => state.workouts, set: (a) => state.workouts = a, icon:"🏋️", label:"trénink" },
+  recipe: { get: () => state.recipes, set: (a) => state.recipes = a, icon:"🍳", label:"recept" },
+  medication: { get: () => state.medications, set: (a) => state.medications = a, icon:"💊", label:"doplněk" },
+  document: { get: () => state.documents, set: (a) => state.documents = a, icon:"📁", label:"dokument" },
+  note: { get: () => state.tasks, set: (a) => state.tasks = a, icon:"📝", label:"poznámku" },
+};
+function findShareableItem(itemType, id){
+  const store = SHAREABLE_STORES[itemType]; if(!store) return null;
+  return store.get().find(x => x.id === id) || null;
+}
+function patchShareableItem(itemType, id, patch){
+  const store = SHAREABLE_STORES[itemType]; if(!store) return;
+  store.set(store.get().map(x => x.id===id ? {...x, ...patch} : x));
+}
+async function ensureItemShareId(item, itemType){
+  if(item.shareId) return item.shareId;
+  const id = await createShareStatusRecord({ itemTitle: item.title || item.name, itemType, status:"sent", senderSubscription: state.pushSubscription || null });
+  if(id){
+    patchShareableItem(itemType, item.id, { shareId:id, sharedStatus:"sent" });
+    saveState();
+  }
+  return id;
+}
+function encodeItemShare(item, itemType){
+  let payload;
+  if(itemType === "meal"){
+    payload = {
+      v:1, itemType:"meal", title:item.title, date:item.date, source:item.source,
+      recipeTitle: item.source==="recipe" ? (findRecipe(item.recipeId)?.title||"") : null,
+      nutrition: item.nutrition||null,
+      items: (item.items||[]).map(i => ({text:i.text, grams:i.grams, unit:i.unit||"g"})),
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "workout"){
+    payload = {
+      v:1, itemType:"workout", title:item.title, date:item.date, notes:item.notes||"",
+      exercises: (item.exercises||[]).map(e => ({name:e.name, sets:e.sets, reps:e.reps, weight:e.weight, restSeconds:e.restSeconds})),
+      checklist: (item.checklist||[]).map(c => ({text:c.text, minutes:c.minutes})),
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "recipe"){
+    payload = {
+      v:1, itemType:"recipe", title:item.title, emoji:item.emoji||"🍽️", servings:item.servings||"", notes:item.notes||"",
+      sections: (item.sections||[]).map(s => ({ name:s.name, isIngredients:!!s.isIngredients, items:(s.items||[]).map(i=>({text:i.text||i})) })),
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "medication"){
+    payload = {
+      v:1, itemType:"medication", name:item.name, dosage:item.dosage||"", category:item.category||"", notes:item.notes||"", date:item.date,
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "document"){
+    payload = {
+      v:1, itemType:"document", title:item.title, content:item.content||"",
+      shareId: item.shareId || null,
+    };
+  } else if(itemType === "note"){
+    payload = {
+      v:1, itemType:"note", title:item.title, content:item.content||"",
+      checklist: (item.checklist||[]).map(c => c.text),
+      shareId: item.shareId || null,
+    };
+  }
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+function buildItemShareURL(item, itemType){
+  const url = new URL(location.href);
+  url.hash = "shared=" + encodeItemShare(item, itemType);
+  return url.toString();
+}
+function itemShareMessageText(item, itemType, friend){
+  const greet = friend ? `Ahoj ${friend.name}! ` : "";
+  const meta = SHAREABLE_STORES[itemType] || {icon:"📤", label:"položku"};
+  const dateLine = item.date ? `\n📅 ${item.date}` : "";
+  return `${greet}${meta.icon} ${item.title||item.name}${dateLine}\n\nPosílám ti ${meta.label} z Vibe Calendar — klikni na odkaz, uvidíš ho i bez instalace appky, a jedním klikem si ho můžeš přidat:`;
+}
+async function shareItemToContact(item, itemType, contactId){
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  const isFriend = contactId.startsWith("f_");
+  const realId = contactId.slice(2);
+  const friend = isFriend ? friendById(realId) : null;
+  await ensureItemShareId(item, itemType);
+  const fresh = findShareableItem(itemType, item.id) || item;
+  const url = buildItemShareURL(fresh, itemType);
+  const text = itemShareMessageText(fresh, itemType, friend);
+  if(friend && friend.phone){
+    window.open(`https://wa.me/${friend.phone.replace(/^\+/,"")}?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+    showToast(`Odesláno ${friend.name} přes WhatsApp ✓`);
+    closeModal();
+    return;
+  }
+  await shareItemGeneric(fresh, itemType, text, url);
+  closeModal();
+}
+async function shareItemGeneric(item, itemType, text, url){
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  await ensureItemShareId(item, itemType);
+  const fresh = findShareableItem(itemType, item.id) || item;
+  text = text || itemShareMessageText(fresh, itemType, null);
+  url = url || buildItemShareURL(fresh, itemType);
+  if(navigator.share){
+    try{ await navigator.share({ title: fresh.title || fresh.name, text, url }); return; }
+    catch(e){ /* cancelled — fall through */ }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+}
+async function shareItemVia(itemId, itemType, channel){
+  const item = findShareableItem(itemType, itemId);
+  if(!item){ showToast("Položka nebyla nalezena."); return; }
+  await ensureItemShareId(item, itemType);
+  const fresh = findShareableItem(itemType, itemId) || item;
+  const url = buildItemShareURL(fresh, itemType);
+  const text = itemShareMessageText(fresh, itemType, null);
+  if(channel === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "email") window.open(`mailto:?subject=${encodeURIComponent("Z Vibe Calendar: "+(fresh.title||fresh.name))}&body=${encodeURIComponent(text+"\n\n"+url)}`, "_blank");
+  else if(channel === "sms") window.open(`sms:?body=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "copy"){
+    try{ await navigator.clipboard.writeText(text+"\n"+url); showToast("Odkaz zkopírován ✓"); }
+    catch(e){ showToast("Kopírování se nezdařilo — zkus odkaz vybrat ručně."); }
+  }
+  if(currentModal) renderModals();
+}
+function shareItemModalHTML(itemId, itemType){
+  const item = findShareableItem(itemType, itemId);
+  if(!item) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const contacts = allShareableContacts();
+  const label = (SHAREABLE_STORES[itemType]||{}).label || "položku";
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">${(SHAREABLE_STORES[itemType]||{}).icon||"📤"} Sdílet ${label}</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-sm font-med" style="margin:0 0 10px;color:#475569">${escapeHTML(item.title||item.name||"")}</p>
+        ${item.shareId ? `<div style="background:#f0fdf4;border-radius:10px;padding:8px 10px;margin-bottom:12px" class="text-xs" style="color:#059669">${shareStatusLabel(item.sharedStatus, item.sharedAccepterName)}</div>` : ""}
+
+        <p class="text-xs font-semi muted" style="margin:0 0 6px">Poslat konkrétní osobě</p>
+        ${contacts.length ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:14px">
+            ${contacts.map(c => `<button class="chip" data-action="share-item-to-contact" data-id="${item.id}" data-sub="${itemType}:${c.id}">${c.emoji} ${escapeHTML(c.name)}</button>`).join("")}
+          </div>
+        ` : `<p class="text-xs muted" style="margin:0 0 14px">Zatím nemáš nikoho přidaného — přidej lidi v Nastavení (🎂 Rodina a blízcí).</p>`}
+
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px" data-action="share-item-generic" data-id="${item.id}" data-sub="${itemType}">📤 Sdílet (nabídne vše v telefonu)</button>
+        <div class="row gap-2 wrapf" style="margin-bottom:10px">
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:whatsapp" class="chip" style="background:#dcfce7;color:#15803d">WhatsApp</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:email" class="chip">E-mail</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:sms" class="chip">SMS</button>
+          <button data-action="share-item-via" data-id="${item.id}" data-sub="${itemType}:copy" class="chip">📋 Kopírovat odkaz</button>
+        </div>
+        <p class="text-xs muted" style="margin:0">Ten, komu to pošleš, nemusí appku mít — odkaz se otevře v prohlížeči a jde si to přidat jedním klepnutím.</p>
+      </div>
+    </div>`;
+}
+function encodeTaskShare(task){
+  const payload = {
+    v: 1,
+    title: task.title,
+    content: task.content || "",
+    date: task.date,
+    priority: task.priority,
+    emoji: catById(task.categoryId).emoji,
+    catLabel: catById(task.categoryId).label,
+    checklist: (task.checklist || []).map(c => c.text),
+    shareId: task.shareId || null,
+  };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+}
+function decodeTaskShare(b64){
+  try{ return JSON.parse(decodeURIComponent(escape(atob(b64)))); }
+  catch(e){ return null; }
+}
+function buildShareURL(task){
+  const url = new URL(location.href);
+  url.hash = "shared=" + encodeTaskShare(task);
+  return url.toString();
+}
+function shareMessageText(task, friend){
+  const greet = friend ? `Ahoj ${friend.name}! ` : "";
+  return `${greet}${catById(task.categoryId).emoji} ${task.title}\n📅 ${task.date}\n\nPosílám ti úkol z Vibe Calendar — klikni na odkaz, uvidíš ho i bez instalace, a jedním klikem si ho můžeš přidat do svého kalendáře:`;
+}
+async function shareTaskToFriend(task, friendId){
+  if(!task){ showToast("Úkol nebyl nalezen."); return; }
+  const friend = friendById(friendId);
+  if(friend && !(task.friendIds||[]).includes(friendId)){
+    state.tasks = state.tasks.map(t => t.id===task.id ? {...t, friendIds:[...(t.friendIds||[]), friendId]} : t);
+    saveState();
+  }
+  await ensureTaskShareId(task);
+  const fresh = state.tasks.find(t=>t.id===task.id) || task;
+  const url = buildShareURL(fresh);
+  const text = shareMessageText(fresh, friend);
+  if(friend && friend.phone){
+    window.open(`https://wa.me/${friend.phone.replace(/^\+/,"")}?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+    showToast(`Úkol odeslán ${friend.name} přes WhatsApp ✓`);
+    shareOpenId = null; renderLanes();
+    return;
+  }
+  await shareTaskGeneric(fresh, text, url);
+  shareOpenId = null; renderLanes();
+}
+// Works with the unified contact picker (friends + family combined) used by
+// the new share modal — id is prefixed "f_" (friend, has a phone number) or
+// "p_" (family/blízcí from Settings, phone-less).
+async function shareTaskToContact(task, contactId){
+  if(!task){ showToast("Úkol nebyl nalezen."); return; }
+  const isFriend = contactId.startsWith("f_");
+  const realId = contactId.slice(2);
+  const friend = isFriend ? friendById(realId) : null;
+  const person = !isFriend ? findPerson(realId) : null;
+  const name = friend ? friend.name : (person ? person.name : null);
+  if(friend && !(task.friendIds||[]).includes(friend.id)){
+    state.tasks = state.tasks.map(t => t.id===task.id ? {...t, friendIds:[...(t.friendIds||[]), friend.id]} : t);
+    saveState();
+  }
+  await ensureTaskShareId(task);
+  const fresh = state.tasks.find(t=>t.id===task.id) || task;
+  const url = buildShareURL(fresh);
+  const text = shareMessageText(fresh, friend);
+  if(friend && friend.phone){
+    window.open(`https://wa.me/${friend.phone.replace(/^\+/,"")}?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+    showToast(`Úkol odeslán ${friend.name} přes WhatsApp ✓`);
+    closeModal();
+    return;
+  }
+  await shareTaskGeneric(fresh, text, url);
+  showToast(name ? `Vyber appku pro odeslání ${name} ✓` : "Vyber appku pro odeslání ✓");
+  closeModal();
+}
+async function shareTaskGeneric(task, text, url){
+  if(!task){ showToast("Úkol nebyl nalezen."); return; }
+  await ensureTaskShareId(task);
+  const fresh = state.tasks.find(t=>t.id===task.id) || task;
+  text = text || shareMessageText(fresh, null);
+  url = url || buildShareURL(fresh);
+  if(navigator.share){
+    try{ await navigator.share({ title: fresh.title, text, url }); return; }
+    catch(e){ /* user cancelled — fall through to WhatsApp link */ }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+}
+async function shareTaskVia(taskId, channel){
+  const task = state.tasks.find(t => t.id === taskId);
+  if(!task){ showToast("Úkol nebyl nalezen."); return; }
+  await ensureTaskShareId(task);
+  const fresh = state.tasks.find(t=>t.id===taskId) || task;
+  const url = buildShareURL(fresh);
+  const text = shareMessageText(fresh, null);
+  if(channel === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "facebook") window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
+  else if(channel === "email") window.open(`mailto:?subject=${encodeURIComponent("Úkol z Vibe Calendar: "+fresh.title)}&body=${encodeURIComponent(text+"\n\n"+url)}`, "_blank");
+  else if(channel === "sms") window.open(`sms:?body=${encodeURIComponent(text+"\n"+url)}`, "_blank");
+  else if(channel === "copy"){
+    try{ await navigator.clipboard.writeText(text+"\n"+url); showToast("Odkaz zkopírován do schránky ✓"); }
+    catch(e){ showToast("Kopírování se nezdařilo — zkus odkaz vybrat ručně."); }
+  }
+  renderLanes();
+  if(currentModal) renderModals();
+}
+
+// ---------- Shared-task landing overlay (opened via a received link) ----------
+let sharedTaskPayload = null;
+function checkForSharedTaskLink(){
+  try{
+    const m = /shared=([^&]+)/.exec(location.hash);
+    if(!m) return;
+    const payload = decodeTaskShare(decodeURIComponent(m[1]));
+    if(!payload){ showToast("Sdílená položka se nepodařilo načíst — odkaz je neplatný."); return; }
+    sharedTaskPayload = payload;
+    renderSharedOverlay();
+    if(payload.shareId) updateShareStatusRecord(payload.shareId, { status: "seen" });
+  }catch(e){
+    showToast("Sdílená položka se nepodařilo načíst — odkaz je neplatný.");
+  }
+}
+function closeSharedOverlay(){
+  if(sharedTaskPayload && sharedTaskPayload.shareId) updateShareStatusRecord(sharedTaskPayload.shareId, { status: "declined" });
+  sharedTaskPayload = null;
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){ location.hash = ""; }
+  document.getElementById("sharedOverlayRoot").innerHTML = "";
+}
+async function importSharedTask(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const itemType = p.itemType || "task";
+  if(itemType === "meal"){ await importSharedMeal(); return; }
+  if(itemType === "workout"){ await importSharedWorkout(); return; }
+  if(itemType === "recipe"){ await importSharedRecipe(); return; }
+  if(itemType === "medication"){ await importSharedMedication(); return; }
+  if(itemType === "document"){ await importSharedDocument(); return; }
+  if(itemType === "note"){ await importSharedNote(); return; }
+  const ws = getWorkspace();
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený úkol";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const safePriority = Math.min(10, Math.max(1, Number(p.priority) || 5));
+  const newItem = {
+    id: uid(), workspaceId: state.activeWorkspaceId, listId: ws.lists[0]?.id, categoryId: ws.categories[0]?.id,
+    title: safeTitle, content: typeof p.content === "string" ? p.content.slice(0,2000) : "", date: safeDate, priority: safePriority,
+    type: "task", done:false, image:null, drawing:null, audioId:null,
+    checklist: (Array.isArray(p.checklist)?p.checklist:[]).slice(0,100).map(text => ({id:uid(), text:String(text).slice(0,200), done:false})), friendIds:[],
+    reminder:null,
+    sharedFromId: p.shareId || null, // lets completing this task notify the person who sent it
+  };
+  state.tasks = [...state.tasks, newItem];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  renderAll();
+  showToast("Úkol přidán do tvého kalendáře ✓");
+  // The task is safely saved locally either way — this just tells the sender.
+  // Only claim success once the network call has actually been confirmed,
+  // never assume it worked, and let the person know clearly if it didn't so
+  // they can tell the sender directly instead of silently wondering why.
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status: "accepted", accepterName: null, receiverSubscription: state.pushSubscription || null });
+    if(ok) showToast("Odesílatel uvidí, že jsi úkol přijal/a ✓");
+    else showToast("⚠️ Úkol máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím znovu za chvíli, nebo mu to napiš přímo.");
+  }
+}
+async function importSharedMeal(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílené jídlo";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newMeal = {
+    id: uid(), type:"meal", date: safeDate, labelId: state.mealLabels[0]?.id || null, source:"custom",
+    title: safeTitle,
+    items: (Array.isArray(p.items)?p.items:[]).slice(0,50).map(i => ({
+      id:uid(), text:String(i.text||"").slice(0,120), grams:Number(i.grams)||null, unit:i.unit||"g",
+      nutrition:null, proteinTier: guessProteinTier(String(i.text||"")), proteinUsablePercent:null,
+    })),
+    recipeId:null, servingsCount:1, recipeAmountMode:"servings", customGrams:null,
+    nutrition: p.nutrition ? {...p.nutrition} : null,
+    eaten:false, reminder:null, reminderBaseTime:null, recurrenceGroupId:null,
+    sharedFromId: p.shareId || null,
+  };
+  state.meals = [...state.meals, newMeal];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  renderAll();
+  showToast("Jídlo přidáno do tvého jídelníčku ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi jídlo přijal/a ✓");
+    else showToast("⚠️ Jídlo máš uložené, ale appce se nepodařilo dát vědět odesílateli — zkus to prosím znovu za chvíli.");
+  }
+}
+async function importSharedWorkout(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený trénink";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newWorkout = {
+    id: uid(), type:"workout", title: safeTitle, notes: typeof p.notes==="string" ? p.notes.slice(0,2000) : "",
+    exercises: (Array.isArray(p.exercises)?p.exercises:[]).slice(0,50).map(e => ({
+      id:uid(), name:String(e.name||"").slice(0,120), sets:Number(e.sets)||3, reps:Number(e.reps)||10,
+      weight: e.weight ? String(e.weight).slice(0,30) : "", restSeconds: Number(e.restSeconds)||60,
+    })),
+    checklist: (Array.isArray(p.checklist)?p.checklist:[]).slice(0,50).map(c => ({
+      id:uid(), text:String(c.text||"").slice(0,120), done:false, minutes: Number(c.minutes)||5,
+    })),
+    drawings:[], audioIds:[], date: safeDate, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    deletedAt:null, sharedFromId: p.shareId || null,
+  };
+  state.workouts = [...state.workouts, newWorkout];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  renderAll();
+  showToast("Trénink přidán do tvého plánu ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi trénink přijal/a ✓");
+    else showToast("⚠️ Trénink máš uložený, ale appce se nepodařilo dát vědět odesílateli — zkus to prosím znovu za chvíli.");
+  }
+}
+function closeSharedOverlayWithoutDeclining(){
+  sharedTaskPayload = null;
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){ location.hash = ""; }
+  document.getElementById("sharedOverlayRoot").innerHTML = "";
+}
+async function importSharedMeal(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílené jídlo";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const items = (Array.isArray(p.items)?p.items:[]).slice(0,50).map(i => ({
+    id: uid(), text: String(i.text||"").slice(0,120), grams: Number(i.grams)||null, unit: i.unit||"g",
+    nutrition: null, proteinTier: guessProteinTier(String(i.text||"")), proteinUsablePercent: null,
+  }));
+  const newMeal = {
+    id: uid(), type:"meal", date: safeDate, labelId: state.mealLabels[0]?.id || null, source:"custom",
+    title: safeTitle, items, recipeId: null, servingsCount:1, recipeAmountMode:"servings", customGrams:null,
+    nutrition: p.nutrition ? { calories:Number(p.nutrition.calories)||0, protein:Number(p.nutrition.protein)||0, fat:Number(p.nutrition.fat)||0, carbs:Number(p.nutrition.carbs)||0 } : null,
+    eaten:false, reminder:null, reminderBaseTime:null, recurrenceGroupId:null,
+  };
+  state.meals = [...state.meals, newMeal];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "meals"; state.selectedDate = safeDate; state.windowStart = toISO(addDays(parseISODate(safeDate), -1));
+  saveState(); renderAll();
+  showToast("Jídlo přidáno do tvého jídelníčku ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi jídlo přijal/a ✓");
+    else showToast("⚠️ Jídlo máš uložené, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedWorkout(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený trénink";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const exercises = (Array.isArray(p.exercises)?p.exercises:[]).slice(0,50).map(e => ({
+    id: uid(), name: String(e.name||"").slice(0,120), sets: Number(e.sets)||3, reps: Number(e.reps)||10,
+    weight: e.weight ? String(e.weight).slice(0,40) : "", restSeconds: Number(e.restSeconds)||60,
+  }));
+  const checklist = (Array.isArray(p.checklist)?p.checklist:[]).slice(0,50).map(c => ({
+    id: uid(), text: String(c.text||"").slice(0,120), done:false, minutes: Math.max(1, Number(c.minutes)||5),
+  }));
+  const newWorkout = {
+    id: uid(), type:"workout", title: safeTitle, notes: typeof p.notes === "string" ? p.notes.slice(0,2000) : "",
+    exercises, checklist, drawings:[], audioIds:[], deletedAt:null,
+    date: safeDate, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+  };
+  state.workouts = [...state.workouts, newWorkout];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "workouts"; state.selectedDate = safeDate; state.windowStart = toISO(addDays(parseISODate(safeDate), -1));
+  saveState(); renderAll();
+  showToast("Trénink přidán do tvého kalendáře ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi trénink přijal/a ✓");
+    else showToast("⚠️ Trénink máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedRecipe(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený recept";
+  const newRecipe = {
+    id: "rc"+uid(), title: safeTitle, emoji: p.emoji||"🍽️", servings: p.servings||"", notes: typeof p.notes==="string"?p.notes.slice(0,2000):"",
+    coverImage:null, gallery:[], categoryId:null,
+    sections: (Array.isArray(p.sections)?p.sections:[]).slice(0,20).map(s => ({
+      id:"s"+uid(), name:String(s.name||"Sekce").slice(0,60), isIngredients:!!s.isIngredients,
+      items:(Array.isArray(s.items)?s.items:[]).slice(0,100).map(i=>({id:uid(), text:String(i.text||i||"").slice(0,200)})),
+    })),
+  };
+  state.recipes = [...state.recipes, newRecipe];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "recipes"; openRecipeId = newRecipe.id;
+  saveState(); renderAll();
+  showToast("Recept přidán do tvé sbírky ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi recept přijal/a ✓");
+    else showToast("⚠️ Recept máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedMedication(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeName = (typeof p.name === "string" && p.name.trim()) ? p.name.trim().slice(0,200) : "Sdílený doplněk";
+  const safeDate = (typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) ? p.date : todayISO;
+  const newMed = {
+    id: uid(), type:"medication", name: safeName, dosage: typeof p.dosage==="string"?p.dosage.slice(0,100):"",
+    category: typeof p.category==="string"?p.category.slice(0,60):"", notes: typeof p.notes==="string"?p.notes.slice(0,1000):"",
+    date: safeDate, time:"08:00", taken:false, reminder:null, reminderBaseTime:null, deletedAt:null,
+  };
+  state.medications = [...state.medications, newMed];
+  saveState(); scheduleReminders();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "medications";
+  saveState(); renderAll();
+  showToast("Doplněk přidán do tvého seznamu ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi doplněk přijal/a ✓");
+    else showToast("⚠️ Doplněk máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedDocument(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílený dokument";
+  const newDoc = {
+    id: uid(), type:"document", title: safeTitle, content: typeof p.content==="string"?p.content.slice(0,10000):"", date: todayISO,
+    checklist:[], images:[], files:[], drawing:null, drawings:[], audioId:null, audioIds:[], deletedAt:null,
+  };
+  state.documents = [...state.documents, newDoc];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "documents"; openDocumentId = newDoc.id;
+  saveState(); renderAll();
+  showToast("Dokument přidán ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi dokument přijal/a ✓");
+    else showToast("⚠️ Dokument máš uložený, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+async function importSharedNote(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const ws = getWorkspace();
+  const safeTitle = (typeof p.title === "string" && p.title.trim()) ? p.title.trim().slice(0,200) : "Sdílená poznámka";
+  const newNote = {
+    id: uid(), workspaceId: state.activeWorkspaceId, listId: ws.lists[0]?.id, categoryId: ws.categories[0]?.id,
+    title: safeTitle, content: typeof p.content==="string"?p.content.slice(0,2000):"", date: todayISO, priority:5,
+    type:"note", done:false, image:null, drawing:null, audioId:null,
+    checklist: (Array.isArray(p.checklist)?p.checklist:[]).slice(0,100).map(text=>({id:uid(), text:String(text).slice(0,200), done:false})),
+    friendIds:[], reminder:null, deletedAt:null,
+  };
+  state.tasks = [...state.tasks, newNote];
+  saveState();
+  closeSharedOverlayWithoutDeclining();
+  state.currentView = "notes"; openNoteId = newNote.id;
+  saveState(); renderAll();
+  showToast("Poznámka přidána ✓");
+  if(p.shareId){
+    const ok = await updateShareStatusRecord(p.shareId, { status:"accepted", accepterName:null });
+    if(ok) showToast("Odesílatel uvidí, že jsi poznámku přijal/a ✓");
+    else showToast("⚠️ Poznámka máš uložená, ale appce se nepodařilo dát vědět odesílateli (výpadek sítě) — zkus to prosím za chvíli znovu.");
+  }
+}
+function downloadSharedICS(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const dt = (p.date||todayISO).replace(/-/g,"");
+  const ics = ["BEGIN:VCALENDAR","VERSION:2.0","BEGIN:VEVENT",`DTSTART;VALUE=DATE:${dt}`,`SUMMARY:${p.emoji||""} ${p.title}`,"END:VEVENT","END:VCALENDAR"].join("\n");
+  const blob = new Blob([ics], {type:"text/calendar"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${(p.title||"ukol").slice(0,20)}.ics`; a.click();
+  URL.revokeObjectURL(url);
+  if(p.shareId) updateShareStatusRecord(p.shareId, { status: "accepted" });
+  showToast("Staženo ✓ — odesílatel uvidí, že sis úkol přijal/a (dokončení se ale synchronizovat nebude, protože to jde mimo appku)");
+}
+async function confirmSharedDone(){
+  const p = sharedTaskPayload;
+  if(!p) return;
+  const text = `✅ Hotovo: ${p.title}`;
+  if(navigator.share){ try{ await navigator.share({text}); return; }catch(e){} }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+}
+
+// ================= RENDER FUNCTIONS =================
+let currentModal = null; // {name, ...opts}
+let monthCursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+let workoutMonthCursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+let shareOpenId = null;
+let openRecipeId = null;
+let formCollapsed = true;
+let recipeEditingTitle = false;
+
+function renderAll(){
+  const ws = getWorkspace();
+  const theme = ws.theme === "photo" && !ws.customBg ? "light" : ws.theme;
+  document.body.className = "theme-" + theme + " scheme-" + (state.colorScheme || "indigo");
+  document.body.style.backgroundImage = (ws.theme==="photo" && ws.customBg) ? `url(${ws.customBg})` : "";
+  document.body.style.backgroundSize = "cover";
+  document.body.style.backgroundPosition = "center";
+  renderTopBar();
+  const calEl = document.getElementById("calendarView");
+  const recEl = document.getElementById("recipesView");
+  const mealEl = document.getElementById("mealsView");
+  const notesEl = document.getElementById("notesView");
+  const docsEl = document.getElementById("documentsView");
+  const medEl = document.getElementById("medicationsView");
+  const workEl = document.getElementById("workoutsView");
+  const setEl = document.getElementById("settingsView");
+  calEl.classList.add("hidden"); recEl.classList.add("hidden"); mealEl.classList.add("hidden"); notesEl.classList.add("hidden"); docsEl.classList.add("hidden"); medEl.classList.add("hidden"); workEl.classList.add("hidden"); setEl.classList.add("hidden");
+  if(state.currentView === "recipes"){
+    recEl.classList.remove("hidden");
+    renderRecipesView();
+  } else if(state.currentView === "meals"){
+    mealEl.classList.remove("hidden");
+    renderMealsView();
+  } else if(state.currentView === "notes"){
+    notesEl.classList.remove("hidden");
+    renderNotesView();
+  } else if(state.currentView === "documents"){
+    docsEl.classList.remove("hidden");
+    renderDocumentsView();
+  } else if(state.currentView === "medications"){
+    medEl.classList.remove("hidden");
+    renderMedicationsView();
+  } else if(state.currentView === "workouts"){
+    workEl.classList.remove("hidden");
+    renderWorkoutsView();
+  } else if(state.currentView === "settings"){
+    setEl.classList.remove("hidden");
+    renderSettingsView();
+  } else {
+    calEl.classList.remove("hidden");
+    renderQuote();
+    renderForm();
+    renderListFilter();
+    renderCalendarStrip();
+    renderLanes();
+  }
+  renderModals();
+  hydrateBlobImages();
+  autoGrowAllTextareas();
+}
+
+// Targeted refresh used after quick actions (done/delete/move) that must NOT
+// rebuild the add-form (so typing focus/cursor there is preserved). If a modal
+// happens to be open (e.g. the Resty/Hotovo drawer this action was triggered
+// from), it's refreshed too so it never shows stale data.
+function renderBoard(){
+  renderTopBar();
+  renderListFilter();
+  renderCalendarStrip();
+  renderLanes();
+  if(currentModal) renderModals();
+}
+
+function cardClass(){ return "card"; }
+
+function renderTopBar(){
+  const ws = getWorkspace();
+  const overdue = overdueTasks().length;
+  const delegatedCount = allDelegationRelatedCount();
+  document.getElementById("topBar").innerHTML = `
+    <div class="row between" style="margin-bottom:16px;flex-wrap:wrap;row-gap:10px">
+      <div class="row gap-2" style="min-width:0;flex-shrink:1">
+        <img src="icon-192.png" alt="Vibe Calendar" style="width:36px;height:36px;border-radius:12px;object-fit:cover;box-shadow:0 1px 4px rgba(0,0,0,0.15);flex-shrink:0" onerror="this.style.display='none'" />
+        <span class="font-semi text-lg text-main truncate" style="min-width:0">Vibe Calendar</span>
+      </div>
+      <div class="row gap-1" style="flex-wrap:wrap;row-gap:6px;justify-content:center">
+        <button class="nav-btn ${state.currentView==='calendar'?'active':''}" data-action="switch-view" data-id="calendar">
+          <span class="nav-icon">📅</span><span class="nav-label">Kalendář</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='meals'?'active':''}" data-action="switch-view" data-id="meals">
+          <span class="nav-icon">🍽️</span><span class="nav-label">Jídelníček</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='medications'?'active':''}" data-action="switch-view" data-id="medications">
+          <span class="nav-icon">💊</span><span class="nav-label">Doplňky</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='workouts'?'active':''}" data-action="switch-view" data-id="workouts">
+          <span class="nav-icon">🏋️</span><span class="nav-label">Trénink</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='recipes'?'active':''}" data-action="switch-view" data-id="recipes">
+          <span class="nav-icon">🍳</span><span class="nav-label">Recepty</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='notes'?'active':''}" data-action="switch-view" data-id="notes">
+          <span class="nav-icon">📝</span><span class="nav-label">Poznámky</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='documents'?'active':''}" data-action="switch-view" data-id="documents">
+          <span class="nav-icon">📁</span><span class="nav-label">Dokumenty</span>
+        </button>
+        <button class="nav-btn" data-action="open-search">
+          <span class="nav-icon">🔍</span><span class="nav-label">Hledat</span>
+        </button>
+        <button class="nav-btn" data-action="open-modal" data-modal="archive">
+          <span class="nav-icon">🗂️</span><span class="nav-label">Archiv</span>
+        </button>
+        <button class="nav-btn rel" data-action="open-modal" data-modal="reminderLog">
+          <span class="nav-icon">🔔</span><span class="nav-label">Oznámení</span>
+          ${pendingReminderLog().length ? `<span style="position:absolute;top:2px;right:6px;background:#ef4444;color:#fff;border-radius:999px;min-width:16px;height:16px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px">${pendingReminderLog().length}</span>` : ""}
+        </button>
+        <button class="nav-btn" data-action="open-modal" data-modal="completed">
+          <span class="nav-icon">✅</span><span class="nav-label">Hotovo</span>
+        </button>
+        <button class="nav-btn" data-action="open-modal" data-modal="overdue">
+          <span class="nav-icon">📥</span><span class="nav-label">Resty</span>
+          ${overdue>0 ? `<span style="position:absolute;top:2px;right:2px;background:#fb7185;color:#fff;font-size:9px;font-weight:700;border-radius:999px;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center">${overdue}</span>` : ""}
+        </button>
+        <button class="nav-btn" data-action="open-modal" data-modal="delegated">
+          <span class="nav-icon">👥</span><span class="nav-label">Delegováno</span>
+          ${delegatedCount>0 ? `<span style="position:absolute;top:2px;right:2px;background:#6366f1;color:#fff;font-size:9px;font-weight:700;border-radius:999px;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center">${delegatedCount}</span>` : ""}
+        </button>
+        <button class="nav-btn" data-action="open-modal" data-modal="appearance">
+          <span class="nav-icon">🎨</span><span class="nav-label">Vzhled</span>
+        </button>
+        <button class="nav-btn ${state.currentView==='settings'?'active':''}" data-action="switch-view" data-id="settings">
+          <span class="nav-icon">⚙️</span><span class="nav-label">Nastavení</span>
+        </button>
+      </div>
+    </div>
+    ${state.currentView === "calendar" ? `
+    <div class="row gap-2 scrollx" style="margin-bottom:18px;padding-bottom:2px">
+      ${state.workspaces.map(w => `
+        <button class="workspace-tab ${w.id===state.activeWorkspaceId?"active":""}"
+          data-action="switch-workspace" data-id="${w.id}">${w.emoji} ${escapeHTML(w.name)}</button>
+      `).join("")}
+      <button class="icon-btn-sm btn-ghost-card" style="width:34px;height:34px" data-action="open-modal" data-modal="workspaceEdit" title="Upravit kalendář">✏️</button>
+      <button class="icon-btn-sm btn-ghost-card" style="width:34px;height:34px" data-action="open-modal" data-modal="workspaceAdd" title="Nový kalendář">➕</button>
+    </div>` : ""}
+  `;
+}
+
+function renderQuote(){
+  const p = PERSONALITIES[state.personality];
+  document.getElementById("quoteWidget").innerHTML = `
+    <div class="${cardClass()} card-pad rel" style="margin-bottom:18px">
+      <div class="row between gap-3" style="align-items:flex-start">
+        <div class="row gap-3" style="align-items:flex-start">
+          <span style="font-size:30px">${p.icon}</span>
+          <div>
+            <p class="text-lg font-med text-main" style="margin:0;line-height:1.4">„${escapeHTML(dailyQuote(state.personality))}“</p>
+            <p class="text-xs muted" style="margin:6px 0 0">${p.label}</p>
+          </div>
+        </div>
+        <div class="rel shrink0">
+          <button class="icon-btn-sm" data-action="toggle-personality-menu" style="width:34px;height:34px">⚙️</button>
+          ${currentModal && currentModal.name==="personalityMenu" ? `
+            <div class="card" style="position:absolute;right:0;margin-top:8px;width:230px;padding:8px;z-index:20;background:#fff">
+              ${Object.entries(PERSONALITIES).map(([key,pp]) => `
+                <button data-action="set-personality" data-id="${key}" style="width:100%;text-align:left;padding:9px 10px;border-radius:12px;font-size:13px;display:flex;gap:8px;align-items:center;${state.personality===key?"background:#d1fae5;color:#047857;font-weight:600":"color:#475569"}">
+                  <span>${pp.icon}</span> ${pp.label}
+                </button>
+              `).join("")}
+            </div>` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderForm(){
+  const ws = getWorkspace();
+  if(!draft.formCategoryId && ws.categories[0]) draft.formCategoryId = ws.categories[0].id;
+  if(!draft.formListId && ws.lists[0]) draft.formListId = ws.lists[0].id;
+
+  if(formCollapsed){
+    document.getElementById("addForm").innerHTML = `
+      <button class="${cardClass()} row gap-2" style="padding:13px 16px;margin-bottom:18px;width:100%;justify-content:center;font-weight:600;color:#059669" data-action="toggle-form-collapsed">
+        <span style="font-size:16px">➕</span> Přidat úkol
+      </button>
+    `;
+    return;
+  }
+
+  document.getElementById("addForm").innerHTML = `
+    <div class="${cardClass()} card-pad" style="margin-bottom:18px">
+      <div class="row between" style="margin-bottom:14px">
+        <p class="text-sm font-semi text-main" style="margin:0">☑️ Nový úkol</p>
+        <button class="icon-btn-sm" data-action="toggle-form-collapsed" title="Zavřít">✕</button>
+      </div>
+      ${(ws.templates && ws.templates.length) ? `
+        <select class="field" style="margin-bottom:12px" data-action="use-template">
+          <option value="">📋 Použít šablonu…</option>
+          ${ws.templates.map(t => `<option value="${t.id}">${escapeHTML(t.name)}</option>`).join("")}
+        </select>` : ""}
+      <div class="row gap-2" style="margin-bottom:12px">
+        <input id="formTitleInput" class="field grow" placeholder="${draft.formType==='task'?'Co potřebuješ udělat?':'Krátký název (nebo ho nech vymyslet AI níže)'}" value="${escapeAttr(draft.formTitle)}" data-field="formTitle" />
+        <button id="dictateTitleBtn" class="icon-btn shrink0" data-action="toggle-dictation-title" title="Diktovat hlasem">🎙️</button>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label class="label" style="margin:0 0 6px">${draft.formType==='task'?'Poznámka k úkolu / diktovaný text (nepovinné)':'Obsah poznámky'}</label>
+        <div class="row gap-1.5 wrapf" style="margin-bottom:6px">
+          <button id="dictateContentBtn" class="chip" data-action="toggle-dictation-content">🎙️ Nadiktovat</button>
+          <button id="organizedDictateBtn" class="chip" style="background:${organizedDictationActive?'#fb7185':'#ede9fe'};color:${organizedDictationActive?'#fff':'#7c3aed'}" data-action="toggle-organized-dictation">${organizedDictationActive?'⏹️ Dokončit':'✨🎙️ Nadiktovat a uspořádat'}</button>
+        </div>
+        <textarea id="formContentInput" class="field" rows="3" placeholder="Nadiktuj nebo napiš celou myšlenku — AI z ní pak umí navrhnout výstižný název." data-field="formContent">${escapeHTML(draft.formContent)}</textarea>
+        <button id="aiTitleBtn" class="chip" style="margin-top:6px;background:#d1fae5;color:#047857" data-action="generate-ai-title">✨ Navrhnout název pomocí AI</button>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label class="label">Datum</label>
+        <input type="date" class="field" value="${draft.formDate}" data-field="formDate" />
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="label">Priorita</label>
+        ${priorityPickerHTML(draft.formPriority, "set-priority")}
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label class="label">Seznam</label>
+        <div class="row gap-2 wrapf">
+          ${ws.lists.map(l => `<button class="chip ${draft.formListId===l.id?'active':''}" data-action="pick-list" data-id="${l.id}">${escapeHTML(l.name)}</button>`).join("")}
+          <button class="chip chip-dashed" data-action="open-modal" data-modal="lists">📁 Seznamy</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div class="row between" style="margin-bottom:4px">
+          <label class="label" style="margin:0">Aktivita</label>
+          <button class="chip" style="background:none;color:#059669;font-weight:600;padding:2px 4px" data-action="open-modal" data-modal="categories">✏️ Upravit aktivity</button>
+        </div>
+        <div class="row gap-2 wrapf">
+          ${ws.categories.map(c => `
+            <button class="emoji-btn ${draft.formCategoryId===c.id?'active':''}" data-action="pick-category" data-id="${c.id}">
+              <span>${c.emoji}</span><span class="lbl">${escapeHTML(c.label)}</span>
+            </button>`).join("")}
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div class="row between" style="margin-bottom:4px">
+          <label class="label" style="margin:0">Přátelé u úkolu</label>
+          <button class="chip" style="background:none;color:#059669;font-weight:600;padding:2px 4px" data-action="open-modal" data-modal="friends">✏️ Spravovat přátele</button>
+        </div>
+        <div class="row gap-2 wrapf">
+          ${state.friends.length===0 ? `<span class="text-xs muted">Zatím žádní přátelé — přidej je přes „Spravovat přátele“.</span>` : ""}
+          ${state.friends.map(f => `<button class="chip ${draft.formFriendIds.includes(f.id)?'active-green':''}" data-action="toggle-friend" data-id="${f.id}">${f.emoji} ${escapeHTML(f.name)}</button>`).join("")}
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label class="label">Podúkoly / kroky (neomezený počet)</label>
+        <div id="checklistEditor"></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div class="row between" style="align-items:center">
+          <label class="label" style="margin:0">Opakování úkolu</label>
+          <button class="text-xs" style="color:#6366f1;font-weight:600;background:none" data-action="open-modal" data-modal="recurringManager">🔁 Spravovat aktivní opakování</button>
+        </div>
+        <div id="recurrenceEditor"></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <label class="label">Přílohy</label>
+        <div id="attachmentButtons" class="row gap-2 wrapf"></div>
+        <div id="attachmentsPreview" class="row gap-2" style="margin-top:8px"></div>
+      </div>
+
+      <div id="reminderSection" style="margin-bottom:12px"></div>
+
+      <div class="row gap-2" style="justify-content:flex-end">
+        ${draft.editingId ? `<button class="btn btn-soft" data-action="cancel-edit">Zrušit úpravu</button>` : `<button class="btn btn-soft" data-action="open-save-template">📋 Uložit jako šablonu</button>`}
+        <button class="btn btn-primary" data-action="add-item">${draft.editingId ? "✓ Uložit změny" : "➕ Přidat"}</button>
+      </div>
+    </div>
+  `;
+  renderChecklistEditor();
+  renderRecurrenceEditor();
+  renderAttachmentsButtons();
+  renderAttachmentsPreview();
+  renderReminderSection();
+  renderDictationButtons();
+}
+
+function escapeAttr(str){ return escapeHTML(str).replace(/`/g, "&#96;"); }
+
+function renderChecklistEditor(){
+  const el = document.getElementById("checklistEditor");
+  if(!el) return;
+  el.innerHTML = `
+    ${draft.formChecklist.length ? `
+      <div style="max-height:160px;overflow-y:auto;margin-bottom:6px" class="col gap-1">
+        ${draft.formChecklist.map(i => `
+          <div class="row gap-2" style="background:#f8fafc;border-radius:10px;padding:7px 10px">
+            <span class="grow text-xs" style="color:#475569">${escapeHTML(i.text)}</span>
+            <button data-action="remove-checklist-item" data-id="${i.id}" style="color:#94a3b8">✕</button>
+          </div>`).join("")}
+      </div>` : ""}
+    <div class="row gap-2">
+      <input id="checklistInput" class="field grow" style="font-size:12.5px;padding:8px 12px" placeholder="Přidat krok…" />
+      <button id="checklistDictateBtn" class="icon-btn shrink0" data-action="dictate-checklist-loop" title="Diktovat kroky (po sobě)">🎙️</button>
+      <button class="icon-btn" data-action="add-checklist-item">➕</button>
+    </div>
+  `;
+  updateDictateButtons();
+}
+
+function renderRecurrenceEditor(){
+  const el = document.getElementById("recurrenceEditor");
+  if(!el) return;
+  el.innerHTML = `
+    <div class="row gap-2 wrapf" style="margin-bottom:8px">
+      ${RECURRENCE_TYPES.map(r => `<button class="chip ${draft.recurrenceType===r.id?'active':''}" data-action="set-recurrence-type" data-id="${r.id}">${r.label}</button>`).join("")}
+    </div>
+    ${draft.recurrenceType==="weekly_days" ? `
+      <div class="row gap-2 wrapf" style="margin-bottom:8px">
+        ${WEEKDAY_LABELS.map(w => `<button class="chip ${draft.recurrenceWeekdays.includes(w.id)?'active':''}" data-action="toggle-recurrence-weekday" data-id="${w.id}">${w.label}</button>`).join("")}
+      </div>
+      ${!draft.recurrenceWeekdays.length ? `<p class="text-xs muted" style="margin:0 0 8px">Vyber aspoň jeden den.</p>` : ""}
+    ` : ""}
+    ${draft.recurrenceType!=="none" && draft.recurrenceType!=="custom" ? `
+      <div class="row gap-2" style="align-items:center">
+        <label class="label" style="margin:0">Po dobu</label>
+        <input type="number" min="1" max="200" class="field" style="width:70px" value="${draft.recurrenceDurationValue}" data-field="recurrenceDurationValue" />
+        <select class="field" style="width:auto" data-field="recurrenceDurationUnit">
+          ${DURATION_UNITS.map(u => `<option value="${u.id}" ${draft.recurrenceDurationUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+        </select>
+      </div>
+      ${(() => {
+        const c = computeRecurrenceCount(draft.recurrenceType, draft.recurrenceWeekdays.length, draft.recurrenceDurationValue, draft.recurrenceDurationUnit);
+        return `<p class="text-xs muted" style="margin:4px 0 0">Vytvoří se ${c} termínů${draft.recurrenceType==="weekly_days" ? " " + weeklyDaysCountHint(draft.recurrenceWeekdays.length, c) : ""}.</p>`;
+      })()}` : ""}
+    ${draft.recurrenceType==="custom" ? `
+      <div class="row gap-2" style="margin-bottom:6px">
+        <input type="date" id="recurrenceDateInput" class="field grow" />
+        <button class="icon-btn" data-action="add-recurrence-date">➕</button>
+      </div>
+      <div class="row gap-2 wrapf">
+        ${draft.recurrenceCustomDates.map(d => `<span class="chip active">${d} <span data-action="remove-recurrence-date" data-id="${d}" style="margin-left:4px;cursor:pointer">✕</span></span>`).join("")}
+      </div>` : ""}
+  `;
+}
+
+function formatFileSize(bytes){
+  if(bytes < 1024) return bytes + " B";
+  if(bytes < 1024*1024) return Math.round(bytes/1024) + " KB";
+  return (bytes/1024/1024).toFixed(1) + " MB";
+}
+async function handleDraftFileUpload(fileList){
+  if(!fileList || !fileList.length) return;
+  try{
+    const newFiles = [];
+    for(const f of Array.from(fileList)){
+      if(f.size > 15 * 1024 * 1024){ showToast(`„${f.name}" je moc velký (max 15 MB) — přeskočeno.`); continue; }
+      const blobId = await idbSet(f);
+      newFiles.push({ id: uid(), name: f.name, size: f.size, mimeType: f.type || "application/octet-stream", blobId });
+    }
+    if(!newFiles.length) return;
+    draft.formFiles = [...draft.formFiles, ...newFiles];
+    showToast(`Přidáno ${newFiles.length} souborů ✓`);
+    renderAttachmentsPreview();
+  }catch(e){ showToast("Nahrání souboru se nezdařilo."); }
+}
+function removeDraftFile(fileId){
+  const removed = draft.formFiles.find(f => f.id === fileId);
+  if(removed && removed.blobId) idbDelete(removed.blobId).catch(()=>{});
+  draft.formFiles = draft.formFiles.filter(f => f.id !== fileId);
+  renderAttachmentsPreview();
+}
+async function downloadTaskFile(taskId, fileId){
+  const t = state.tasks.find(x => x.id === taskId);
+  const file = t && (t.files||[]).find(f => f.id === fileId);
+  if(!file){ showToast("Soubor nebyl nalezen."); return; }
+  const url = await getBlobURL(file.blobId);
+  if(!url){ showToast("Soubor se nepodařilo načíst."); return; }
+  const a = document.createElement("a");
+  a.href = url; a.download = file.name; a.click();
+}
+function renderAttachmentsButtons(){
+  const el = document.getElementById("attachmentButtons");
+  if(!el) return;
+  el.innerHTML = `
+    <label class="chip" style="cursor:pointer">📷 Fotka<input type="file" accept="image/*" multiple style="display:none" data-action="upload-image" /></label>
+    <button class="chip" data-action="open-draw">✏️ Nakreslit</button>
+    <button class="chip" style="${isRecording?'background:#fb7185;color:#fff':''}" data-action="toggle-recording">${isRecording?'⏹ Nahrávám…':'🎵 Nahrát zvuk'}</button>
+    <label class="chip" style="cursor:pointer">📎 Soubor<input type="file" multiple style="display:none" data-action="upload-draft-file" /></label>
+  `;
+}
+
+async function renderAttachmentsPreview(){
+  const el = document.getElementById("attachmentsPreview");
+  if(!el) return;
+  let html = "";
+  draft.formImages.forEach((img, idx) => {
+    html += `<div class="rel"><img src="${img}" class="thumb-sm" /><button data-action="remove-draft-image" data-id="${idx}" style="position:absolute;top:-6px;right:-6px;background:#1e293b;color:#fff;border-radius:999px;width:20px;height:20px;font-size:11px">✕</button></div>`;
+  });
+  draft.formDrawings.forEach((drawing, idx) => {
+    html += `<div class="rel"><img src="${drawing}" class="thumb-sm" style="border:1px solid #e2e8f0" /><button data-action="remove-draft-drawing" data-id="${idx}" style="position:absolute;top:-6px;right:-6px;background:#1e293b;color:#fff;border-radius:999px;width:20px;height:20px;font-size:11px">✕</button></div>`;
+  });
+  draft.formAudioIds.forEach((audioId, idx) => {
+    html += `<div class="row gap-1" style="background:#f8fafc;border-radius:14px;padding:8px 10px"><span>🔊</span><span class="text-xs muted">nahrávka ${idx+1}</span><button data-action="remove-draft-audio" data-id="${idx}" style="background:#1e293b;color:#fff;border-radius:999px;width:16px;height:16px;font-size:9px;margin-left:4px">✕</button></div>`;
+  });
+  (draft.formFiles||[]).forEach(f => {
+    html += `<div class="row gap-1" style="background:#f8fafc;border-radius:14px;padding:8px 10px"><span>📎</span><span class="text-xs muted truncate" style="max-width:100px">${escapeHTML(f.name)}</span><button data-action="remove-draft-file" data-id="${f.id}" style="background:#1e293b;color:#fff;border-radius:999px;width:16px;height:16px;font-size:9px;margin-left:4px">✕</button></div>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderDictationButtons(){
+  const t = document.getElementById("dictateTitleBtn");
+  const c = document.getElementById("dictateContentBtn");
+  if(t) { t.style.background = dictationField==="title" ? "#fb7185" : ""; t.style.color = dictationField==="title" ? "#fff" : ""; }
+  if(c) { c.style.background = dictationField==="content" ? "#fb7185" : "#f0f9ff"; c.style.color = dictationField==="content" ? "#fff" : "#0284c7"; }
+}
+
+function renderReminderSection(){
+  const el = document.getElementById("reminderSection");
+  if(!el) return;
+  el.innerHTML = `
+    <div style="border:1px solid #f1f5f9;background:rgba(248,250,252,0.6);border-radius:18px;padding:12px">
+      <button class="row between" style="width:100%" data-action="toggle-reminder">
+        <span class="row gap-2 font-semi text-sm" style="color:#475569">${draft.reminderEnabled?'🔔':'🔕'} Upozornění a notifikace</span>
+        <span class="switch ${draft.reminderEnabled?'on':''}"><span class="knob"></span></span>
+      </button>
+      ${draft.reminderEnabled ? `
+        <div class="col gap-3" style="margin-top:12px">
+          <div class="row gap-2 wrapf">
+            ${REMINDER_MODES.map(m => `<button class="chip ${draft.reminderMode===m.id?'active':''}" style="${draft.reminderMode===m.id?'background:#334155;color:#fff':'background:#fff;border:1px solid #e2e8f0'}" data-action="set-reminder-mode" data-id="${m.id}">${m.label}</button>`).join("")}
+          </div>
+          ${draft.reminderMode==="atTime" ? `
+            <div><label class="label">Čas upozornění (v den úkolu, ${draft.formDate})</label>
+              <input type="time" class="field" value="${draft.reminderTime}" data-field="reminderTime" /></div>` : ""}
+          ${draft.reminderMode==="before" ? `
+            <div><label class="label">Termín úkolu je v</label>
+              <input type="time" class="field" value="${draft.reminderBaseTime}" data-field="reminderBaseTime" /></div>
+            <div class="row gap-2">
+              <div class="grow"><label class="label">Upozornit předem</label>
+                <input type="number" min="1" class="field" value="${draft.reminderAdvanceValue}" data-field="reminderAdvanceValue" /></div>
+              <div class="grow"><label class="label">Jednotka</label>
+                <select class="field" data-field="reminderAdvanceUnit">
+                  ${ADVANCE_UNITS.map(u => `<option value="${u.id}" ${draft.reminderAdvanceUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+                </select></div>
+            </div>` : ""}
+          ${draft.reminderMode==="custom" ? `
+            <div class="row gap-2">
+              <div class="grow"><label class="label">Datum</label><input type="date" class="field" value="${draft.reminderCustomDate}" data-field="reminderCustomDate" /></div>
+              <div class="grow"><label class="label">Čas</label><input type="time" class="field" value="${draft.reminderCustomTime}" data-field="reminderCustomTime" /></div>
+            </div>` : ""}
+          <div>
+            <label class="label">Melodie upozornění</label>
+            <div class="row gap-2">
+              <select class="field grow" data-field="reminderSound">
+                ${Object.entries(REMINDER_SOUNDS).map(([k,s]) => `<option value="${k}" ${draft.reminderSound===k?'selected':''}>${s.label}</option>`).join("")}
+              </select>
+              <button id="previewSoundBtn" class="icon-btn shrink0" data-action="preview-reminder-sound" title="Přehrát / zastavit ukázku">▶️</button>
+            </div>
+            ${draft.reminderSound==="custom" ? `
+              <div class="col gap-2" style="margin-top:8px">
+                <div class="row gap-2 wrapf">
+                  <label class="chip" style="cursor:pointer">🎵 Vybrat zvukový soubor<input type="file" accept="audio/*,.mp3,.m4a,.wav,.aac" style="display:none" data-action="upload-reminder-audio" /></label>
+                  ${draft.reminderCustomAudioId ? `<span class="text-xs" style="color:#059669">✓ ${escapeHTML(draft.reminderCustomAudioName || "melodie nahrána")}</span>` : `<span class="text-xs muted">zatím nic nevybráno</span>`}
+                </div>
+                <p class="text-xs muted" style="margin:0">📱 Otevře se výběr souborů v telefonu (Soubory / Stažené / nahrávky). Skladby chráněné v Apple Music či Spotify web prohlížeč z bezpečnostních důvodů nabídnout nemůže — funguje ale libovolné MP3/M4A/WAV uložené v telefonu.</p>
+              </div>` : ""}
+          </div>
+          <p class="text-xs muted" style="margin:0">🔔 Upozornění zazvoní přímo v této relaci aplikace, jakmile nastane zvolený čas (a jako reálná notifikace, pokud jí prohlížeč povolíš).</p>
+        </div>` : ""}
+    </div>
+  `;
+}
+
+function renderListFilter(){
+  const ws = getWorkspace();
+  document.getElementById("listFilter").innerHTML = `
+    <div class="row gap-2 scrollx" style="margin-bottom:14px">
+      <button class="chip ${state.activeListFilter==='all'?'active':''}" data-action="set-list-filter" data-id="all">Vše</button>
+      ${ws.lists.map(l => `<button class="chip ${state.activeListFilter===l.id?'active':''}" data-action="set-list-filter" data-id="${l.id}">${escapeHTML(l.name)}</button>`).join("")}
+    </div>
+  `;
+}
+
+function renderCalendarStrip(){
+  const windowStart = parseISODate(state.windowStart);
+  const days = Array.from({length:30}, (_,i) => addDays(windowStart, i));
+  const byDate = tasksByDate();
+  document.getElementById("calendarStrip").innerHTML = `
+    <div class="row between" style="margin-bottom:8px;padding:0 2px">
+      <p class="text-sm font-semi text-main" style="margin:0">${MONTHS[windowStart.getMonth()]} ${windowStart.getFullYear()}</p>
+      <div class="row gap-1">
+        <button class="chip" data-action="nav-window" data-id="reset">Dnes</button>
+        <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="open-modal" data-modal="monthCalendar" title="Otevřít větší kalendář">📅</button>
+        <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="nav-window" data-id="-7">‹</button>
+        <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="nav-window" data-id="7">›</button>
+      </div>
+    </div>
+    <div class="row gap-2 scrollx" style="padding-bottom:2px">
+      ${days.map(d => {
+        const iso = toISO(d);
+        const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+        const items = byDate[iso] || [];
+        const hasOverdue = iso < todayISO && items.some(t => !t.done);
+        const ws = getWorkspace();
+        const holiday = czStateHolidayName(iso);
+        const nameday = czNamedayFor(iso);
+        return `<button class="day-cell ${isToday?'today':''} ${isSelected?'selected-scheme':''} ${!isSelected?'card':''}"
+          style="${holiday && !isSelected?'background:#fef2f2;border-color:#fecaca':''}"
+          data-action="select-date" data-id="${iso}" title="${holiday?holiday+' — ':''}${nameday?'Svátek: '+nameday:''}">
+          ${hasOverdue && !isSelected ? `<span class="overdue-dot"></span>` : ""}
+          <span class="dow" style="${holiday && !isSelected?'color:var(--danger);font-weight:700':''}">${DAY_SHORT[d.getDay()]}</span><span class="dom" style="${holiday && !isSelected?'color:var(--danger)':''}">${d.getDate()}</span><span class="today-tag">Dnes</span>
+          ${nameday ? `<span style="font-size:8px;line-height:1.1;color:${isSelected?'rgba(255,255,255,0.85)':holiday?'var(--danger)':'var(--ink3)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44px;font-weight:${holiday?'700':'400'}">${escapeHTML(nameday)}</span>` : ""}
+          <div class="day-dots">${items.slice(0,4).map(t => `<span style="background:${isSelected?'rgba(255,255,255,0.8)':priorityMeta(t.priority).dot}"></span>`).join("")}</div>
+        </button>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderLanes(){
+  const ws = getWorkspace();
+  const html = LANES.map(lane => {
+    const items = laneItems(lane.range);
+    return `
+      <div style="margin-bottom:20px">
+        <div class="row gap-2" style="margin-bottom:8px;padding:0 2px">
+          <span style="width:8px;height:8px;border-radius:999px;background:${lane.dot}"></span>
+          <p class="text-sm font-semi text-main" style="margin:0">${lane.label}</p>
+          <span class="text-xs muted">(${items.length})</span>
+        </div>
+        ${items.length===0 ? `<div class="${cardClass()} card-pad-sm text-xs muted">Žádné úkoly v tomto pásmu pro vybraný den.</div>` :
+          `<div class="col gap-2">${items.map(task => taskCardHTML(task, lane, ws)).join("")}</div>`}
+      </div>`;
+  }).join("");
+  document.getElementById("lanesContainer").innerHTML = html;
+}
+
+function taskCardHTML(task, lane, ws){
+  const cat = catById(task.categoryId);
+  const checklist = task.checklist || [];
+  const doneCount = checklist.filter(s=>s.done).length;
+  const isExpanded = !!expandedTaskIds[task.id];
+  const taskFriends = (task.friendIds||[]).map(friendById).filter(Boolean);
+  const thumb = (task.images && task.images[0]) || task.image || task.drawing;
+  const pulse = !task.done ? pulseClass(task.priority) : "";
+  const rSum = reminderSummary(task);
+  return `
+    <div class="task-card ${cardClass()} ${lane.cls} ${pulse} ${task.done?'done':''}" style="position:relative">
+      <div class="row gap-3" style="padding:12px 16px;padding-bottom:${taskFriends.length?'6px':'12px'}">
+        <button class="shrink0" data-action="toggle-done" data-id="${task.id}" style="width:22px;height:22px;border-radius:5px;border:1.5px solid ${task.done?'var(--accent)':'var(--line)'};background:${task.done?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${task.done?'✓':''}</button>
+        ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>`}
+        <div class="grow" data-action="quick-view-task" data-id="${task.id}" style="cursor:pointer">
+          <p class="text-sm font-med ${task.done?'strike':''} text-main" style="margin:0;white-space:normal;word-break:break-word">${escapeHTML(task.title)}</p>
+          <p class="text-xs muted" style="margin:2px 0 0">
+            ${escapeHTML(cat.label)} · ${escapeHTML(listById(task.listId).name)}
+            ${checklist.length ? `<span style="color:#10b981;font-weight:600;margin-left:4px">· ${doneCount}/${checklist.length} kroků</span>`:""}
+            ${rSum ? `<span style="color:#f59e0b;font-weight:600;margin-left:4px">· ${rSum}</span>`:""}
+            ${taskFriends.length ? `<span style="color:#6366f1;font-weight:600;margin-left:4px">· 👥 ${taskFriends.map(f=>escapeHTML(f.name)).join(", ")}</span>`:""}
+            ${(task.files&&task.files.length) ? `<span style="color:#d97706;font-weight:600;margin-left:4px">· 📎 ${task.files.length}</span>`:""}
+          </p>
+        </div>
+        ${(task.audioIds && task.audioIds.length ? task.audioIds : (task.audioId ? [task.audioId] : [])).map(aid => `<button class="icon-btn-sm shrink0" data-action="play-task-audio" data-id="${aid}" style="background:${playingAudioId===aid?'#fb7185':'#f1f5f9'};color:${playingAudioId===aid?'#fff':'inherit'}">🔊</button>`).join("")}
+        <button class="icon-btn-sm shrink0" data-action="edit-task" data-id="${task.id}">✏️</button>
+        <button class="icon-btn-sm shrink0" data-action="delete-task" data-id="${task.id}">🗑️</button>
+        <div class="rel shrink0">
+          <button class="icon-btn-sm" data-action="open-share-modal" data-id="${task.id}">↗️</button>
+        </div>
+      </div>
+      ${taskFriends.length ? `
+        <div class="row gap-1.5 wrapf" style="padding:0 16px 10px 52px">
+          ${taskFriends.map(f => {
+            const confirmed = (task.confirmedFriendIds||[]).includes(f.id);
+            return `<button data-action="toggle-friend-confirm" data-id="${task.id}" data-sub="${f.id}" class="chip" style="font-size:10.5px;padding:4px 9px;${confirmed?'background:var(--accent-soft);color:var(--success);border-color:var(--success)':''}">${confirmed?'✓':'○'} ${escapeHTML(f.name)}${confirmed?' hotovo':''}</button>`;
+          }).join("")}
+        </div>` : ""}
+      ${isExpanded ? `
+        <div style="padding:0 16px 12px 52px">
+          <div class="col gap-2">
+            ${checklist.map(s => `
+              <div class="row gap-2">
+                <button data-action="toggle-subtask" data-id="${task.id}" data-sub="${s.id}" style="width:15px;height:15px;border-radius:4px;border:1.5px solid ${s.done?'var(--accent)':'var(--line)'};background:${s.done?'var(--accent)':'transparent'};color:#fff;font-size:10px;flex-shrink:0">${s.done?'✓':''}</button>
+                <span class="text-xs ${s.done?'strike':''}" style="color:${s.done?'#94a3b8':'#475569'}">${escapeHTML(s.text)}</span>
+                <button data-action="remove-subtask" data-id="${task.id}" data-sub="${s.id}" style="margin-left:auto;color:#cbd5e1">✕</button>
+              </div>`).join("")}
+            <div class="row gap-2" style="padding-top:2px">
+              <input class="field" style="font-size:12px;padding:6px 10px" placeholder="Přidat krok…" id="subtaskInput-${task.id}" />
+              <button class="icon-btn-sm" style="background:#f1f5f9" data-action="add-subtask" data-id="${task.id}">➕</button>
+            </div>
+          </div>
+          ${(task.files && task.files.length) ? `
+            <div class="col gap-1" style="margin-top:8px">
+              ${task.files.map(f => `
+                <div class="row gap-2" style="background:#f8fafc;border-radius:12px;padding:7px 10px">
+                  <span style="font-size:14px">📎</span>
+                  <span class="text-xs truncate grow" style="color:#334155">${escapeHTML(f.name)}</span>
+                  <span class="text-xs muted">${formatFileSize(f.size)}</span>
+                  <button class="icon-btn-sm shrink0" data-action="download-task-file" data-id="${task.id}" data-sub="${f.id}" style="width:24px;height:24px">⬇️</button>
+                </div>`).join("")}
+            </div>` : ""}
+        </div>` : ""}
+      ${task.recurrenceGroupId ? `<div style="padding:0 16px 10px 52px"><button data-action="delete-series" data-id="${task.recurrenceGroupId}" class="text-xs" style="color:#fb7185;font-weight:600">🔁 Smazat celou sérii opakování</button></div>` : ""}
+    </div>
+  `;
+}
+
+function renderNotes(){
+  const notes = notesList();
+  document.getElementById("notesContainer").innerHTML = `
+    <div style="margin-top:24px">
+      <div class="row gap-2" style="margin-bottom:8px;padding:0 2px"><span>📝</span><p class="text-sm font-semi text-main" style="margin:0">Poznámky a myšlenky</p></div>
+      ${notes.length===0 ? `<div class="${cardClass()} card-pad-sm text-xs muted">Zatím žádné poznámky.</div>` : `
+        <div class="grid-notes" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+          ${notes.map(n => {
+            const cat = catById(n.categoryId); const thumb = n.image || n.drawing;
+            return `<div class="${cardClass()} row gap-2" style="padding:12px 14px;align-items:flex-start">
+              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:17px">${cat.emoji}</span>`}
+              <div class="grow">
+                <span class="text-sm font-med text-main" style="display:block">${escapeHTML(n.title)}</span>
+                ${n.content ? `<span class="text-xs muted" style="display:block;margin-top:2px">${escapeHTML(n.content.slice(0,140))}</span>` : ""}
+                <span class="text-xs muted">${escapeHTML(cat.label)}</span>
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="edit-task" data-id="${n.id}">✏️</button>
+              <button class="icon-btn-sm shrink0" data-action="delete-task" data-id="${n.id}">🗑️</button>
+            </div>`;
+          }).join("")}
+        </div>`}
+    </div>
+  `;
+}
+
+// ================= RECIPES VIEW =================
+let activeRecipeCategoryId = "all";
+function renderRecipesView(){
+  const el = document.getElementById("recipesView");
+  const openRecipe = openRecipeId ? findRecipe(openRecipeId) : null;
+  const activeRecipes = state.recipes.filter(r => !r.deletedAt);
+  const filtered = activeRecipeCategoryId === "all" ? activeRecipes : activeRecipes.filter(r => r.categoryId === activeRecipeCategoryId);
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">🍳 Recepty</p>
+      <div class="row gap-2">
+        <button class="chip" data-action="open-modal" data-modal="recipeCategories">✏️ Kategorie</button>
+        <button class="btn btn-primary" data-action="open-modal" data-modal="addRecipe">➕ Nový recept</button>
+      </div>
+    </div>
+    <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+      <button class="chip ${activeRecipeCategoryId==='all'?'active':''}" data-action="filter-recipe-category" data-id="all">Vše</button>
+      ${state.recipeCategories.map(c => `<button class="chip ${activeRecipeCategoryId===c.id?'active':''}" data-action="filter-recipe-category" data-id="${c.id}">${escapeHTML(c.name)}</button>`).join("")}
+    </div>
+    ${openRecipe ? `
+      <button class="chip" style="margin-bottom:12px" data-action="close-recipe-detail">← Zpět na seznam</button>
+      <div id="recipeDetailRoot"></div>
+    ` : `
+      ${filtered.length===0 ? `<div class="card card-pad text-sm muted">${state.recipes.length===0 ? "Zatím nemáš žádné recepty. Přidej první a diktuj klidně nahlas 🎙️" : "V téhle kategorii zatím nic není."}</div>` : `
+        <div class="col gap-2">
+          ${filtered.map(r => `
+            <button class="card row gap-3" style="padding:10px 14px;width:100%;text-align:left" data-action="open-recipe" data-id="${r.id}">
+              ${r.coverImage ? `<img src="${r.coverImage}" style="width:48px;height:48px;border-radius:12px;object-fit:cover;flex-shrink:0" />` : `<span style="width:48px;height:48px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.emoji}</span>`}
+              <span class="text-sm font-med text-main grow truncate">${escapeHTML(r.title)}</span>
+            </button>
+          `).join("")}
+        </div>
+      `}
+    `}
+  `;
+  if(openRecipe) renderRecipeDetail();
+}
+function recipeCategoriesModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:340px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Kategorie receptů</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="col gap-2" style="margin-bottom:14px">
+          ${state.recipeCategories.map(c => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:9px 12px">
+              <span class="grow text-sm" style="color:#334155">${escapeHTML(c.name)}</span>
+              <button data-action="delete-recipe-category" data-id="${c.id}" style="color:#fb7185">🗑️</button>
+            </div>`).join("")}
+        </div>
+        <div class="row gap-2">
+          <input id="newRecipeCategoryName" class="field grow" placeholder="např. Rychlovky, Grilování" />
+          <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="newRecipeCategoryName" title="Diktovat">🎙️</button>
+          <button class="icon-btn" style="background:#fb923c;color:#fff" data-action="add-recipe-category">➕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderRecipeDetail(){
+  const el = document.getElementById("recipeDetailRoot");
+  if(!el) return;
+  const r = findRecipe(openRecipeId);
+  if(!r){ el.innerHTML = ""; return; }
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;overflow:hidden">
+      ${r.coverImage ? `
+        <div class="rel">
+          <img src="${r.coverImage}" alt="${escapeAttr(r.title)}" style="width:100%;max-height:280px;object-fit:contain;display:block;background:#0f172a" />
+          <button class="icon-btn-sm" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9)" data-action="remove-recipe-cover" data-id="${r.id}">🗑️</button>
+        </div>
+      ` : `
+        <label class="row gap-2" style="justify-content:center;padding:22px;border:2px dashed #e2e8f0;margin:14px;border-radius:16px;cursor:pointer;color:#94a3b8;font-size:12.5px;font-weight:600">
+          📷 Nahrát fotku hotového pokrmu
+          <input type="file" accept="image/*" style="display:none" data-action="upload-recipe-cover" data-id="${r.id}" />
+        </label>
+      `}
+      <div class="card-pad" style="${r.coverImage?'padding-top:14px':'padding-top:0'}">
+        <div class="row between" style="margin-bottom:8px">
+          <p class="text-xs font-semi muted" style="margin:0">🍳 Recept</p>
+          <div class="row gap-1">
+            <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${r.id}" data-sub="recipe" title="Sdílet recept">↗️</button>
+            <button class="icon-btn-sm" data-action="close-recipe-detail" title="Zavřít">✕</button>
+          </div>
+        </div>
+        <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
+          <span style="font-size:30px">${r.emoji}</span>
+          <div class="grow">
+            <input id="recipeTitleInput-${r.id}" class="field" style="font-size:16px;font-weight:600;border:none;background:transparent;padding:4px 0" value="${escapeAttr(r.title)}" data-recipe-field="title" data-id="${r.id}" />
+            <input id="recipeServingsInput-${r.id}" class="field" style="font-size:12px;border:none;background:transparent;padding:2px 0;color:#94a3b8" placeholder="Počet porcí (nepovinné)" value="${escapeAttr(r.servings||"")}" data-recipe-field="servings" data-id="${r.id}" />
+          </div>
+          <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="recipeTitleInput-${r.id}" title="Diktovat název">🎙️</button>
+          <button class="icon-btn-sm shrink0" data-action="delete-recipe" data-id="${r.id}">🗑️</button>
+        </div>
+        <label class="label">Kategorie</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:12px">
+          ${state.recipeCategories.map(c => `<button class="chip ${r.categoryId===c.id?'active':''}" data-action="set-recipe-category" data-id="${r.id}" data-sub="${c.id}">${escapeHTML(c.name)}</button>`).join("")}
+        </div>
+        <div class="row between" style="align-items:center;margin-bottom:2px">
+          <label class="label" style="margin:0">Popis receptu</label>
+          <button class="icon-btn-sm" data-action="dictate-into" data-target="recipeNotesInput-${r.id}" title="Diktovat popis">🎙️</button>
+        </div>
+        <textarea id="recipeNotesInput-${r.id}" class="field" rows="2" placeholder="Vlastní popis — odkud recept je, na co si dát pozor, tip na servírování…" data-recipe-field="notes" data-id="${r.id}" style="margin-bottom:12px">${escapeHTML(r.notes||"")}</textarea>
+
+        <label class="label">Fotogalerie pokrmu</label>
+        <div class="row gap-2 scrollx" style="padding-bottom:2px;margin-bottom:4px">
+          ${(r.gallery||[]).map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:64px;height:64px;border-radius:12px;object-fit:cover" />
+              <button data-action="remove-recipe-gallery-photo" data-id="${r.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>
+          `).join("")}
+          ${(r.gallery||[]).length < 200 ? `
+            <label class="shrink0" style="width:64px;height:64px;border-radius:12px;border:2px dashed #e2e8f0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:20px;cursor:pointer">
+              ➕
+              <input type="file" accept="image/*" multiple style="display:none" data-action="upload-recipe-gallery" data-id="${r.id}" />
+            </label>` : ""}
+        </div>
+
+        <div class="row gap-2 wrapf" style="margin-top:8px">
+          <button class="btn btn-primary" data-action="start-cooking" data-id="${r.id}">🎙️ Začít vařit (hands-free)</button>
+          <button class="btn btn-soft" data-action="read-recipe" data-id="${r.id}">🔊 Přečíst celý recept</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-bottom:14px">
+      <p class="text-xs font-semi muted" style="margin:0 0 8px">⏱️ Stopky / budík</p>
+      <div class="row gap-2 wrapf" style="margin-bottom:8px">
+        ${[5,10,15,20,30,45,60].map(m => `<button class="chip" data-action="quick-timer" data-id="${m}">${m} min</button>`).join("")}
+      </div>
+      <div class="row gap-2">
+        <input type="number" min="1" id="customTimerMinutes" class="field" style="width:90px" placeholder="min" />
+        <button class="btn btn-soft" data-action="custom-timer">Spustit</button>
+        <button class="icon-btn shrink0" data-action="voice-timer" title="Nastavit stopky hlasem">🎙️</button>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div class="row between" style="margin-bottom:6px">
+        <p class="text-xs font-semi muted" style="margin:0">🧮 Nutriční hodnoty</p>
+        <button id="nutritionBtn-${r.id}" class="chip" data-action="compute-nutrition" data-id="${r.id}">✨ Zkusit AI odhad k surovinám</button>
+      </div>
+      ${(() => {
+        const autoTotal = computeRecipeNutritionTotals(r);
+        const manual = r.nutrition || {};
+        const totalToUse = autoTotal || (r.nutrition ? manual : null);
+        const autoGrams = computeAutoTotalGrams(r);
+        const effectiveGrams = r.totalGrams || autoGrams;
+        const per = scaleNutrition(totalToUse, r.servingGrams, effectiveGrams);
+        return `
+        <p class="text-xs muted" style="margin:0 0 10px">
+          ${autoTotal ? "🥕 U surovin níže vyplň kcal/B/T/S ke každé — automaticky se sečtou." : "Vyplň nutrice u jednotlivých surovin níže (sečte se samo), nebo zadej rovnou celkový součet ručně:"}
+        </p>
+        ${autoTotal ? `
+          <div style="background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:10px">
+            <p class="text-xs font-semi" style="margin:0 0 4px;color:#059669">Celkem za pokrm (automaticky ze surovin)</p>
+            <p class="text-sm" style="margin:0;color:#334155">🔥 ${displayEnergy(autoTotal.calories)} &nbsp; 🥩 ${autoTotal.protein} g &nbsp; 🧈 ${autoTotal.fat} g &nbsp; 🍞 ${autoTotal.carbs} g</p>
+          </div>
+        ` : `
+        <div class="row gap-2 wrapf" style="margin-bottom:10px">
+          <div style="flex:1;min-width:85px"><label class="label">Kalorie (kcal)</label>
+            <input type="number" min="0" class="field" value="${manual.calories ?? ""}" data-recipe-field="nutCalories" data-id="${r.id}" /></div>
+          <div style="flex:1;min-width:85px"><label class="label">Bílkoviny (g)</label>
+            <input type="number" min="0" class="field" value="${manual.protein ?? ""}" data-recipe-field="nutProtein" data-id="${r.id}" /></div>
+          <div style="flex:1;min-width:85px"><label class="label">Tuky (g)</label>
+            <input type="number" min="0" class="field" value="${manual.fat ?? ""}" data-recipe-field="nutFat" data-id="${r.id}" /></div>
+          <div style="flex:1;min-width:85px"><label class="label">Sacharidy (g)</label>
+            <input type="number" min="0" class="field" value="${manual.carbs ?? ""}" data-recipe-field="nutCarbs" data-id="${r.id}" /></div>
+        </div>
+        `}
+        <div class="row gap-2" style="margin-bottom:4px">
+          <div class="grow"><label class="label">Celková hmotnost pokrmu (g)</label>
+            <input type="number" min="1" class="field" value="${effectiveGrams||""}" data-recipe-field="totalGrams" data-id="${r.id}" /></div>
+          <div class="grow"><label class="label">Hmotnost 1 porce (g)</label>
+            <input type="number" min="1" class="field" value="${r.servingGrams||""}" data-recipe-field="servingGrams" data-id="${r.id}" /></div>
+        </div>
+        ${(autoGrams && !r.totalGrams) ? `<p class="text-xs muted" style="margin:0 0 10px">🧮 Automaticky sečteno ze surovin (${autoGrams} g) — uprav, pokud víš přesněji (např. odpar vody při pečení).</p>` : ""}
+        ${per ? `
+          <div style="background:#f8fafc;border-radius:12px;padding:10px 12px">
+            <p class="text-xs font-semi" style="margin:0 0 4px;color:#059669">Na 1 porci (${r.servingGrams} g)</p>
+            <p class="text-sm" style="margin:0;color:#334155">🔥 ${displayEnergy(per.calories)} &nbsp; 🥩 ${per.protein} g &nbsp; 🧈 ${per.fat} g &nbsp; 🍞 ${per.carbs} g</p>
+          </div>` : `<p class="text-xs muted">Vyplň nutrici (surovin nebo ručně) a obě hmotnosti pro přepočet na 1 porci.</p>`}
+        `;
+      })()}
+    </div>
+
+    ${r.sections.map(s => {
+      const doneCount = s.items.filter(i=>i.done).length;
+      return `
+      <div class="card card-pad" style="margin-bottom:12px">
+        <div class="row between" style="margin-bottom:4px">
+          <p class="text-sm font-semi text-main" style="margin:0">${escapeHTML(s.name)} <span class="text-xs muted">(${doneCount}/${s.items.length})</span></p>
+          <button class="icon-btn-sm" data-action="delete-recipe-section" data-id="${r.id}" data-sub="${s.id}">🗑️</button>
+        </div>
+        <button class="chip" style="margin-bottom:8px;${s.isIngredients?'background:#d1fae5;color:#047857':''}" data-action="toggle-section-ingredients" data-id="${r.id}" data-sub="${s.id}">
+          ${s.isIngredients ? "🥕 Suroviny (počítá se do nutričních hodnot)" : "📋 Postup (nepočítá se)"}
+        </button>
+        <div class="col gap-1" style="margin-bottom:8px">
+          ${s.items.map(i => `
+            <div class="col gap-1" style="padding-bottom:${s.isIngredients?'4':'0'}px">
+              <div class="row gap-2">
+                <button data-action="toggle-recipe-item" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" style="width:20px;height:20px;border-radius:5px;border:1.5px solid ${i.done?'var(--accent)':'var(--line)'};background:${i.done?'var(--accent)':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${i.done?'✓':''}</button>
+                <span class="text-sm ${i.done?'strike':''}" style="color:${i.done?'#94a3b8':'#475569'}">${escapeHTML(i.text)}</span>
+                <button data-action="remove-recipe-item" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" style="margin-left:auto;color:#cbd5e1">✕</button>
+              </div>
+              ${s.isIngredients ? `
+                <div class="row gap-1" style="padding-left:28px">
+                  <input type="number" min="0" placeholder="kcal" title="Kalorie" class="field" style="width:50px;font-size:10px;padding:3px 5px" value="${i.nutrition?.calories ?? ''}" data-ing-field="calories" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" />
+                  <input type="number" min="0" placeholder="B g" title="Bílkoviny" class="field" style="width:44px;font-size:10px;padding:3px 5px" value="${i.nutrition?.protein ?? ''}" data-ing-field="protein" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" />
+                  <input type="number" min="0" placeholder="T g" title="Tuky" class="field" style="width:44px;font-size:10px;padding:3px 5px" value="${i.nutrition?.fat ?? ''}" data-ing-field="fat" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" />
+                  <input type="number" min="0" placeholder="S g" title="Sacharidy" class="field" style="width:44px;font-size:10px;padding:3px 5px" value="${i.nutrition?.carbs ?? ''}" data-ing-field="carbs" data-id="${r.id}" data-sub="${s.id}" data-item="${i.id}" />
+                </div>` : ""}
+            </div>`).join("")}
+        </div>
+        <div class="row gap-2">
+          <input id="recipeItemInput-${s.id}" class="field grow" style="font-size:12.5px;padding:7px 12px" placeholder="Přidat surovinu / krok…" />
+          <button class="icon-btn shrink0" data-recipe-dictate-btn data-section-id="${s.id}" data-action="dictate-recipe-item" data-id="${r.id}" data-sub="${s.id}" title="Diktovat">🎙️</button>
+          <button class="icon-btn shrink0" data-action="add-recipe-item" data-id="${r.id}" data-sub="${s.id}">➕</button>
+        </div>
+      </div>`;
+    }).join("")}
+
+    <div class="row gap-2">
+      <input id="newSectionName" class="field grow" placeholder="Nová sekce (např. Náplň, Zdobení…)" />
+      <button class="icon-btn shrink0" data-action="dictate-into" data-target="newSectionName" title="Diktovat">🎙️</button>
+      <button class="icon-btn" style="background:#fb923c;color:#fff" data-action="add-recipe-section" data-id="${r.id}">➕</button>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px" data-action="save-recipe" data-id="${r.id}">💾 Uložit</button>
+  `;
+  updateDictateButtons();
+}
+
+
+function openModal(name){ currentModal = {name}; renderModals(); }
+function openShareModal(taskId){ currentModal = {name:"shareTask", taskId}; renderModals(); }
+function openShareItemModal(itemId, itemType){ currentModal = {name:"shareItem", itemId, itemType}; renderModals(); }
+function openShareItemModal(itemId, itemType){ currentModal = {name:"shareItem", itemId, itemType}; renderModals(); }
+function openTaskQuickView(taskId){ currentModal = {name:"taskQuickView", taskId}; renderModals(); }
+function closeModal(){ currentModal = null; shareOpenId=null; document.getElementById("modalsRoot").innerHTML = ""; }
+
+function renderModals(){
+  const root = document.getElementById("modalsRoot");
+  if(!currentModal){ root.innerHTML = ""; return; }
+  const name = currentModal.name;
+  if(name === "personalityMenu") return; // handled inline in quote widget
+  let html = "";
+  if(name === "overdue") html = overdueDrawerHTML();
+  else if(name === "completed") html = completedDrawerHTML();
+  else if(name === "delegated") html = delegatedDrawerHTML();
+  else if(name === "archive") html = archiveModalHTML();
+  else if(name === "reminderLog") html = reminderLogModalHTML();
+  else if(name === "workoutMonthCalendar") html = workoutMonthCalendarModalHTML();
+  else if(name === "workoutRecurringManager") html = workoutRecurringManagerModalHTML();
+  else if(name === "quickActivity") html = quickActivityModalHTML();
+  else if(name === "mealPhoto") html = mealPhotoModalHTML();
+  else if(name === "confirmRestore") html = confirmRestoreModalHTML();
+  else if(name === "globalSearch") html = globalSearchModalHTML();
+  else if(name === "shoppingList") html = shoppingListModalHTML();
+  else if(name === "nutritionTrends") html = nutritionTrendsModalHTML();
+  else if(name === "shareTask") html = shareTaskModalHTML(currentModal.taskId);
+  else if(name === "shareItem") html = shareItemModalHTML(currentModal.itemId, currentModal.itemType);
+  else if(name === "shareItem") html = shareItemModalHTML(currentModal.itemId, currentModal.itemType);
+  else if(name === "taskQuickView") html = taskQuickViewModalHTML(currentModal.taskId);
+  else if(name === "workoutSession") html = workoutSessionModalHTML();
+  else if(name === "recurringManager") html = recurringManagerModalHTML();
+  else if(name === "foodItemPicker") html = foodItemPickerModalHTML();
+  else if(name === "appearance") html = appearanceModalHTML();
+  else if(name === "categories") html = categoryModalHTML();
+  else if(name === "lists") html = listModalHTML();
+  else if(name === "friends") html = friendModalHTML();
+  else if(name === "workspaceEdit") html = workspaceEditModalHTML();
+  else if(name === "workspaceAdd") html = workspaceAddModalHTML();
+  else if(name === "monthCalendar") html = monthCalendarModalHTML();
+  else if(name === "mealMonthCalendar") html = mealMonthCalendarModalHTML();
+  else if(name === "saveTemplate") html = saveTemplateModalHTML();
+  else if(name === "draw") html = drawModalHTML();
+  else if(name === "addRecipe") html = addRecipeModalHTML();
+  else if(name === "assistantHelp") html = assistantHelpModalHTML();
+  else if(name === "mealHistory") html = mealHistoryModalHTML();
+  else if(name === "mealLabels") html = mealLabelsModalHTML();
+  else if(name === "recipeCategories") html = recipeCategoriesModalHTML();
+  else if(name === "cooking") html = cookingModalHTML();
+  root.innerHTML = html;
+  if(name === "draw") initDrawCanvas();
+}
+
+function overdueDrawerHTML(){
+  const items = overdueTasks();
+  return `
+    <div class="modal-overlay side" data-action="close-modal-bg">
+      <div class="modal-side">
+        <div class="row between" style="margin-bottom:16px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Nedokončené resty</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        ${items.length===0 ? `<p class="text-sm muted">Skvělá práce! Žádné staré resty tě netíží. 🎉</p>` : `
+          <div class="col gap-2">
+            ${items.map(t => {
+              const daysLate = Math.round((parseISODate(todayISO) - parseISODate(t.date))/86400000);
+              return `<div style="background:#f8fafc;border-radius:16px;padding:12px">
+                <div class="row gap-3" style="margin-bottom:8px">
+                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  <div class="grow">
+                    <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
+                    <p class="text-xs" style="margin:0;color:#fb7185;font-weight:600">${t.date} · ${daysLate} ${daysLate===1?'den':daysLate<5?'dny':'dní'} po termínu</p>
+                  </div>
+                </div>
+                <div class="row gap-2">
+                  <button class="chip" style="background:#d1fae5;color:#047857;font-weight:600" data-action="move-today" data-id="${t.id}">Na dnešek →</button>
+                  <input type="date" class="field grow" style="font-size:12px;padding:6px 10px" id="moveDate-${t.id}" />
+                  <button class="chip" data-action="move-date" data-id="${t.id}">Přesunout</button>
+                </div>
+              </div>`;
+            }).join("")}
+          </div>`}
+      </div>
+    </div>`;
+}
+
+function completedDrawerHTML(){
+  const items = completedTasks();
+  return `
+    <div class="modal-overlay side" data-action="close-modal-bg">
+      <div class="modal-side">
+        <div class="row between" style="margin-bottom:16px">
+          <h3 style="margin:0;font-size:18px;color:#334155">✅ Dokončené úkoly</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        ${items.length===0 ? `<p class="text-sm muted">Zatím nic dokončeného — ale bude! 💪</p>` : `
+          <div class="col gap-2">
+            ${items.map(t => `
+              <div style="background:#f8fafc;border-radius:16px;padding:12px" class="row gap-3">
+                <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                <div class="grow">
+                  <p class="text-sm font-med truncate strike" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
+                  <p class="text-xs muted" style="margin:0">${t.date}</p>
+                </div>
+                <button class="chip" data-action="toggle-done" data-id="${t.id}">↩ Vrátit</button>
+                <button class="icon-btn-sm" data-action="delete-task" data-id="${t.id}">🗑️</button>
+              </div>`).join("")}
+          </div>`}
+      </div>
+    </div>`;
+}
+function activeRecurrenceGroups(){
+  const groups = {};
+  state.tasks.filter(t=>t.recurrenceGroupId && !t.deletedAt).forEach(t => {
+    const key = "task:"+t.recurrenceGroupId;
+    if(!groups[key]) groups[key] = {type:"task", groupId:t.recurrenceGroupId, name:t.title, count:0, nextDate:null};
+    groups[key].count++;
+    if(!groups[key].nextDate || t.date < groups[key].nextDate) groups[key].nextDate = t.date;
+  });
+  state.meals.filter(m=>m.recurrenceGroupId && !m.deletedAt).forEach(m => {
+    const key = "meal:"+m.recurrenceGroupId;
+    if(!groups[key]) groups[key] = {type:"meal", groupId:m.recurrenceGroupId, name:m.title, count:0, nextDate:null};
+    groups[key].count++;
+    if(!groups[key].nextDate || m.date < groups[key].nextDate) groups[key].nextDate = m.date;
+  });
+  state.medications.filter(x=>x.recurrenceGroupId && !x.deletedAt).forEach(x => {
+    const key = "med:"+x.recurrenceGroupId;
+    if(!groups[key]) groups[key] = {type:"medication", groupId:x.recurrenceGroupId, name:x.name, count:0, nextDate:null};
+    groups[key].count++;
+    if(!groups[key].nextDate || x.date < groups[key].nextDate) groups[key].nextDate = x.date;
+  });
+  return Object.values(groups).sort((a,b) => (a.nextDate||"").localeCompare(b.nextDate||""));
+}
+function recurringManagerModalHTML(){
+  const groups = activeRecurrenceGroups();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🔁 Aktivní opakování</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 12px">Přehled všech běžících sérií na jednom místě — jedním klikem vypneš celou sérii najednou, ať to nezasypává kalendář donekonečna. Zrušené se přesunou do 🗂️ Archivu, kdyby ses přeci jen rozmyslel/a.</p>
+        ${groups.length===0 ? `<p class="text-sm muted">Momentálně nemáš žádné opakující se úkoly, jídla ani léky.</p>` : `
+        <div class="col gap-2">
+          ${groups.map(g => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+              <span style="font-size:16px">${g.type==="task"?"☑️":g.type==="meal"?"🍽️":"💊"}</span>
+              <div class="grow" style="min-width:0">
+                <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(g.name)}</p>
+                <p class="text-xs muted" style="margin:0">${g.count} výskytů · nejbližší ${g.nextDate}</p>
+              </div>
+              <button class="chip" style="color:#dc2626;flex-shrink:0" data-action="cancel-recurring-group" data-id="${g.groupId}" data-sub="${g.type}">🛑 Zrušit</button>
+            </div>`).join("")}
+        </div>`}
+      </div>
+    </div>`;
+}
+// ================= FOOD ITEMS LIST (reusable ingredient database for the meal planner) =================
+let foodItemFilter = { search:"", categoryId:"all", onlyFavorites:false };
+let expandedFoodItemId = null;
+function findFoodItem(id){ return state.foodItems.find(f => f.id === id); }
+function activeFoodItems(){ return state.foodItems.filter(f => !f.deletedAt); }
+function filteredFoodItems(){
+  let items = activeFoodItems();
+  if(foodItemFilter.onlyFavorites) items = items.filter(f => f.favorite);
+  if(foodItemFilter.categoryId !== "all") items = items.filter(f => f.categoryId === foodItemFilter.categoryId);
+  if(foodItemFilter.search.trim()){
+    const q = foodItemFilter.search.trim().toLowerCase();
+    items = items.filter(f => f.name.toLowerCase().includes(q));
+  }
+  return items.sort((a,b) => a.name.localeCompare(b.name, "cs"));
+}
+function foodCategoryName(id){ return (state.foodCategories.find(c=>c.id===id)||{}).name || "Ostatní"; }
+function addFoodItem(name, categoryId){
+  if(!name || !name.trim()) return null;
+  const cat = categoryId || "fc9";
+  const item = { id:uid(), name:name.trim(), categoryId: cat, favorite:false, deletedAt:null, proteinTier: guessProteinTier(name), proteinUsablePercent: null, unitKind: cat==="fc10" ? "volume" : "weight", nutritionPer100g:{calories:0,protein:0,fat:0,carbs:0} };
+  state.foodItems = [...state.foodItems, item];
+  saveState();
+  expandedFoodItemId = item.id; // jump straight into editing macros for the new item
+  return item;
+}
+function updateFoodItem(id, patch){
+  state.foodItems = state.foodItems.map(f => f.id===id ? {...f, ...patch} : f);
+  saveState();
+}
+function setFoodItemNutrition(id, field, value){
+  const f = findFoodItem(id); if(!f) return;
+  updateFoodItem(id, { nutritionPer100g: { calories:0, protein:0, fat:0, carbs:0, ...(f.nutritionPer100g||{}), [field]: Number(value)||0 } });
+}
+function toggleFoodItemFavorite(id){
+  const f = findFoodItem(id); if(!f) return;
+  updateFoodItem(id, { favorite: !f.favorite });
+  renderModals();
+}
+function deleteFoodItem(id){
+  updateFoodItem(id, { deletedAt: Date.now() });
+  if(expandedFoodItemId === id) expandedFoodItemId = null;
+  showToast("Přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+  renderModals();
+}
+function restoreFoodItem(id){ updateFoodItem(id, {deletedAt:null}); showToast("Obnoveno ✓"); }
+function permanentlyDeleteFoodItem(id){ state.foodItems = state.foodItems.filter(f=>f.id!==id); saveState(); }
+function insertFoodItemIntoMeal(foodItemId, amount, unit){
+  const f = findFoodItem(foodItemId); if(!f) return;
+  if(!mealDraft) resetMealDraft();
+  const isVolume = f.unitKind === "volume";
+  const amountMl = isVolume ? Math.max(1, toMl(amount, unit || "ml")) : null;
+  const g = isVolume ? amountMl : Math.max(1, Number(amount) || 100);
+  const n = f.nutritionPer100g || {calories:0,protein:0,fat:0,carbs:0};
+  const ratio = g / 100;
+  const item = {
+    id: uid(), text: f.name, grams: g, unit: isVolume ? "ml" : "g",
+    proteinTier: f.proteinTier || guessProteinTier(f.name),
+    proteinUsablePercent: f.proteinUsablePercent ?? null,
+    nutrition: {
+      calories: Math.round((n.calories||0)*ratio),
+      protein: Math.round((n.protein||0)*ratio*10)/10,
+      fat: Math.round((n.fat||0)*ratio*10)/10,
+      carbs: Math.round((n.carbs||0)*ratio*10)/10,
+    },
+  };
+  mealDraft.customItems = [...mealDraft.customItems, item];
+  showToast(`${f.name} přidáno ✓`);
+  renderMealsView();
+}
+async function estimateFoodItemNutritionAI(id){
+  const f = findFoodItem(id); if(!f) return;
+  const cached = getCachedFoodNutrition(f.name);
+  if(cached){
+    updateFoodItem(id, { nutritionPer100g: {
+      calories: cached.caloriesPer100, protein: cached.proteinPer100, fat: cached.fatPer100, carbs: cached.carbsPer100,
+    }});
+    showToast("✅ Vyplněno z paměti appky — zdarma, bez AI ⚡");
+    renderModals();
+    return;
+  }
+  const btn = document.getElementById("foodItemNutAiBtn-"+id);
+  if(btn){ btn.disabled = true; btn.textContent = "✨ …"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 300,
+        messages: [{ role:"user", content:
+          `Odhadni nutriční hodnoty na 100 g pro potravinu: "${f.name}"\n\nOdpověz POUZE čistým JSON objektem, bez markdown a bez dalšího textu, přesně v tomto tvaru:\n{"calories": číslo, "protein": číslo, "fat": číslo, "carbs": číslo}\ncalories jsou kcal, protein/fat/carbs jsou gramy — vše na 100 g potraviny.`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = text.replace(/```json|```/g,"").trim();
+    const v = JSON.parse(cleaned);
+    const nutritionPer100g = {
+      calories: Math.round(Number(v.calories))||0,
+      protein: Math.round((Number(v.protein)||0)*10)/10,
+      fat: Math.round((Number(v.fat)||0)*10)/10,
+      carbs: Math.round((Number(v.carbs)||0)*10)/10,
+    };
+    updateFoodItem(id, { nutritionPer100g });
+    cacheFoodNutrition(f.name, 100, nutritionPer100g); // learn for next time
+    showToast("Makra doplněna ✨ — uprav si klidně ručně");
+    renderModals();
+  }catch(e){
+    showToast("AI odhad teď není dostupný — vyplň makra ručně.");
+  }finally{
+    const btn2 = document.getElementById("foodItemNutAiBtn-"+id);
+    if(btn2){ btn2.disabled = false; btn2.textContent = "✨ AI odhad"; }
+  }
+}
+function foodItemPickerModalHTML(){
+  const items = filteredFoodItems();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:440px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">📋 Seznam jídel</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="row gap-2" style="margin-bottom:8px">
+          <input id="foodItemSearchInput" class="field grow" placeholder="Hledat potravinu…" value="${escapeAttr(foodItemFilter.search)}" data-food-field="search" />
+          <button class="chip ${foodItemFilter.onlyFavorites?'active':''}" data-action="toggle-food-favorites-filter">⭐ Oblíbené</button>
+        </div>
+        <div class="row gap-2 wrapf scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          <button class="chip ${foodItemFilter.categoryId==='all'?'active':''}" data-action="set-food-category-filter" data-id="all">Vše</button>
+          ${state.foodCategories.map(c => `<button class="chip ${foodItemFilter.categoryId===c.id?'active':''}" data-action="set-food-category-filter" data-id="${c.id}">${escapeHTML(c.name)}</button>`).join("")}
+        </div>
+        <div class="row gap-2" style="margin-bottom:12px">
+          <input id="newFoodItemNameInput" class="field grow" placeholder="➕ Přidat novou potravinu do seznamu…" />
+          <button class="icon-btn shrink0" data-action="add-food-item-quick">➕</button>
+        </div>
+        <div class="col gap-2" style="max-height:52vh;overflow-y:auto">
+          ${items.length===0 ? `<p class="text-sm muted">Nic nenalezeno — zkus jiné hledání nebo filtr.</p>` : items.map(f => {
+            const n = f.nutritionPer100g || {};
+            const expanded = expandedFoodItemId === f.id;
+            return `
+            <div style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+              <div class="row gap-2" style="align-items:center">
+                <button data-action="toggle-food-favorite" data-id="${f.id}" style="font-size:15px;flex-shrink:0">${f.favorite?'⭐':'☆'}</button>
+                <div class="grow" style="min-width:0">
+                  <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(f.name)}</p>
+                  <p class="text-xs muted" style="margin:0">${foodCategoryName(f.categoryId)} · ${displayEnergy(n.calories||0)}/100${f.unitKind==="volume"?"ml":"g"}</p>
+                </div>
+                <button class="icon-btn-sm shrink0" data-action="toggle-food-item-expand" data-id="${f.id}">${expanded?'▾':'✏️'}</button>
+              </div>
+              ${expanded ? `
+                <div class="col gap-2" style="margin-top:8px">
+                  <div class="row gap-2">
+                    <select class="field" style="font-size:12px" data-food-item-field="categoryId" data-id="${f.id}">
+                      ${state.foodCategories.map(c => `<option value="${c.id}" ${f.categoryId===c.id?'selected':''}>${escapeHTML(c.name)}</option>`).join("")}
+                    </select>
+                    <button class="icon-btn-sm shrink0" data-action="delete-food-item" data-id="${f.id}">🗑️</button>
+                  </div>
+                  <div class="row gap-1">
+                    <button class="chip ${f.unitKind!=="volume"?'active':''}" style="font-size:10px" data-action="set-food-item-unit-kind" data-id="${f.id}" data-sub="weight">⚖️ Váha (g)</button>
+                    <button class="chip ${f.unitKind==="volume"?'active':''}" style="font-size:10px" data-action="set-food-item-unit-kind" data-id="${f.id}" data-sub="volume">🧴 Objem (ml)</button>
+                  </div>
+                  <p class="text-xs muted" style="margin:0">Makra na 100 ${f.unitKind==="volume"?"ml":"g"}:</p>
+                  <div class="row gap-1 wrapf">
+                    <input type="number" min="0" placeholder="kcal" class="field" style="width:60px;font-size:11px;padding:5px 7px" value="${n.calories ?? ''}" data-food-item-field="calories" data-id="${f.id}" />
+                    <input type="number" min="0" placeholder="B g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${n.protein ?? ''}" data-food-item-field="protein" data-id="${f.id}" />
+                    <input type="number" min="0" placeholder="T g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${n.fat ?? ''}" data-food-item-field="fat" data-id="${f.id}" />
+                    <input type="number" min="0" placeholder="S g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${n.carbs ?? ''}" data-food-item-field="carbs" data-id="${f.id}" />
+                    <button id="foodItemNutAiBtn-${f.id}" class="chip" style="font-size:11px" data-action="estimate-food-item-nutrition" data-id="${f.id}">✨ AI odhad</button>
+                  </div>
+                </div>
+              ` : `
+                <div class="row gap-2" style="margin-top:6px">
+                  <input type="number" min="1" class="field" style="width:70px;font-size:12px" value="${f.unitKind==='volume'?250:100}" id="foodInsertGrams-${f.id}" />
+                  ${f.unitKind==='volume' ? `
+                    <select class="field" style="width:auto;font-size:12px" id="foodInsertUnit-${f.id}">
+                      ${VOLUME_UNITS.map(u => `<option value="${u.id}" ${u.id==='ml'?'selected':''}>${u.label}</option>`).join("")}
+                    </select>
+                  ` : `<span class="text-xs muted" style="align-self:center">g</span>`}
+                  <button class="btn btn-primary grow" style="padding:6px 10px;font-size:12px" data-action="insert-food-item" data-id="${f.id}">➕ Přidat do jídla</button>
+                </div>
+              `}
+            </div>`;
+          }).join("")}
+        </div>
+      </div>
+    </div>`;
+}
+
+function taskQuickViewModalHTML(taskId){
+  const t = state.tasks.find(x => x.id === taskId);
+  if(!t) return `<div class="modal-overlay" data-action="close-modal-bg"></div>`;
+  const cat = catById(t.categoryId);
+  const checklist = t.checklist || [];
+  const doneCount = checklist.filter(c=>c.done).length;
+  const meta = priorityMeta(t.priority);
+  const taskFriends = (t.friendIds||[]).map(friendById).filter(Boolean);
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:420px">
+        <div class="row between" style="margin-bottom:10px">
+          <span class="chip" style="background:${meta.dot}22;color:${meta.dot};font-weight:700">${meta.tag}</span>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-lg font-semi" style="margin:0 0 4px;word-break:break-word;color:#1e293b">${escapeHTML(t.title)}</p>
+        <p class="text-xs muted" style="margin:0 0 14px">${cat.emoji} ${escapeHTML(cat.label)} · ${escapeHTML(listById(t.listId).name)} · 📅 ${t.date}</p>
+        ${t.content ? `<p class="text-sm" style="margin:0 0 14px;white-space:pre-wrap;word-break:break-word;color:#475569;line-height:1.5">${escapeHTML(t.content)}</p>` : ""}
+        ${(t.images && t.images.length) ? `
+          <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+            ${t.images.map(src => `<img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;flex-shrink:0" />`).join("")}
+          </div>` : ""}
+        ${t.drawings && t.drawings.length ? `
+          <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+            ${t.drawings.map(src => `<img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid #e2e8f0" />`).join("")}
+          </div>` : ""}
+        ${checklist.length ? `
+          <label class="label">Checklist (${doneCount}/${checklist.length})</label>
+          <div class="col gap-1.5" style="margin-bottom:14px">
+            ${checklist.map(s => `
+              <div class="row gap-2">
+                <button data-action="toggle-subtask" data-id="${t.id}" data-sub="${s.id}" style="width:20px;height:20px;border-radius:5px;border:1.5px solid ${s.done?'var(--accent)':'var(--line)'};background:${s.done?'var(--accent)':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${s.done?'✓':''}</button>
+                <span class="text-sm ${s.done?'strike':''}" style="color:${s.done?'#94a3b8':'#475569'}">${escapeHTML(s.text)}</span>
+              </div>`).join("")}
+          </div>` : ""}
+        ${(t.files && t.files.length) ? `
+          <div class="col gap-1" style="margin-bottom:14px">
+            ${t.files.map(f => `
+              <div class="row gap-2" style="background:#f8fafc;border-radius:12px;padding:7px 10px">
+                <span style="font-size:14px">📎</span>
+                <span class="text-xs truncate grow" style="color:#334155">${escapeHTML(f.name)}</span>
+                <button class="icon-btn-sm shrink0" data-action="download-task-file" data-id="${t.id}" data-sub="${f.id}" style="width:24px;height:24px">⬇️</button>
+              </div>`).join("")}
+          </div>` : ""}
+        ${taskFriends.length ? `<p class="text-xs" style="margin:0 0 14px;color:#6366f1;font-weight:600">👥 ${taskFriends.map(f=>escapeHTML(f.name)).join(", ")}</p>` : ""}
+        ${t.reminder && t.reminder.enabled ? `<p class="text-xs" style="margin:0 0 14px;color:#f59e0b;font-weight:600">${reminderSummary(t)}</p>` : ""}
+        <div class="row gap-2">
+          <button class="btn btn-soft grow" style="justify-content:center" data-action="toggle-done" data-id="${t.id}">${t.done?'↩️ Vrátit jako nesplněný':'✅ Označit hotovo'}</button>
+          <button class="btn btn-primary grow" style="justify-content:center" data-action="edit-task-from-quickview" data-id="${t.id}">✏️ Upravit</button>
+        </div>
+      </div>
+    </div>`;
+}
+let archiveSelected = new Set(); // "type:id" keys
+const ARCHIVE_HANDLERS = {
+  task: { restore: restoreTask, del: permanentlyDeleteTask },
+  note: { restore: restoreTask, del: permanentlyDeleteTask },
+  recipe: { restore: restoreRecipe, del: permanentlyDeleteRecipe },
+  meal: { restore: restoreMeal, del: permanentlyDeleteMeal },
+  document: { restore: restoreDocument, del: permanentlyDeleteDocument },
+  medication: { restore: restoreMedication, del: permanentlyDeleteMedication },
+  foodItem: { restore: restoreFoodItem, del: permanentlyDeleteFoodItem },
+  workout: { restore: restoreWorkout, del: permanentlyDeleteWorkout },
+};
+function toggleArchiveSelect(key){
+  if(archiveSelected.has(key)) archiveSelected.delete(key); else archiveSelected.add(key);
+  renderModals();
+}
+function archiveSelectAll(allKeys){
+  archiveSelected = new Set(allKeys);
+  renderModals();
+}
+function archiveClearSelection(){
+  archiveSelected = new Set();
+  renderModals();
+}
+function archiveBulkRestore(){
+  archiveSelected.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.restore(id);
+  });
+  const count = archiveSelected.size;
+  archiveSelected = new Set();
+  showToast(`Obnoveno ${count} položek ✓`);
+  renderModals(); renderAll();
+}
+function archiveBulkDelete(){
+  archiveSelected.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.del(id);
+  });
+  const count = archiveSelected.size;
+  archiveSelected = new Set();
+  showToast(`Trvale smazáno ${count} položek`);
+  renderModals();
+}
+function archiveDeleteAll(allKeys){
+  allKeys.forEach(key => {
+    const [type, id] = key.split(":");
+    const h = ARCHIVE_HANDLERS[type];
+    if(h) h.del(id);
+  });
+  archiveSelected = new Set();
+  showToast(`Archiv vyprázdněn (${allKeys.length} položek smazáno natrvalo)`);
+  renderModals();
+}
+function archiveModalHTML(){
+  const deletedTasks = state.tasks.filter(t => t.deletedAt && t.type === "task");
+  const deletedNotes = state.tasks.filter(t => t.deletedAt && t.type === "note");
+  const deletedRecipes = state.recipes.filter(r => r.deletedAt);
+  const deletedMeals = state.meals.filter(m => m.deletedAt);
+  const deletedDocs = state.documents.filter(d => d.deletedAt);
+  const deletedMeds = state.medications.filter(m => m.deletedAt);
+  const deletedFoodItems = state.foodItems.filter(f => f.deletedAt);
+  const deletedWorkouts = state.workouts.filter(w => w.deletedAt);
+  const totalCount = deletedTasks.length + deletedNotes.length + deletedRecipes.length + deletedMeals.length + deletedDocs.length + deletedMeds.length + deletedFoodItems.length + deletedWorkouts.length;
+  const allKeys = [
+    ...deletedTasks.map(t=>`task:${t.id}`), ...deletedNotes.map(n=>`note:${n.id}`),
+    ...deletedRecipes.map(r=>`recipe:${r.id}`), ...deletedMeals.map(m=>`meal:${m.id}`),
+    ...deletedDocs.map(d=>`document:${d.id}`), ...deletedMeds.map(m=>`medication:${m.id}`),
+    ...deletedFoodItems.map(f=>`foodItem:${f.id}`), ...deletedWorkouts.map(w=>`workout:${w.id}`),
+  ];
+
+  const row = (type, id, label) => {
+    const key = `${type}:${id}`;
+    const selected = archiveSelected.has(key);
+    return `
+    <div class="row gap-3" style="background:${selected?'#eff6ff':'#f8fafc'};border-radius:14px;padding:10px 12px">
+      <button data-action="toggle-archive-select" data-id="${key}" style="width:20px;height:20px;border-radius:6px;border:2px solid ${selected?'#3b82f6':'#cbd5e1'};background:${selected?'#3b82f6':'transparent'};color:#fff;font-size:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${selected?'✓':''}</button>
+      <span class="grow text-sm truncate" style="color:#334155">${escapeHTML(label)}</span>
+      <button class="chip" data-action="${ARCHIVE_HANDLERS[type] ? 'restore-archive-item' : ''}" data-id="${type}" data-sub="${id}">↩️ Obnovit</button>
+      <button class="icon-btn-sm" data-action="delete-archive-item" data-id="${type}" data-sub="${id}" title="Smazat natrvalo" style="color:#dc2626">🗑️</button>
+    </div>`;
+  };
+  const section = (title, items, type, labelFn) => items.length ? `
+    <p class="text-xs font-semi muted" style="margin:14px 0 6px">${title} (${items.length})</p>
+    <div class="col gap-2">${items.map(it => row(type, it.id, labelFn(it))).join("")}</div>
+  ` : "";
+
+  return `
+    <div class="modal-overlay side" data-action="close-modal-bg">
+      <div class="modal-side">
+        <div class="row between" style="margin-bottom:6px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🗂️ Archiv</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 10px">Smazané položky tu zůstávají, dokud je trvale nesmažeš — kdykoliv je jde vrátit zpět.</p>
+        ${totalCount===0 ? `<p class="text-sm muted">Archiv je zatím prázdný.</p>` : `
+          <div class="row gap-2 wrapf" style="margin-bottom:10px">
+            <button class="chip" data-action="archive-select-all">☑️ Vybrat vše</button>
+            ${archiveSelected.size ? `<button class="chip" data-action="archive-clear-selection">✕ Zrušit výběr (${archiveSelected.size})</button>` : ""}
+            <button class="chip" style="color:#dc2626;margin-left:auto" data-action="archive-delete-all">🗑️ Vysypat vše natrvalo</button>
+          </div>
+          ${archiveSelected.size ? `
+            <div class="row gap-2" style="margin-bottom:12px;background:#eff6ff;border-radius:12px;padding:8px 10px">
+              <button class="chip" style="background:#dbeafe;color:#1d4ed8" data-action="archive-bulk-restore">↩️ Obnovit vybrané (${archiveSelected.size})</button>
+              <button class="chip" style="background:#fee2e2;color:#dc2626" data-action="archive-bulk-delete">🗑️ Smazat vybrané natrvalo</button>
+            </div>
+          ` : ""}
+        `}
+        ${section("☑️ Úkoly", deletedTasks, "task", t=>t.title)}
+        ${section("📝 Poznámky", deletedNotes, "note", n=>n.title)}
+        ${section("🍳 Recepty", deletedRecipes, "recipe", r=>r.title)}
+        ${section("🍽️ Jídelníček", deletedMeals, "meal", m=>m.title)}
+        ${section("📁 Dokumenty", deletedDocs, "document", d=>d.title)}
+        ${section("💊 Léky, vitamíny, doplňky", deletedMeds, "medication", m=>m.name + (m.dosage?" — "+m.dosage:""))}
+        ${section("📋 Seznam jídel", deletedFoodItems, "foodItem", f=>f.name)}
+        ${section("🏋️ Trénink", deletedWorkouts, "workout", w=>w.title)}
+      </div>
+    </div>`;
+}
+function delegatedDrawerHTML(){
+  const items = delegatedTasks();
+  const linkShared = state.tasks.filter(t => t.shareId && !t.deletedAt);
+  return `
+    <div class="modal-overlay side" data-action="close-modal-bg">
+      <div class="modal-side">
+        <div class="row between" style="margin-bottom:6px">
+          <h3 style="margin:0;font-size:18px;color:#334155">👥 Delegované úkoly</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Úkoly, na kterých se s tebou podílí i někdo jiný. Klepnutím na jméno potvrdíš, že tu svou část dokončil/a.</p>
+        ${items.length===0 ? `<p class="text-sm muted" style="margin-bottom:16px">Zatím jsi nikomu žádný úkol nepřiřadil/a. U úkolu otevři "Přátelé" ve formuláři, nebo ho ↗️ pošli kamarádovi.</p>` : `
+          <div class="col gap-2" style="margin-bottom:16px">
+            ${items.map(t => {
+              const friends = (t.friendIds||[]).map(friendById).filter(Boolean);
+              return `
+              <div style="background:#f8fafc;border-radius:16px;padding:12px">
+                <div class="row gap-3" style="margin-bottom:8px">
+                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  <div class="grow">
+                    <p class="text-sm font-med truncate ${t.done?'strike':''}" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
+                    <p class="text-xs muted" style="margin:0">${t.date} ${t.done?'· hotovo':''}</p>
+                  </div>
+                </div>
+                <div class="row gap-1.5 wrapf">
+                  ${friends.map(f => {
+                    const confirmed = (t.confirmedFriendIds||[]).includes(f.id);
+                    return `<button data-action="toggle-friend-confirm" data-id="${t.id}" data-sub="${f.id}" class="chip" style="font-size:11px;${confirmed?'background:#d1fae5;color:#047857':'background:#fff;color:#64748b'}">${confirmed?'✓':'○'} ${escapeHTML(f.name)}</button>`;
+                  }).join("")}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>`}
+
+        <div class="row between" style="margin-bottom:6px">
+          <p class="text-xs font-semi muted" style="margin:0">🔗 Poslané odkazem</p>
+          <button class="chip" data-action="refresh-shared-statuses">🔄 Zkontrolovat stav</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 10px">Úkoly poslané odkazem (WhatsApp, e-mail…) — appka sama pozná, když si je kamarád otevře, přijme nebo dokončí, i když nemáte propojené účty.</p>
+        ${linkShared.length===0 ? `<p class="text-sm muted">Zatím jsi žádný úkol takhle neposlal/a — u úkolu klikni na ↗️.</p>` : `
+          <div class="col gap-2">
+            ${linkShared.map(t => `
+              <div style="background:#f8fafc;border-radius:16px;padding:12px">
+                <div class="row gap-3" style="margin-bottom:6px">
+                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  <div class="grow">
+                    <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
+                    <p class="text-xs muted" style="margin:0">${t.date}</p>
+                  </div>
+                </div>
+                <p class="text-xs" style="margin:0;color:#059669;font-weight:600">${shareStatusLabel(t.sharedStatus, t.sharedAccepterName)}</p>
+              </div>`).join("")}
+          </div>`}
+      </div>
+    </div>`;
+}
+
+function appearanceModalHTML(){
+  const ws = getWorkspace();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:4px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Vzhled — ${ws.emoji} ${escapeHTML(ws.name)}</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Každý kalendář si můžeš přizpůsobit zvlášť.</p>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          ${Object.entries(THEME_PRESETS).map(([key,t]) => `
+            <button class="theme-swatch ${ws.theme===key?'sel':''}" data-action="set-theme" data-id="${key}">
+              <div class="preview ${key==='photo' && ws.customBg ? '' : 'theme-'+key}" style="${key==='photo'&&ws.customBg?`background-image:url(${ws.customBg});background-size:cover;background-position:center`:''}"></div>
+              <p>${t.name}</p>
+            </button>`).join("")}
+        </div>
+        <div style="margin-top:14px">
+          <label class="chip" style="display:flex;justify-content:center;padding:12px;border:2px dashed #cbd5e1;border-radius:16px;cursor:pointer;background:#f8fafc">
+            📤 Nahrát vlastní fotku pozadí
+            <input type="file" accept="image/*" style="display:none" data-action="upload-bg" />
+          </label>
+          <p class="text-xs muted" style="margin-top:6px">Karty dostanou jemný skleněný efekt, aby byl text čitelný.</p>
+        </div>
+        <div style="margin-top:16px">
+          <p class="text-xs muted" style="margin-bottom:6px">Barevný akcent kalendáře</p>
+          <div class="row gap-2 wrapf">
+            ${ACCENTS.map(a => `<button class="accent-swatch ${ws.accent===a?'sel':''}" style="background:linear-gradient(135deg,${a})" data-action="set-accent" data-id="${a}"></button>`).join("")}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function categoryModalHTML(){
+  const ws = getWorkspace();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Vlastní aktivity — ${ws.emoji} ${escapeHTML(ws.name)}</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="col gap-2" style="margin-bottom:14px">
+          ${ws.categories.map(c => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:9px 12px">
+              <span style="font-size:19px">${c.emoji}</span>
+              <span class="grow text-sm" style="color:#334155">${escapeHTML(c.label)}</span>
+              <button data-action="delete-category" data-id="${c.id}" style="color:#fb7185">🗑️</button>
+            </div>`).join("")}
+        </div>
+        <div class="row gap-2">
+          <input id="newCatEmoji" class="field" style="width:56px;text-align:center;font-size:18px" maxlength="4" value="✨" />
+          <input id="newCatLabel" class="field grow" placeholder="Název aktivity (např. Zahrada)" />
+          <button class="icon-btn" style="background:#34d399;color:#fff" data-action="add-category">➕</button>
+        </div>
+        <p class="text-xs muted" style="margin-top:8px">Vlož emoji přímo z klávesnice telefonu a napiš, co pro tebe představuje.</p>
+      </div>
+    </div>`;
+}
+
+function listModalHTML(){
+  const ws = getWorkspace();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Seznamy — ${ws.emoji} ${escapeHTML(ws.name)}</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="col gap-2" style="margin-bottom:14px">
+          ${ws.lists.map(l => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:9px 12px">
+              <span class="grow text-sm" style="color:#334155">${escapeHTML(l.name)}</span>
+              <button data-action="delete-list" data-id="${l.id}" style="color:#fb7185">🗑️</button>
+            </div>`).join("")}
+        </div>
+        <div class="row gap-2">
+          <input id="newListName" class="field grow" placeholder="Nový seznam (např. Cestování)" />
+          <button class="icon-btn" style="background:#34d399;color:#fff" data-action="add-list">➕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function friendModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Přátelé</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin-bottom:12px">Přidej reálné kamarády a přiřaď je k úkolům. S telefonním číslem (ve tvaru +420...) jim úkol pošleš rovnou na WhatsApp jedním klikem.</p>
+        <div class="col gap-2" style="margin-bottom:14px">
+          ${state.friends.map(f => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:9px 12px">
+              <span style="font-size:19px">${f.emoji}</span>
+              <div class="grow">
+                <span class="text-sm" style="color:#334155;display:block">${escapeHTML(f.name)}</span>
+                ${f.phone ? `<span class="text-xs muted">📱 ${escapeHTML(f.phone)}</span>` : `<span class="text-xs muted">bez telefonu — půjde sdílet přes obecné „Sdílet“</span>`}
+              </div>
+              <button data-action="delete-friend" data-id="${f.id}" style="color:#fb7185">🗑️</button>
+            </div>`).join("")}
+          ${state.friends.length===0 ? `<p class="text-xs muted">Zatím žádní přátelé.</p>` : ""}
+        </div>
+        <label class="label">Ikona</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:10px" id="newFriendEmojiPicker">
+          ${FRIEND_EMOJIS.map((e,i) => `<button class="emoji-btn ${i===0?'active':''}" style="width:38px;height:38px" data-action="pick-friend-emoji" data-id="${e}">${e}</button>`).join("")}
+        </div>
+        <div class="row gap-2" style="margin-bottom:8px">
+          <input id="newFriendName" class="field grow" placeholder="Jméno kamaráda" />
+        </div>
+        <div class="row gap-2">
+          <input id="newFriendPhone" class="field grow" placeholder="Telefon s předvolbou (nepovinné, např. +420...)" />
+          <button class="icon-btn" style="background:#34d399;color:#fff" data-action="add-friend">➕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function workspaceEditModalHTML(){
+  const ws = getWorkspace();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Upravit kalendář</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <label class="label">Název</label>
+        <input class="field" style="margin-bottom:12px" value="${escapeAttr(ws.name)}" data-field="wsName" />
+        <label class="label">Ikona</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:16px">
+          ${WORKSPACE_EMOJIS.map(e => `<button class="emoji-btn ${ws.emoji===e?'active':''}" style="width:42px;height:42px" data-action="set-ws-emoji" data-id="${e}">${e}</button>`).join("")}
+        </div>
+        <button class="btn" style="width:100%;justify-content:center;background:#fff1f2;color:#fb7185;font-weight:600" data-action="delete-workspace">🗑️ Smazat tento kalendář</button>
+      </div>
+    </div>`;
+}
+
+function workspaceAddModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Nový kalendář</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <label class="label">Název (např. Studium, Rodina, Projekt X)</label>
+        <input id="newWsName" class="field" style="margin-bottom:12px" placeholder="Název kalendáře" />
+        <label class="label">Ikona</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:16px" id="newWsEmojiPicker">
+          ${WORKSPACE_EMOJIS.map((e,i) => `<button class="emoji-btn ${i===0?'active':''}" style="width:42px;height:42px" data-action="pick-new-ws-emoji" data-id="${e}">${e}</button>`).join("")}
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="add-workspace">Vytvořit kalendář</button>
+      </div>
+    </div>`;
+}
+
+function saveTemplateModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:340px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Uložit jako šablonu</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <label class="label">Název šablony</label>
+        <input id="newTplName" class="field" style="margin-bottom:14px" placeholder="např. Týdenní report" />
+        <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="save-template">Uložit šablonu</button>
+      </div>
+    </div>`;
+}
+
+function mealMonthCalendarModalHTML(){
+  const first = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
+  const startOffset = (first.getDay()+6)%7;
+  const daysInMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 0).getDate();
+  const cells = [];
+  for(let i=0;i<startOffset;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), d));
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:440px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">${MONTHS[monthCursor.getMonth()]} ${monthCursor.getFullYear()}</h3>
+          <div class="row gap-1">
+            <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="month-nav" data-id="-1">‹</button>
+            <button class="chip" data-action="month-nav" data-id="today">Dnes</button>
+            <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="month-nav" data-id="1">›</button>
+            <button class="icon-btn-sm" data-action="close-modal">✕</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:10px;font-weight:600;color:#94a3b8;margin-bottom:4px">
+          ${["Po","Út","St","Čt","Pá","So","Ne"].map(d=>`<span>${d}</span>`).join("")}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">
+          ${cells.map(d => {
+            if(!d) return `<div></div>`;
+            const iso = toISO(d); const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+            const items = mealsForDate(iso);
+            const anyUneaten = items.some(m=>!m.eaten);
+            return `<button data-action="pick-meal-month-day" data-id="${iso}" class="rel" style="aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;${isSelected?'background:var(--accent);color:#fff;font-weight:600':isToday?'background:var(--accent-soft);color:var(--accent);font-weight:600':'color:var(--ink2)'}">
+              ${d.getDate()}
+              <div style="display:flex;gap:2px;margin-top:2px;height:4px">${items.slice(0,3).map(m=>`<span style="width:4px;height:4px;border-radius:999px;background:${isSelected?'rgba(255,255,255,0.8)':(m.eaten?'#34d399':'#fbbf24')}"></span>`).join("")}</div>
+            </button>`;
+          }).join("")}
+        </div>
+        <p class="text-xs muted" style="margin-top:12px">🟡 naplánováno · 🟢 snědeno. Klikni na den pro výběr.</p>
+      </div>
+    </div>`;
+}
+
+function workoutsByDate(){
+  const byDate = {};
+  activeWorkouts().forEach(w => { (byDate[w.date] = byDate[w.date] || []).push(w); });
+  return byDate;
+}
+function workoutMonthCalendarModalHTML(){
+  const byDate = workoutsByDate();
+  const first = new Date(workoutMonthCursor.getFullYear(), workoutMonthCursor.getMonth(), 1);
+  const startOffset = (first.getDay()+6)%7;
+  const daysInMonth = new Date(workoutMonthCursor.getFullYear(), workoutMonthCursor.getMonth()+1, 0).getDate();
+  const cells = [];
+  for(let i=0;i<startOffset;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(new Date(workoutMonthCursor.getFullYear(), workoutMonthCursor.getMonth(), d));
+  const MAX_SHOWN = 3;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:480px;padding:16px 10px">
+        <div class="row between" style="margin-bottom:12px;padding:0 6px">
+          <h3 style="margin:0;font-size:17px;color:#334155">${MONTHS[workoutMonthCursor.getMonth()]} ${workoutMonthCursor.getFullYear()}</h3>
+          <div class="row gap-1">
+            <button class="icon-btn-sm btn-ghost-card" style="width:28px;height:28px" data-action="workout-month-nav" data-id="-1">‹</button>
+            <button class="chip" style="font-size:11px;padding:5px 10px" data-action="workout-month-nav" data-id="today">Dnes</button>
+            <button class="icon-btn-sm btn-ghost-card" style="width:28px;height:28px" data-action="workout-month-nav" data-id="1">›</button>
+            <button class="icon-btn-sm" data-action="close-modal">✕</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;align-items:stretch">
+          ${["Po","Út","St","Čt","Pá","So","Ne"].map(d=>`<span style="text-align:center;font-size:9px;font-weight:700;color:#94a3b8;padding-bottom:3px;min-width:0">${d}</span>`).join("")}
+          ${cells.map(d => {
+            if(!d) return `<div></div>`;
+            const iso = toISO(d); const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+            const items = byDate[iso]||[];
+            const shown = items.slice(0, MAX_SHOWN);
+            const extra = items.length - shown.length;
+            const bg = isSelected ? "background:var(--accent);color:#fff" : isToday ? "background:var(--accent-soft)" : "background:var(--bg)";
+            const border = isToday && !isSelected ? "border:1.5px solid #38bdf8" : "border:1px solid transparent";
+            const numColor = isSelected ? "#fff" : isToday ? "#0369a1" : "#475569";
+            return `<button data-action="pick-workout-month-day" data-id="${iso}" class="rel" style="min-width:0;width:100%;box-sizing:border-box;min-height:58px;border-radius:9px;padding:3px 2px 2px;display:flex;flex-direction:column;align-items:stretch;text-align:left;${bg};${border}">
+              <div class="row between" style="padding:0 2px;margin-bottom:1px;min-width:0">
+                <span style="font-size:10px;font-weight:700;color:${numColor}">${d.getDate()}</span>
+              </div>
+              <div class="col" style="gap:1px;min-width:0">
+                ${shown.map(w => `<span style="display:block;min-width:0;font-size:8px;line-height:1.35;padding:1px 3px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;${isSelected?`background:rgba(255,255,255,0.25);color:#fff`:`background:#0284c722;color:#334155`};${w.done?'text-decoration:line-through;opacity:0.55':''}">${w.done?'✅ ':'🏋️ '}${escapeHTML(w.title)}</span>`).join("")}
+                ${extra>0 ? `<span style="font-size:7.5px;font-weight:700;color:${isSelected?'rgba(255,255,255,0.85)':'#94a3b8'};padding:0 3px">+${extra} další</span>` : ""}
+              </div>
+            </button>`;
+          }).join("")}
+        </div>
+        <p class="text-xs muted" style="margin-top:12px">✅ = dokončený trénink. Klikni na den pro výběr.</p>
+      </div>
+    </div>`;
+}
+function workoutRecurringManagerModalHTML(){
+  const groups = activeWorkoutRecurrenceGroups();
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🔁 Aktivní opakování tréninků</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        ${groups.length===0 ? `<p class="text-sm muted">Zatím žádný opakovaný trénink.</p>` : `
+          <div class="col gap-2">
+            ${groups.map(g => `
+              <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+                <div class="grow">
+                  <p class="text-sm font-med" style="margin:0;color:#334155">${escapeHTML(g.title)}</p>
+                  <p class="text-xs muted" style="margin:0">${g.count} termínů${g.nextDate ? ` · další ${g.nextDate}` : ''}</p>
+                </div>
+                <button class="chip" style="color:#dc2626;font-size:11px" data-action="delete-workout-series" data-id="${g.id}">🛑 Zrušit</button>
+              </div>`).join("")}
+          </div>
+        `}
+      </div>
+    </div>`;
+}
+function monthCalendarModalHTML(){
+  const byDate = tasksByDate();
+  const first = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
+  const startOffset = (first.getDay()+6)%7;
+  const daysInMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+1, 0).getDate();
+  const cells = [];
+  for(let i=0;i<startOffset;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(new Date(monthCursor.getFullYear(), monthCursor.getMonth(), d));
+  const ws = getWorkspace();
+  const MAX_SHOWN = 3;
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:480px;padding:16px 10px">
+        <div class="row between" style="margin-bottom:12px;padding:0 6px">
+          <h3 style="margin:0;font-size:17px;color:#334155">${MONTHS[monthCursor.getMonth()]} ${monthCursor.getFullYear()}</h3>
+          <div class="row gap-1">
+            <button class="icon-btn-sm btn-ghost-card" style="width:28px;height:28px" data-action="month-nav" data-id="-1">‹</button>
+            <button class="chip" style="font-size:11px;padding:5px 10px" data-action="month-nav" data-id="today">Dnes</button>
+            <button class="icon-btn-sm btn-ghost-card" style="width:28px;height:28px" data-action="month-nav" data-id="1">›</button>
+            <button class="icon-btn-sm" data-action="close-modal">✕</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;align-items:stretch">
+          ${["Po","Út","St","Čt","Pá","So","Ne"].map(d=>`<span style="text-align:center;font-size:9px;font-weight:700;color:#94a3b8;padding-bottom:3px;min-width:0">${d}</span>`).join("")}
+          ${cells.map(d => {
+            if(!d) return `<div></div>`;
+            const iso = toISO(d); const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+            const items = (byDate[iso]||[]).sort((a,b)=>a.priority-b.priority);
+            const hasOverdue = iso<todayISO && items.some(t=>!t.done);
+            const shown = items.slice(0, MAX_SHOWN);
+            const extra = items.length - shown.length;
+            const bg = isSelected ? "background:var(--accent);color:#fff" : isToday ? "background:var(--accent-soft)" : "background:var(--bg)";
+            const border = isToday && !isSelected ? "border:1.5px solid #34d399" : "border:1px solid transparent";
+            const numColor = isSelected ? "#fff" : isToday ? "#047857" : "#475569";
+            return `<button data-action="pick-month-day" data-id="${iso}" class="rel" style="min-width:0;width:100%;box-sizing:border-box;min-height:58px;border-radius:9px;padding:3px 2px 2px;display:flex;flex-direction:column;align-items:stretch;text-align:left;${bg};${border}">
+              <div class="row between" style="padding:0 2px;margin-bottom:1px;min-width:0">
+                <span style="font-size:10px;font-weight:700;color:${numColor}">${d.getDate()}</span>
+                ${hasOverdue && !isSelected ? `<span style="width:5px;height:5px;border-radius:999px;background:#ef4444;margin-top:2px;flex-shrink:0"></span>` : ""}
+              </div>
+              <div class="col" style="gap:1px;min-width:0">
+                ${shown.map(t => {
+                  const dot = priorityMeta(t.priority).dot;
+                  return `<span style="display:block;min-width:0;font-size:8px;line-height:1.35;padding:1px 3px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;${isSelected?`background:rgba(255,255,255,0.25);color:#fff`:`background:${dot}22;color:#334155`};${t.done?'text-decoration:line-through;opacity:0.55':''}">${escapeHTML(t.title)}</span>`;
+                }).join("")}
+                ${extra>0 ? `<span style="font-size:7.5px;font-weight:700;color:${isSelected?'rgba(255,255,255,0.85)':'#94a3b8'};padding:0 3px">+${extra} další</span>` : ""}
+              </div>
+            </button>`;
+          }).join("")}
+        </div>
+        <p class="text-xs muted" style="margin-top:12px">🔴 = nesplněný úkol po termínu. Barva štítku = priorita. Klikni na den pro výběr.</p>
+      </div>
+    </div>`;
+}
+
+function addRecipeModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:340px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Nový recept</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <label class="label">Název receptu</label>
+        <div class="row gap-2" style="margin-bottom:12px">
+          <input id="newRecipeName" class="field grow" placeholder="např. Svíčková" />
+          <button class="icon-btn shrink0" data-action="dictate-into" data-target="newRecipeName" title="Diktovat">🎙️</button>
+        </div>
+        <label class="label">Ikona</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:16px" id="newRecipeEmojiPicker">
+          ${["🍰","🍕","🍜","🥘","🍲","🥗","🍞","🧁","🍗","🥞","🍛","🍱"].map((e,i) => `<button class="emoji-btn ${i===0?'active':''}" style="width:40px;height:40px" data-action="pick-recipe-emoji" data-id="${e}">${e}</button>`).join("")}
+        </div>
+        <label class="label">Kategorie (nepovinné)</label>
+        <div class="row gap-2 wrapf" style="margin-bottom:16px" id="newRecipeCategoryPicker">
+          ${state.recipeCategories.map(c => `<button class="chip ${pickedRecipeCategoryId===c.id?'active':''}" data-action="pick-recipe-category" data-id="${c.id}">${escapeHTML(c.name)}</button>`).join("")}
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="add-recipe">Vytvořit recept</button>
+      </div>
+    </div>`;
+}
+
+function cookingModalHTML(){
+  if(!cooking) return "";
+  const recipe = findRecipe(cooking.recipeId);
+  const cur = cooking.plan[cooking.pointer];
+  const progressPct = Math.round(((cooking.pointer + (cooking.finished?1:0)) / cooking.plan.length) * 100);
+  return `
+    <div class="modal-overlay" style="background:linear-gradient(135deg,#1c2128,#20242c);z-index:150">
+      <div class="modal-panel" style="max-width:420px;background:#fff;text-align:center">
+        <div class="row between" style="margin-bottom:6px">
+          <span class="text-xs muted">🍳 ${escapeHTML(recipe ? recipe.title : "")}</span>
+          <button class="icon-btn-sm" data-action="exit-cooking">✕</button>
+        </div>
+        <div style="height:6px;background:#f1f5f9;border-radius:999px;overflow:hidden;margin-bottom:18px">
+          <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,#34d399,#fb923c);transition:width .3s"></div>
+        </div>
+        ${cooking.finished ? `
+          <p style="font-size:44px;margin:10px 0">🎉</p>
+          <p class="text-lg font-semi text-main" style="margin:0 0 6px">Recept je hotový!</p>
+          <p class="text-sm muted" style="margin:0 0 20px">Dobrou chuť!</p>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="exit-cooking">Zavřít</button>
+        ` : `
+          <p class="text-xs font-semi" style="color:#fb923c;margin:0 0 6px;letter-spacing:.03em;text-transform:uppercase">${escapeHTML(cur.sectionName)}</p>
+          <p class="text-lg font-semi text-main" style="margin:0 0 22px;line-height:1.4">${escapeHTML(cur.text)}</p>
+          <div class="row gap-2" style="justify-content:center;margin-bottom:14px">
+            <span style="width:14px;height:14px;border-radius:999px;background:${cooking.listening && !cooking.paused ? '#ef4444':'#cbd5e1'};${cooking.listening && !cooking.paused ? 'animation:pulseP2 1.4s ease-in-out infinite':''}"></span>
+            <span class="text-xs muted">${cooking.paused ? 'Pozastaveno' : cooking.listening ? 'Poslouchám… řekni „hotovo“ nebo „další“' : 'Čtu nahlas…'}</span>
+          </div>
+          <div class="col gap-2">
+            <button class="btn btn-primary" style="justify-content:center;padding:14px" data-action="cooking-advance">✓ Hotovo — další krok</button>
+            <div class="row gap-2">
+              <button class="btn btn-soft" style="flex:1;justify-content:center" data-action="cooking-back">◀ Zpět</button>
+              <button class="btn btn-soft" style="flex:1;justify-content:center" data-action="cooking-repeat">🔊 Zopakovat</button>
+            </div>
+            ${cooking.paused ? `<button class="btn btn-primary" style="justify-content:center" data-action="cooking-resume">▶ Pokračovat</button>`
+                              : `<button class="btn" style="justify-content:center;color:#94a3b8" data-action="cooking-pause">⏸ Pauza</button>`}
+          </div>
+          <p class="text-xs muted" style="margin-top:16px">💡 Řekni také „nastav budík na 10 minut“ — spustí se stopky, aniž bys přerušil postup.</p>
+        `}
+      </div>
+    </div>`;
+}
+
+// ================= NOTES VIEW =================
+function createBlankNote(){
+  const ws = getWorkspace();
+  const newItem = {
+    id: uid(), workspaceId: state.activeWorkspaceId, listId: ws.lists[0]?.id, categoryId: ws.categories[0]?.id,
+    title: "Nová poznámka", content: "", date: todayISO, priority: 5, type: "note", done:false,
+    image:null, images:[], drawing:null, drawings:[], audioId:null, audioIds:[], files:[], checklist:[], friendIds:[], reminder:null,
+  };
+  state.tasks = [...state.tasks, newItem];
+  saveState();
+  openNoteDetail(newItem.id);
+}
+let openNoteId = null;
+function findNote(id){ return state.tasks.find(t => t.id === id && t.type === "note"); }
+function openNoteDetail(id){ openNoteId = id; renderNotesView(); window.scrollTo({top:0, behavior:"smooth"}); }
+function isNoteBlank(n){
+  return !!n && (!n.title || n.title.trim()==="" || n.title==="Nová poznámka") && !n.content
+    && (!n.checklist || n.checklist.length===0) && (!n.images || n.images.length===0)
+    && (!n.drawings || n.drawings.length===0) && !n.drawing
+    && (!n.audioIds || n.audioIds.length===0) && !n.audioId
+    && (!n.files || n.files.length===0);
+}
+function closeNoteDetail(){
+  const n = openNoteId ? findNote(openNoteId) : null;
+  if(n && isNoteBlank(n)){
+    // never leave an empty "ghost" note behind just because the person opened
+    // it, glanced around, and left without actually writing anything
+    state.tasks = state.tasks.filter(t => t.id !== n.id);
+    saveState();
+  }
+  openNoteId = null;
+  renderNotesView();
+}
+function updateNote(id, patch){
+  state.tasks = state.tasks.map(t => t.id===id ? {...t, ...patch} : t);
+  saveState();
+}
+function addNoteChecklistItem(noteId, text){
+  if(!text || !text.trim()) return;
+  const n = findNote(noteId); if(!n) return;
+  updateNote(noteId, { checklist: [...(n.checklist||[]), {id:uid(), text:text.trim(), done:false}] });
+  renderNoteDetail();
+}
+function removeNoteChecklistItem(noteId, itemId){
+  const n = findNote(noteId); if(!n) return;
+  updateNote(noteId, { checklist: (n.checklist||[]).filter(i=>i.id!==itemId) });
+  renderNoteDetail();
+}
+function toggleNoteChecklistItem(noteId, itemId){
+  const n = findNote(noteId); if(!n) return;
+  updateNote(noteId, { checklist: (n.checklist||[]).map(i=>i.id===itemId?{...i,done:!i.done}:i) });
+  renderNoteDetail();
+}
+async function handleNoteImageUpload(noteId, fileList){
+  if(!fileList || !fileList.length) return;
+  const n = findNote(noteId); if(!n) return;
+  try{
+    const dataUrls = await Promise.all(Array.from(fileList).map(f => resizeImageFile(f, 1000, 0.85)));
+    const current = findNote(noteId);
+    updateNote(noteId, { images: [...(current.images||[]), ...dataUrls], image: null });
+    showToast(dataUrls.length>1 ? `Přidáno ${dataUrls.length} fotek ✓` : "Fotka přidána ✓");
+    renderNoteDetail();
+  }catch(e){ showToast("Nahrání obrázku se nezdařilo."); }
+}
+function removeNoteImage(noteId, index){
+  const n = findNote(noteId); if(!n) return;
+  const images = [...(n.images||[])];
+  images.splice(index, 1);
+  updateNote(noteId, { images });
+  renderNoteDetail();
+}
+function removeNoteDrawing(noteId, index){
+  const n = findNote(noteId); if(!n) return;
+  const drawings = [...(n.drawings && n.drawings.length ? n.drawings : (n.drawing ? [n.drawing] : []))];
+  drawings.splice(index, 1);
+  updateNote(noteId, {drawings, drawing:null});
+  renderNoteDetail();
+}
+function removeNoteAudio(noteId, index){
+  const n = findNote(noteId); if(!n) return;
+  const audioIds = [...(n.audioIds && n.audioIds.length ? n.audioIds : (n.audioId ? [n.audioId] : []))];
+  const removed = audioIds.splice(index, 1)[0];
+  if(removed) idbDelete(removed).catch(()=>{});
+  updateNote(noteId, {audioIds, audioId:null});
+  renderNoteDetail();
+}
+function readNoteAloud(noteId){
+  const n = findNote(noteId); if(!n) return;
+  const parts = [n.title];
+  if(n.content) parts.push(n.content);
+  (n.checklist||[]).forEach(i => parts.push(i.text));
+  speakText(parts.join(". "));
+}
+async function handleNoteFileUpload(noteId, fileList){
+  if(!fileList || !fileList.length) return;
+  const n = findNote(noteId); if(!n) return;
+  try{
+    const newFiles = [];
+    for(const f of Array.from(fileList)){
+      if(f.size > 15 * 1024 * 1024){ showToast(`„${f.name}" je moc velký (max 15 MB) — přeskočeno.`); continue; }
+      const blobId = await idbSet(f);
+      newFiles.push({ id: uid(), name: f.name, size: f.size, mimeType: f.type || "application/octet-stream", blobId });
+    }
+    if(!newFiles.length) return;
+    const current = findNote(noteId);
+    updateNote(noteId, { files: [...(current.files||[]), ...newFiles] });
+    showToast(`Přidáno ${newFiles.length} souborů ✓`);
+    renderNoteDetail();
+  }catch(e){ showToast("Nahrání souboru se nezdařilo."); }
+}
+function removeNoteFile(noteId, fileId){
+  const n = findNote(noteId); if(!n) return;
+  const file = (n.files||[]).find(f => f.id === fileId);
+  if(file && file.blobId) idbDelete(file.blobId).catch(()=>{});
+  updateNote(noteId, { files: (n.files||[]).filter(f => f.id !== fileId) });
+  renderNoteDetail();
+}
+async function downloadNoteFile(noteId, fileId){
+  const n = findNote(noteId);
+  const file = n && (n.files||[]).find(f => f.id === fileId);
+  if(!file){ showToast("Soubor nebyl nalezen."); return; }
+  const url = await getBlobURL(file.blobId);
+  if(!url){ showToast("Soubor se nepodařilo načíst."); return; }
+  const a = document.createElement("a");
+  a.href = url; a.download = file.name; a.click();
+}
+function saveNoteNow(id){
+  saveState();
+  showToast("Poznámka uložena ✓");
+  closeNoteDetail();
+}
+function deleteNoteEntry(id){
+  deleteTask(id); // notes live in the same array as tasks — same soft-delete/archive mechanism
+  renderNotesView();
+}
+function renderNotesView(){
+  const el = document.getElementById("notesView");
+  const notes = notesList();
+  const openNote = openNoteId ? findNote(openNoteId) : null;
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">📝 Poznámky</p>
+    </div>
+    ${openNote ? `
+      <button class="chip" style="margin-bottom:12px" data-action="close-note-detail">← Zpět na seznam</button>
+      <div id="noteDetailRoot"></div>
+    ` : `
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:16px;width:100%;justify-content:center;font-weight:600;color:#6366f1" data-action="create-blank-note">
+        <span style="font-size:16px">➕</span> Přidat poznámku
+      </button>
+      ${notes.length===0 ? `<div class="card card-pad text-sm muted">Zatím žádné poznámky — první si klidně nadiktuj 🎙️</div>` : `
+        <div class="col gap-2">
+          ${notes.map(n => {
+            const thumb = (n.images && n.images[0]) || n.image || n.drawing;
+            const doneCount = (n.checklist||[]).filter(i=>i.done).length;
+            return `
+            <button class="card row gap-3" style="padding:12px 14px;align-items:flex-start;width:100%;text-align:left;border-left:3px solid ${priorityMeta(n.priority||5).dot}" data-action="open-note-detail" data-id="${n.id}">
+              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:19px">📝</span>`}
+              <div class="grow">
+                <p class="text-sm font-med text-main" style="margin:0">${escapeHTML(n.title)}</p>
+                ${n.content ? `<p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(n.content.slice(0,140))}</p>` : ""}
+                ${(n.checklist||[]).length ? `<p class="text-xs" style="margin:2px 0 0;color:#6366f1">☑ ${doneCount}/${n.checklist.length} splněno</p>` : ""}
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="delete-note" data-id="${n.id}">🗑️</button>
+            </button>`;
+          }).join("")}
+        </div>
+      `}
+    `}
+  `;
+  if(openNote) renderNoteDetail();
+}
+function renderNoteDetail(){
+  const el = document.getElementById("noteDetailRoot");
+  if(!el) return;
+  const n = findNote(openNoteId);
+  if(!n){ el.innerHTML = ""; return; }
+  const checklist = n.checklist || [];
+  const doneCount = checklist.filter(i=>i.done).length;
+  el.innerHTML = `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div class="row between" style="margin-bottom:10px">
+        <p class="text-xs font-semi muted" style="margin:0">📝 Poznámka</p>
+        <div class="row gap-1">
+          <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${n.id}" data-sub="note" title="Sdílet poznámku">↗️</button>
+          <button class="icon-btn-sm" data-action="close-note-detail" title="Zavřít">✕</button>
+        </div>
+      </div>
+      <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
+        <span style="font-size:24px">📝</span>
+        <input id="noteDetailTitle" class="field grow" style="font-size:16px;font-weight:600;border:none;background:transparent;padding:4px 0" value="${escapeAttr(n.title)}" data-note-detail-field="title" data-id="${n.id}" />
+        <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="noteDetailTitle" title="Diktovat název">🎙️</button>
+        <button class="icon-btn-sm shrink0" data-action="delete-note" data-id="${n.id}">🗑️</button>
+      </div>
+      <label class="label">Priorita</label>
+      <div style="margin-bottom:12px">${priorityPickerHTML(n.priority || 5, "set-note-priority", n.id)}</div>
+      <div class="row between" style="align-items:center;margin-bottom:4px">
+        <label class="label" style="margin:0">Obsah</label>
+        <button class="icon-btn-sm" data-action="dictate-into" data-target="noteDetailContent" title="Diktovat obsah">🎙️</button>
+      </div>
+      <textarea id="noteDetailContent" class="field" rows="5" placeholder="Cokoliv si chceš zapsat…" data-note-detail-field="content" style="margin-bottom:12px">${escapeHTML(n.content||"")}</textarea>
+
+      <div class="row gap-2 wrapf" style="margin-bottom:4px">
+        <button class="btn btn-soft" data-action="read-note-aloud" data-id="${n.id}">🔊 Přečíst nahlas</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          🖼️ Přidat obrázek
+          <input type="file" accept="image/*" multiple style="display:none" data-action="upload-note-image" data-id="${n.id}" />
+        </label>
+        <button class="btn btn-soft" data-action="open-draw" data-target="note" data-id="${n.id}">✏️ Nakreslit</button>
+        <button class="btn btn-soft" data-action="record-note-audio" data-id="${n.id}">${recordingTarget?.type==="note" && recordingTarget.noteId===n.id ? "⏹️ Zastavit nahrávání" : "🎤 Hlasová poznámka"}</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          📎 Přidat soubor
+          <input type="file" multiple style="display:none" data-action="upload-note-file" data-id="${n.id}" />
+        </label>
+      </div>
+
+      ${(n.images && n.images.length) ? `
+        <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          ${n.images.map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
+              <button data-action="remove-note-image" data-id="${n.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>`).join("")}
+        </div>` : (n.image ? `<div class="rel" style="margin-bottom:10px"><img src="${n.image}" style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#0f172a" /><button data-action="remove-note-image" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+      ${(n.drawings && n.drawings.length) ? `
+        <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          ${n.drawings.map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <button data-action="remove-note-drawing" data-id="${n.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>`).join("")}
+        </div>` : (n.drawing ? `<div class="rel" style="margin-bottom:10px"><img src="${n.drawing}" style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-note-drawing" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+      ${(n.audioIds && n.audioIds.length) ? `
+        <div class="col gap-2" style="margin-bottom:10px">
+          ${n.audioIds.map((aid, idx) => `<div class="row gap-2"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${aid}">${playingAudioId===aid?'⏸':'🔊'} Nahrávka ${idx+1}</button><button class="icon-btn-sm" data-action="remove-note-audio" data-id="${n.id}" data-sub="${idx}">🗑️</button></div>`).join("")}
+        </div>` : (n.audioId ? `<div class="row gap-2" style="margin-bottom:10px"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${n.audioId}">🔊 Přehrát hlasovou poznámku</button><button class="icon-btn-sm" data-action="remove-note-audio" data-id="${n.id}" data-sub="0">🗑️</button></div>` : "")}
+      ${(n.files && n.files.length) ? `
+        <label class="label">Přiložené soubory</label>
+        <div class="col gap-1" style="margin-bottom:12px">
+          ${n.files.map(f => `
+            <div class="row gap-2" style="background:#f8fafc;border-radius:12px;padding:8px 10px">
+              <span style="font-size:16px">📎</span>
+              <div class="grow" style="min-width:0">
+                <p class="text-xs font-med truncate" style="margin:0;color:#334155">${escapeHTML(f.name)}</p>
+                <p class="text-xs muted" style="margin:0">${formatFileSize(f.size)}</p>
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="download-note-file" data-id="${n.id}" data-sub="${f.id}">⬇️</button>
+              <button class="icon-btn-sm shrink0" data-action="remove-note-file" data-id="${n.id}" data-sub="${f.id}">🗑️</button>
+            </div>`).join("")}
+        </div>` : ""}
+
+      <label class="label">Checklist / to-do</label>
+      <div class="col gap-1" style="margin-bottom:8px">
+        ${checklist.map(i => `
+          <div class="row gap-2">
+            <button data-action="toggle-note-checklist-item" data-id="${n.id}" data-sub="${i.id}" style="width:20px;height:20px;border-radius:5px;border:1.5px solid ${i.done?'var(--accent)':'var(--line)'};background:${i.done?'var(--accent)':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${i.done?'✓':''}</button>
+            <span class="text-sm ${i.done?'strike':''}" style="color:${i.done?'#94a3b8':'#475569'}">${escapeHTML(i.text)}</span>
+            <button data-action="remove-note-checklist-item" data-id="${n.id}" data-sub="${i.id}" style="margin-left:auto;color:#cbd5e1">✕</button>
+          </div>`).join("")}
+        ${checklist.length ? `<p class="text-xs muted" style="margin:2px 0 0">☑ ${doneCount}/${checklist.length} splněno</p>` : ""}
+      </div>
+      <div class="row gap-2">
+        <input id="noteChecklistInput" class="field grow" style="font-size:12.5px;padding:7px 12px" placeholder="Přidat řádek…" />
+        <button id="noteChecklistDictateBtn" class="icon-btn shrink0" data-action="dictate-note-checklist-loop" data-id="${n.id}" title="Diktovat řádky (po sobě)">🎙️</button>
+        <button class="icon-btn shrink0" data-action="add-note-checklist-item" data-id="${n.id}">➕</button>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px" data-action="save-note" data-id="${n.id}">💾 Uložit</button>
+    </div>
+  `;
+  updateDictateButtons();
+  autoGrowAllTextareas(el);
+}
+
+// ================= DOCUMENTS (project archive: invoices, photos, files…) =================
+let openDocumentId = null;
+function findDocument(id){ return state.documents.find(d => d.id === id); }
+function documentsList(){ return state.documents.filter(d => !d.deletedAt).sort((a,b) => b.date.localeCompare(a.date)); }
+function isDocumentBlank(d){
+  return !!d && (!d.title || d.title.trim()==="" || d.title==="Nový dokument") && !d.content
+    && (!d.checklist || d.checklist.length===0) && (!d.images || d.images.length===0)
+    && (!d.files || d.files.length===0)
+    && (!d.drawings || d.drawings.length===0) && !d.drawing
+    && (!d.audioIds || d.audioIds.length===0) && !d.audioId;
+}
+function createBlankDocument(){
+  const newItem = {
+    id: uid(), type:"document", title:"Nový dokument", content:"", date: todayISO,
+    checklist:[], images:[], files:[], drawing:null, drawings:[], audioId:null, audioIds:[], deletedAt:null,
+  };
+  state.documents = [...state.documents, newItem];
+  saveState();
+  openDocumentDetail(newItem.id);
+}
+function openDocumentDetail(id){ openDocumentId = id; renderDocumentsView(); window.scrollTo({top:0, behavior:"smooth"}); }
+function closeDocumentDetail(){
+  const d = openDocumentId ? findDocument(openDocumentId) : null;
+  if(d && isDocumentBlank(d)){
+    state.documents = state.documents.filter(x => x.id !== d.id);
+    saveState();
+  }
+  openDocumentId = null;
+  renderDocumentsView();
+}
+function updateDocument(id, patch){
+  state.documents = state.documents.map(d => d.id===id ? {...d, ...patch} : d);
+  saveState();
+}
+function saveDocumentNow(id){
+  saveState();
+  showToast("Uloženo ✓");
+  closeDocumentDetail();
+}
+function deleteDocument(id){
+  const wasOpen = openDocumentId === id;
+  state.documents = state.documents.map(d => d.id === id ? {...d, deletedAt: Date.now()} : d);
+  saveState();
+  if(wasOpen) openDocumentId = null;
+  renderDocumentsView();
+  showToast("Přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+}
+function permanentlyDeleteDocument(id){
+  const d = findDocument(id);
+  if(d){
+    if(d.audioId) idbDelete(d.audioId).catch(()=>{});
+    (d.files||[]).forEach(f => { if(f.blobId) idbDelete(f.blobId).catch(()=>{}); });
+  }
+  state.documents = state.documents.filter(x => x.id !== id);
+  saveState();
+}
+function restoreDocument(id){
+  state.documents = state.documents.map(d => d.id === id ? {...d, deletedAt: null} : d);
+  saveState();
+  showToast("Dokument obnoven ✓");
+}
+function addDocumentChecklistItem(docId, text){
+  if(!text || !text.trim()) return;
+  const d = findDocument(docId); if(!d) return;
+  updateDocument(docId, { checklist: [...(d.checklist||[]), {id:uid(), text:text.trim(), done:false}] });
+  renderDocumentDetail();
+}
+function removeDocumentChecklistItem(docId, itemId){
+  const d = findDocument(docId); if(!d) return;
+  updateDocument(docId, { checklist: (d.checklist||[]).filter(i=>i.id!==itemId) });
+  renderDocumentDetail();
+}
+function toggleDocumentChecklistItem(docId, itemId){
+  const d = findDocument(docId); if(!d) return;
+  updateDocument(docId, { checklist: (d.checklist||[]).map(i=>i.id===itemId?{...i,done:!i.done}:i) });
+  renderDocumentDetail();
+}
+async function handleDocumentImageUpload(docId, fileList){
+  if(!fileList || !fileList.length) return;
+  const d = findDocument(docId); if(!d) return;
+  const files = Array.from(fileList);
+  try{
+    const dataUrls = await Promise.all(files.map(f => resizeImageFile(f, 1000, 0.82)));
+    const current = findDocument(docId);
+    updateDocument(docId, { images: [...(current.images||[]), ...dataUrls] });
+    renderDocumentDetail();
+  }catch(e){ showToast("Nahrání fotek se nezdařilo."); }
+}
+function removeDocumentImage(docId, index){
+  const d = findDocument(docId); if(!d) return;
+  const images = [...(d.images||[])];
+  images.splice(index, 1);
+  updateDocument(docId, { images });
+  renderDocumentDetail();
+}
+async function handleDocumentFileUpload(docId, fileList){
+  if(!fileList || !fileList.length) return;
+  const d = findDocument(docId); if(!d) return;
+  try{
+    const newFiles = [];
+    for(const f of Array.from(fileList)){
+      if(f.size > 15 * 1024 * 1024){ showToast(`„${f.name}" je moc velký (max 15 MB) — přeskočeno.`); continue; }
+      const blobId = await idbSet(f);
+      newFiles.push({ id: uid(), name: f.name, size: f.size, mimeType: f.type || "application/octet-stream", blobId });
+    }
+    if(!newFiles.length) return;
+    const current = findDocument(docId);
+    updateDocument(docId, { files: [...(current.files||[]), ...newFiles] });
+    showToast(`Přidáno ${newFiles.length} souborů ✓`);
+    renderDocumentDetail();
+  }catch(e){ showToast("Nahrání souboru se nezdařilo."); }
+}
+function removeDocumentFile(docId, fileId){
+  const d = findDocument(docId); if(!d) return;
+  const file = (d.files||[]).find(f => f.id === fileId);
+  if(file && file.blobId) idbDelete(file.blobId).catch(()=>{});
+  updateDocument(docId, { files: (d.files||[]).filter(f => f.id !== fileId) });
+  renderDocumentDetail();
+}
+async function downloadDocumentFile(docId, fileId){
+  const d = findDocument(docId); if(!d) return;
+  const file = (d.files||[]).find(f => f.id === fileId);
+  if(!file){ showToast("Soubor nebyl nalezen."); return; }
+  const url = await getBlobURL(file.blobId);
+  if(!url){ showToast("Soubor se nepodařilo načíst."); return; }
+  const a = document.createElement("a");
+  a.href = url; a.download = file.name; a.click();
+}
+function removeDocumentDrawing(docId, index){
+  const d = findDocument(docId); if(!d) return;
+  const drawings = [...(d.drawings && d.drawings.length ? d.drawings : (d.drawing ? [d.drawing] : []))];
+  drawings.splice(index, 1);
+  updateDocument(docId, {drawings, drawing:null});
+  renderDocumentDetail();
+}
+function removeDocumentAudio(docId, index){
+  const d = findDocument(docId); if(!d) return;
+  const audioIds = [...(d.audioIds && d.audioIds.length ? d.audioIds : (d.audioId ? [d.audioId] : []))];
+  const removed = audioIds.splice(index, 1)[0];
+  if(removed) idbDelete(removed).catch(()=>{});
+  updateDocument(docId, {audioIds, audioId:null});
+  renderDocumentDetail();
+}
+function readDocumentAloud(docId){
+  const d = findDocument(docId); if(!d) return;
+  const parts = [d.title];
+  if(d.content) parts.push(d.content);
+  (d.checklist||[]).forEach(i => parts.push(i.text));
+  speakText(parts.join(". "));
+}
+function renderDocumentsView(){
+  const el = document.getElementById("documentsView");
+  const docs = documentsList();
+  const openDoc = openDocumentId ? findDocument(openDocumentId) : null;
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">📁 Dokumenty</p>
+    </div>
+    ${openDoc ? `
+      <button class="chip" style="margin-bottom:12px" data-action="close-document-detail">← Zpět na seznam</button>
+      <div id="documentDetailRoot"></div>
+    ` : `
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:16px;width:100%;justify-content:center;font-weight:600;color:#d97706" data-action="create-blank-document">
+        <span style="font-size:16px">➕</span> Přidat dokument
+      </button>
+      ${docs.length===0 ? `<div class="card card-pad text-sm muted">Zatím žádné dokumenty — faktury, fotky, cokoliv se hodí archivovat 🗂️</div>` : `
+        <div class="col gap-2">
+          ${docs.map(d => {
+            const thumb = (d.images&&d.images[0]) || d.drawing;
+            const doneCount = (d.checklist||[]).filter(i=>i.done).length;
+            return `
+            <button class="card row gap-3" style="padding:12px 14px;align-items:flex-start;width:100%;text-align:left" data-action="open-document-detail" data-id="${d.id}">
+              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:19px">📁</span>`}
+              <div class="grow">
+                <p class="text-sm font-med text-main" style="margin:0">${escapeHTML(d.title)}</p>
+                ${d.content ? `<p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(d.content.slice(0,120))}</p>` : ""}
+                <p class="text-xs muted" style="margin:2px 0 0">${d.date}${(d.files||[]).length?` · 📎 ${d.files.length} souborů`:""}${(d.checklist||[]).length?` · ☑ ${doneCount}/${d.checklist.length}`:""}</p>
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="delete-document" data-id="${d.id}">🗑️</button>
+            </button>`;
+          }).join("")}
+        </div>
+      `}
+    `}
+  `;
+  if(openDoc) renderDocumentDetail();
+}
+function renderDocumentDetail(){
+  const el = document.getElementById("documentDetailRoot");
+  if(!el) return;
+  const d = findDocument(openDocumentId);
+  if(!d){ el.innerHTML = ""; return; }
+  const checklist = d.checklist || [];
+  const doneCount = checklist.filter(i=>i.done).length;
+  el.innerHTML = `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div class="row between" style="margin-bottom:10px">
+        <p class="text-xs font-semi muted" style="margin:0">📁 Dokument</p>
+        <div class="row gap-1">
+          <button class="icon-btn-sm" data-action="open-share-item-modal" data-id="${d.id}" data-sub="document" title="Sdílet dokument">↗️</button>
+          <button class="icon-btn-sm" data-action="close-document-detail" title="Zavřít">✕</button>
+        </div>
+      </div>
+      <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
+        <span style="font-size:24px">📁</span>
+        <input id="docDetailTitle" class="field grow" style="font-size:16px;font-weight:600;border:none;background:transparent;padding:4px 0" value="${escapeAttr(d.title)}" data-doc-detail-field="title" data-id="${d.id}" />
+        <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="docDetailTitle" title="Diktovat název">🎙️</button>
+        <button class="icon-btn-sm shrink0" data-action="delete-document" data-id="${d.id}">🗑️</button>
+      </div>
+      <div class="row gap-2" style="margin-bottom:10px">
+        <div class="grow"><label class="label">Datum</label>
+          <input type="date" class="field" value="${d.date}" data-doc-detail-field="date" data-id="${d.id}" /></div>
+      </div>
+      <div class="row between" style="align-items:center;margin-bottom:4px">
+        <label class="label" style="margin:0">Poznámka</label>
+        <button class="icon-btn-sm" data-action="dictate-into" data-target="docDetailContent" title="Diktovat">🎙️</button>
+      </div>
+      <textarea id="docDetailContent" class="field" rows="4" placeholder="Cokoliv k tomuto dokumentu…" data-doc-detail-field="content" style="margin-bottom:12px">${escapeHTML(d.content||"")}</textarea>
+
+      <div class="row gap-2 wrapf" style="margin-bottom:4px">
+        <button class="btn btn-soft" data-action="read-document-aloud" data-id="${d.id}">🔊 Přečíst nahlas</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          🖼️ Přidat fotky
+          <input type="file" accept="image/*" multiple style="display:none" data-action="upload-document-image" data-id="${d.id}" />
+        </label>
+        <button class="btn btn-soft" data-action="open-draw" data-target="document" data-id="${d.id}">✏️ Nakreslit</button>
+        <button class="btn btn-soft" data-action="record-document-audio" data-id="${d.id}">${recordingTarget?.type==="document" && recordingTarget.documentId===d.id ? "⏹️ Zastavit nahrávání" : "🎤 Hlasová poznámka"}</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          📎 Přidat soubor
+          <input type="file" multiple style="display:none" data-action="upload-document-file" data-id="${d.id}" />
+        </label>
+      </div>
+
+      ${(d.images && d.images.length) ? `
+        <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          ${d.images.map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
+              <button data-action="remove-document-image" data-id="${d.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>`).join("")}
+        </div>` : ""}
+      ${(d.drawings && d.drawings.length) ? `
+        <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          ${d.drawings.map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <button data-action="remove-document-drawing" data-id="${d.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>`).join("")}
+        </div>` : (d.drawing ? `<div class="rel" style="margin-bottom:10px"><img src="${d.drawing}" style="width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-document-drawing" data-id="${d.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+      ${(d.audioIds && d.audioIds.length) ? `
+        <div class="col gap-2" style="margin-bottom:10px">
+          ${d.audioIds.map((aid, idx) => `<div class="row gap-2"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${aid}">${playingAudioId===aid?'⏸':'🔊'} Nahrávka ${idx+1}</button><button class="icon-btn-sm" data-action="remove-document-audio" data-id="${d.id}" data-sub="${idx}">🗑️</button></div>`).join("")}
+        </div>` : (d.audioId ? `<div class="row gap-2" style="margin-bottom:10px"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${d.audioId}">🔊 Přehrát hlasovou poznámku</button><button class="icon-btn-sm" data-action="remove-document-audio" data-id="${d.id}" data-sub="0">🗑️</button></div>` : "")}
+
+      ${(d.files && d.files.length) ? `
+        <label class="label">Přiložené soubory</label>
+        <div class="col gap-1" style="margin-bottom:12px">
+          ${d.files.map(f => `
+            <div class="row gap-2" style="background:#f8fafc;border-radius:12px;padding:8px 10px">
+              <span style="font-size:16px">📎</span>
+              <div class="grow" style="min-width:0">
+                <p class="text-xs font-med truncate" style="margin:0;color:#334155">${escapeHTML(f.name)}</p>
+                <p class="text-xs muted" style="margin:0">${formatFileSize(f.size)}</p>
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="download-document-file" data-id="${d.id}" data-sub="${f.id}">⬇️</button>
+              <button class="icon-btn-sm shrink0" data-action="remove-document-file" data-id="${d.id}" data-sub="${f.id}">🗑️</button>
+            </div>`).join("")}
+        </div>` : ""}
+
+      <label class="label">Checklist / to-do</label>
+      <div class="col gap-1" style="margin-bottom:8px">
+        ${checklist.map(i => `
+          <div class="row gap-2">
+            <button data-action="toggle-document-checklist-item" data-id="${d.id}" data-sub="${i.id}" style="width:20px;height:20px;border-radius:999px;border:2px solid ${i.done?'#d97706':'#cbd5e1'};background:${i.done?'#d97706':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${i.done?'✓':''}</button>
+            <span class="text-sm ${i.done?'strike':''}" style="color:${i.done?'#94a3b8':'#475569'}">${escapeHTML(i.text)}</span>
+            <button data-action="remove-document-checklist-item" data-id="${d.id}" data-sub="${i.id}" style="margin-left:auto;color:#cbd5e1">✕</button>
+          </div>`).join("")}
+        ${checklist.length ? `<p class="text-xs muted" style="margin:2px 0 0">☑ ${doneCount}/${checklist.length} splněno</p>` : ""}
+      </div>
+      <div class="row gap-2" style="margin-bottom:14px">
+        <input id="documentChecklistInput" class="field grow" style="font-size:12.5px;padding:7px 12px" placeholder="Přidat řádek…" />
+        <button id="documentChecklistDictateBtn" class="icon-btn shrink0" data-action="dictate-document-checklist-loop" data-id="${d.id}" title="Diktovat řádky (po sobě)">🎙️</button>
+        <button class="icon-btn shrink0" data-action="add-document-checklist-item" data-id="${d.id}">➕</button>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="save-document" data-id="${d.id}">💾 Uložit</button>
+    </div>
+  `;
+  updateDictateButtons();
+  autoGrowAllTextareas(el);
+}
+
+// ================= MEDICATIONS (léky, vitamíny, doplňky) =================
+function findMedication(id){ return state.medications.find(m => m.id === id); }
+function medicationsForDate(date){ return state.medications.filter(m => !m.deletedAt && m.date === date).sort((a,b) => (a.time||"").localeCompare(b.time||"")); }
+function toggleMedicationTaken(id){
+  state.medications = state.medications.map(m => m.id===id ? {...m, taken: !m.taken} : m);
+  saveState(); scheduleReminders(); renderMedicationsView(); renderTopBar();
+}
+function deleteMedication(id){
+  state.medications = state.medications.map(m => m.id === id ? {...m, deletedAt: Date.now()} : m);
+  saveState(); scheduleReminders(); renderMedicationsView();
+  showToast("Přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+}
+function permanentlyDeleteMedication(id){
+  state.medications = state.medications.filter(m => m.id !== id);
+  saveState(); scheduleReminders();
+}
+function restoreMedication(id){
+  state.medications = state.medications.map(m => m.id === id ? {...m, deletedAt: null} : m);
+  saveState(); scheduleReminders();
+  showToast("Obnoveno ✓");
+}
+function deleteMedicationSeries(groupId){
+  state.medications = state.medications.map(m => m.recurrenceGroupId === groupId ? {...m, deletedAt: Date.now()} : m);
+  saveState(); scheduleReminders(); renderMedicationsView();
+  showToast("Celá série přesunuta do archivu ✓");
+}
+
+let medFormCollapsed = true;
+let medDraft = null;
+function freshMedDraft(){
+  return {
+    editingId: null, date: state.selectedDate, time: "08:00", name: "", dosage: "", category: "lek", notes: "",
+    reminderEnabled: true, reminderMode: "atTime", reminderTime: "08:00", reminderBaseTime: "08:00",
+    reminderAdvanceValue: 15, reminderAdvanceUnit: "minutes",
+    reminderCustomDate: todayISO, reminderCustomTime: "08:00",
+    reminderSound: "bell", reminderCustomAudioId: null,
+    recurrenceType: "daily", recurrenceCount: 30, recurrenceCustomDates: [], recurrenceWeekdays: [], recurrenceDurationValue: 2, recurrenceDurationUnit: "weeks",
+  };
+}
+function resetMedDraft(){ medDraft = freshMedDraft(); }
+function medOccurrenceDates(){
+  const base = medDraft.date;
+  if(medDraft.recurrenceType === "none") return [base];
+  if(medDraft.recurrenceType === "custom"){
+    const dates = [...new Set([base, ...medDraft.recurrenceCustomDates])].sort();
+    return dates.length ? dates : [base];
+  }
+  const count = computeRecurrenceCount(medDraft.recurrenceType, medDraft.recurrenceWeekdays.length, medDraft.recurrenceDurationValue, medDraft.recurrenceDurationUnit);
+  if(medDraft.recurrenceType === "weekly_days"){
+    return weekdayOccurrenceDates(base, medDraft.recurrenceWeekdays, count);
+  }
+  const out = [];
+  for(let i=0;i<count;i++){
+    let d;
+    if(medDraft.recurrenceType === "daily") d = addDays(parseISODate(base), i);
+    else if(medDraft.recurrenceType === "weekly") d = addDays(parseISODate(base), i*7);
+    else if(medDraft.recurrenceType === "monthly") d = addMonths(parseISODate(base), i);
+    else d = parseISODate(base);
+    out.push(toISO(d));
+  }
+  return out;
+}
+function buildMedReminderFromDraft(){
+  if(!medDraft.reminderEnabled) return null;
+  return {
+    enabled:true, mode:medDraft.reminderMode, time:medDraft.reminderTime,
+    advanceValue:Number(medDraft.reminderAdvanceValue), advanceUnit:medDraft.reminderAdvanceUnit,
+    customDate:medDraft.reminderCustomDate, customTime:medDraft.reminderCustomTime,
+    sound:medDraft.reminderSound, customAudioId:medDraft.reminderCustomAudioId,
+  };
+}
+function addMedication(){
+  const name = medDraft.name.trim();
+  if(!name){ showToast("Napiš prosím název léku/vitamínu/doplňku."); return; }
+  const reminder = buildMedReminderFromDraft();
+
+  if(medDraft.editingId){
+    state.medications = state.medications.map(m => m.id===medDraft.editingId ? {
+      ...m, date:medDraft.date, time:medDraft.time, name, dosage:medDraft.dosage, category:medDraft.category, notes:medDraft.notes,
+      reminder, reminderBaseTime: medDraft.reminderBaseTime,
+    } : m);
+    saveState(); scheduleReminders();
+    showToast("Uloženo ✓");
+    medFormCollapsed = true; resetMedDraft();
+    renderMedicationsView();
+    return;
+  }
+
+  const dates = medOccurrenceDates();
+  const groupId = dates.length > 1 ? uid() : null;
+  const newItems = dates.map(date => ({
+    id: uid(), type:"medication", date, time: medDraft.time, name, dosage: medDraft.dosage, category: medDraft.category, notes: medDraft.notes,
+    taken:false, reminder: reminder ? {...reminder} : null, reminderBaseTime: medDraft.reminderBaseTime,
+    recurrenceGroupId: groupId, deletedAt: null,
+  }));
+  state.medications = [...state.medications, ...newItems];
+  saveState(); scheduleReminders();
+  state.selectedDate = medDraft.date; state.windowStart = toISO(addDays(parseISODate(medDraft.date), -1));
+  showToast(newItems.length>1 ? `Přidáno ${newItems.length}× ✓` : "Přidáno ✓");
+  medFormCollapsed = true; resetMedDraft();
+  renderMedicationsView();
+}
+function editMedication(id){
+  const m = findMedication(id);
+  if(!m) return;
+  medFormCollapsed = false;
+  medDraft = {
+    editingId: m.id, date: m.date, time: m.time || "08:00", name: m.name, dosage: m.dosage || "", category: m.category || "lek", notes: m.notes || "",
+    reminderEnabled: !!(m.reminder && m.reminder.enabled), reminderMode: m.reminder?.mode || "atTime",
+    reminderTime: m.reminder?.time || "08:00", reminderBaseTime: m.reminderBaseTime || "08:00",
+    reminderAdvanceValue: m.reminder?.advanceValue ?? 15, reminderAdvanceUnit: m.reminder?.advanceUnit || "minutes",
+    reminderCustomDate: m.reminder?.customDate || todayISO, reminderCustomTime: m.reminder?.customTime || "08:00",
+    reminderSound: m.reminder?.sound || "bell", reminderCustomAudioId: m.reminder?.customAudioId || null,
+    recurrenceType: "none", recurrenceCount: 30, recurrenceCustomDates: [], recurrenceWeekdays: [], recurrenceDurationValue: 2, recurrenceDurationUnit: "weeks",
+  };
+  renderMedicationsView();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+function cancelMedEdit(){ medFormCollapsed = true; resetMedDraft(); renderMedicationsView(); }
+
+function renderMedicationsView(){
+  const el = document.getElementById("medicationsView");
+  if(!medDraft) resetMedDraft();
+  const windowStart = parseISODate(state.windowStart);
+  const days = Array.from({length:14}, (_,i) => addDays(windowStart, i));
+  const dayMeds = medicationsForDate(state.selectedDate);
+
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">💊 Léky, vitamíny, doplňky</p>
+    </div>
+
+    ${medFormCollapsed ? `
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:16px;width:100%;justify-content:center;font-weight:600;color:#ec4899" data-action="toggle-med-form">
+        <span style="font-size:16px">➕</span> Přidat lék / vitamín / doplněk
+      </button>
+    ` : medFormHTML()}
+
+    <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+      ${days.map(d => {
+        const iso = toISO(d);
+        const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+        const count = medicationsForDate(iso).length;
+        return `<button class="day-cell ${isToday?'today':''} ${isSelected?'selected-scheme':''} ${!isSelected?'card':''}" data-action="select-med-date" data-id="${iso}">
+          <span class="dow">${DAY_SHORT[d.getDay()]}</span><span class="dom">${d.getDate()}</span><span class="today-tag">Dnes</span>
+          ${count ? `<div class="day-dots"><span style="background:${isSelected?'rgba(255,255,255,0.8)':'#ec4899'}"></span>${count>1?`<span style="background:${isSelected?'rgba(255,255,255,0.8)':'#ec4899'}"></span>`:''}</div>` : `<div class="day-dots"></div>`}
+        </button>`;
+      }).join("")}
+    </div>
+
+    ${dayMeds.length===0 ? `<div class="card card-pad text-sm muted">Na tento den nemáš naplánované žádné léky ani doplňky.</div>` : `
+      <div class="col gap-2">
+        ${dayMeds.map(m => medicationCardHTML(m)).join("")}
+      </div>
+    `}
+  `;
+}
+function medicationCardHTML(m){
+  const rSum = reminderSummary(m);
+  return `
+    <div class="card row gap-3" style="padding:12px 16px;align-items:flex-start">
+      <button data-action="toggle-medication-taken" data-id="${m.id}" style="width:24px;height:24px;border-radius:5px;border:1.5px solid ${m.taken?'var(--accent)':'var(--line)'};background:${m.taken?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;flex-shrink:0;margin-top:2px">${m.taken?'✓':''}</button>
+      <span style="font-size:19px;flex-shrink:0">${MED_CATEGORY_EMOJI[m.category]||'💊'}</span>
+      <div class="grow">
+        <div class="row gap-2" style="margin-bottom:2px">
+          <span class="chip" style="font-size:10px;padding:2px 8px;background:#fce7f3;color:#be185d">${MED_CATEGORY_LABEL[m.category]||'Lék'}</span>
+          ${m.time ? `<span class="text-xs muted">${m.time}</span>` : ""}
+        </div>
+        <p class="text-sm font-med ${m.taken?'strike':''} text-main" style="margin:0">${escapeHTML(m.name)}${m.dosage ? ` — ${escapeHTML(m.dosage)}` : ""}</p>
+        ${m.notes ? `<p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(m.notes)}</p>` : ""}
+        ${rSum ? `<p class="text-xs" style="margin:2px 0 0;color:#f59e0b;font-weight:600">${rSum}</p>` : ""}
+        ${m.recurrenceGroupId ? `<button data-action="delete-medication-series" data-id="${m.recurrenceGroupId}" class="text-xs" style="color:#fb7185;font-weight:600;margin-top:4px">🔁 Smazat celou sérii opakování</button>` : ""}
+      </div>
+      <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${m.id}" data-sub="medication" title="Sdílet doplněk">↗️</button>
+      <button class="icon-btn-sm shrink0" data-action="edit-medication" data-id="${m.id}">✏️</button>
+      <button class="icon-btn-sm shrink0" data-action="delete-medication" data-id="${m.id}">🗑️</button>
+    </div>`;
+}
+function medFormHTML(){
+  return `
+    <div class="card card-pad" style="margin-bottom:16px">
+      <div class="row between" style="margin-bottom:12px">
+        <p class="text-sm font-semi text-main" style="margin:0">${medDraft.editingId ? "Upravit" : "Nový lék / vitamín / doplněk"}</p>
+        <button class="icon-btn-sm" data-action="toggle-med-form" title="Zavřít">✕</button>
+      </div>
+
+      <label class="label">Typ</label>
+      <div class="row gap-2" style="margin-bottom:12px">
+        ${Object.keys(MED_CATEGORY_LABEL).map(c => `<button class="chip ${medDraft.category===c?'active':''}" data-action="set-med-category" data-id="${c}">${MED_CATEGORY_EMOJI[c]} ${MED_CATEGORY_LABEL[c]}</button>`).join("")}
+      </div>
+
+      <div class="row gap-2" style="margin-bottom:10px">
+        <input id="medNameInput" class="field grow" placeholder="např. Vitamín D, Ibalgin, Magnesium…" value="${escapeAttr(medDraft.name)}" data-med-field="name" />
+        <button class="icon-btn shrink0" data-action="dictate-into" data-target="medNameInput" title="Diktovat">🎙️</button>
+      </div>
+      <div class="row gap-2" style="margin-bottom:10px">
+        <input id="medDosageInput" class="field grow" placeholder="Dávkování — např. 1 tableta, 500 mg" value="${escapeAttr(medDraft.dosage)}" data-med-field="dosage" />
+        <button class="icon-btn shrink0" data-action="dictate-into" data-target="medDosageInput" title="Diktovat">🎙️</button>
+      </div>
+
+      <div class="row gap-3" style="margin-bottom:10px">
+        <div class="grow"><label class="label">Datum</label>
+          <input type="date" class="field" value="${medDraft.date}" data-med-field="date" /></div>
+        <div class="grow"><label class="label">Čas</label>
+          <input type="time" class="field" value="${medDraft.time}" data-med-field="time" /></div>
+      </div>
+
+      <div class="row between" style="align-items:center;margin-bottom:4px">
+        <label class="label" style="margin:0">Poznámka (nepovinné)</label>
+        <button class="icon-btn-sm" data-action="dictate-into" data-target="medNotesInput" title="Diktovat">🎙️</button>
+      </div>
+      <textarea id="medNotesInput" class="field" rows="2" placeholder="např. brát po jídle…" data-med-field="notes" style="margin-bottom:12px">${escapeHTML(medDraft.notes)}</textarea>
+
+      <div class="row between" style="align-items:center">
+        <label class="label" style="margin:0">Opakování</label>
+        <button class="text-xs" style="color:#6366f1;font-weight:600;background:none" data-action="open-modal" data-modal="recurringManager">🔁 Spravovat aktivní opakování</button>
+      </div>
+        <div class="row gap-2 wrapf" style="margin-bottom:6px">
+          ${RECURRENCE_TYPES.map(r => `<button class="chip ${medDraft.recurrenceType===r.id?'active':''}" data-action="set-med-recurrence" data-id="${r.id}">${r.label}</button>`).join("")}
+        </div>
+        ${medDraft.recurrenceType==="weekly_days" ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:8px">
+            ${WEEKDAY_LABELS.map(w => `<button class="chip ${medDraft.recurrenceWeekdays.includes(w.id)?'active':''}" data-action="toggle-med-recurrence-weekday" data-id="${w.id}">${w.label}</button>`).join("")}
+          </div>
+          ${!medDraft.recurrenceWeekdays.length ? `<p class="text-xs muted" style="margin:0 0 8px">Vyber aspoň jeden den.</p>` : ""}
+        ` : ""}
+        ${medDraft.recurrenceType!=="none" && medDraft.recurrenceType!=="custom" ? `
+          <div class="row gap-2" style="align-items:center;margin-bottom:10px">
+            <label class="label" style="margin:0">Po dobu</label>
+            <input type="number" min="1" max="200" class="field" style="width:70px" value="${medDraft.recurrenceDurationValue}" data-med-field="recurrenceDurationValue" />
+            <select class="field" style="width:auto" data-med-field="recurrenceDurationUnit">
+              ${DURATION_UNITS.map(u => `<option value="${u.id}" ${medDraft.recurrenceDurationUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+            </select>
+          </div>
+          ${(() => {
+            const c = computeRecurrenceCount(medDraft.recurrenceType, medDraft.recurrenceWeekdays.length, medDraft.recurrenceDurationValue, medDraft.recurrenceDurationUnit);
+            return `<p class="text-xs muted" style="margin:4px 0 10px">Vytvoří se ${c} termínů${medDraft.recurrenceType==="weekly_days" ? " " + weeklyDaysCountHint(medDraft.recurrenceWeekdays.length, c) : ""}.</p>`;
+          })()}` : ""}
+        ${medDraft.recurrenceType==="custom" ? `
+          <div class="row gap-2" style="margin-bottom:6px">
+            <input type="date" id="medRecurrenceDateInput" class="field grow" />
+            <button class="icon-btn" data-action="add-med-recurrence-date">➕</button>
+          </div>
+          <div class="row gap-2 wrapf" style="margin-bottom:10px">
+            ${medDraft.recurrenceCustomDates.map(dt => `<span class="chip active">${dt} <span data-action="remove-med-recurrence-date" data-id="${dt}" style="margin-left:4px;cursor:pointer">✕</span></span>`).join("")}
+          </div>` : ""}
+      ${medDraft.editingId ? `<p class="text-xs muted" style="margin:0 0 12px">Opakování se použije jen při vytvoření nového záznamu — u téhle úpravy se změní jen tenhle jeden záznam.</p>` : ""}
+
+      <div style="border:1px solid #f1f5f9;background:rgba(248,250,252,0.6);border-radius:18px;padding:12px;margin-bottom:12px">
+        <button class="row between" style="width:100%" data-action="toggle-med-reminder">
+          <span class="row gap-2 font-semi text-sm" style="color:#475569">${medDraft.reminderEnabled?'🔔':'🔕'} Upozornit</span>
+          <span class="switch ${medDraft.reminderEnabled?'on':''}"><span class="knob"></span></span>
+        </button>
+        ${medDraft.reminderEnabled ? `
+          <div class="col gap-3" style="margin-top:12px">
+            <div class="row gap-2 wrapf">
+              ${REMINDER_MODES.map(rm => `<button class="chip ${medDraft.reminderMode===rm.id?'active':''}" style="${medDraft.reminderMode===rm.id?'background:#334155;color:#fff':'background:#fff;border:1px solid #e2e8f0'}" data-action="set-med-reminder-mode" data-id="${rm.id}">${rm.label}</button>`).join("")}
+            </div>
+            ${medDraft.reminderMode==="atTime" ? `
+              <div><label class="label">Čas (v den užití)</label>
+                <input type="time" class="field" value="${medDraft.reminderTime}" data-med-field="reminderTime" /></div>` : ""}
+            ${medDraft.reminderMode==="before" ? `
+              <div><label class="label">Naplánováno na</label>
+                <input type="time" class="field" value="${medDraft.reminderBaseTime}" data-med-field="reminderBaseTime" /></div>
+              <div class="row gap-2">
+                <div class="grow"><label class="label">Upozornit předem</label>
+                  <input type="number" min="1" class="field" value="${medDraft.reminderAdvanceValue}" data-med-field="reminderAdvanceValue" /></div>
+                <div class="grow"><label class="label">Jednotka</label>
+                  <select class="field" data-med-field="reminderAdvanceUnit">
+                    ${ADVANCE_UNITS.map(u => `<option value="${u.id}" ${medDraft.reminderAdvanceUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+                  </select></div>
+              </div>` : ""}
+            ${medDraft.reminderMode==="custom" ? `
+              <div class="row gap-2">
+                <div class="grow"><label class="label">Datum</label><input type="date" class="field" value="${medDraft.reminderCustomDate}" data-med-field="reminderCustomDate" /></div>
+                <div class="grow"><label class="label">Čas</label><input type="time" class="field" value="${medDraft.reminderCustomTime}" data-med-field="reminderCustomTime" /></div>
+              </div>` : ""}
+            <div>
+              <label class="label">Melodie</label>
+              <select class="field" data-med-field="reminderSound">
+                ${Object.entries(REMINDER_SOUNDS).map(([k,s]) => `<option value="${k}" ${medDraft.reminderSound===k?'selected':''}>${s.label}</option>`).join("")}
+              </select>
+            </div>
+          </div>` : ""}
+      </div>
+
+      <div class="row gap-2" style="justify-content:flex-end">
+        ${medDraft.editingId ? `<button class="btn btn-soft" data-action="cancel-med-edit">Zrušit úpravu</button>` : ""}
+        <button class="btn btn-primary" data-action="add-medication">${medDraft.editingId ? "✓ Uložit změny" : "➕ Přidat"}</button>
+      </div>
+    </div>
+  `;
+}
+
+// ================= WORKOUTS (trénink/sport) =================
+function findWorkout(id){ return state.workouts.find(w => w.id === id); }
+function activeWorkouts(){ return state.workouts.filter(w => !w.deletedAt); }
+// ================= QUICK ACTIVITIES (turistika, běh, kolo apod.) =================
+// A much lighter path than the full exercise-based workout builder — pick an
+// activity, either type in a duration or run a live stopwatch (pause/resume
+// friendly, e.g. stopping for lunch mid-hike), and get it logged as a workout
+// with an AI calorie estimate, reusing all the same underlying machinery.
+const QUICK_ACTIVITY_TYPES = [
+  {id:"hike", emoji:"🥾", label:"Horská túra"},
+  {id:"walk", emoji:"🚶", label:"Procházka"},
+  {id:"run", emoji:"🏃", label:"Běh"},
+  {id:"bike", emoji:"🚴", label:"Jízda na kole"},
+  {id:"swim", emoji:"🏊", label:"Plavání"},
+  {id:"ski", emoji:"⛷️", label:"Lyžování"},
+  {id:"climb", emoji:"🧗", label:"Horolezectví"},
+  {id:"skate", emoji:"⛸️", label:"Bruslení"},
+  {id:"other", emoji:"🏷️", label:"Jiná aktivita"},
+];
+function activityStopwatchElapsedMs(){
+  const s = state.activityStopwatch; if(!s) return 0;
+  return (s.accumulatedMs||0) + (s.runningSince ? (Date.now() - s.runningSince) : 0);
+}
+function formatElapsed(ms){
+  const totalSec = Math.max(0, Math.floor(ms/1000));
+  const h = Math.floor(totalSec/3600), m = Math.floor((totalSec%3600)/60), s = totalSec%60;
+  const pad = (n) => String(n).padStart(2,"0");
+  return h>0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+function startActivityStopwatch(label){
+  if(!label || !label.trim()) return;
+  state.activityStopwatch = { activityLabel: label.trim(), accumulatedMs:0, runningSince: Date.now() };
+  saveState();
+  closeModal();
+  renderActivityStopwatchWidget();
+  showToast(`⏱️ ${label.trim()} — stopky spuštěny`);
+}
+function pauseActivityStopwatch(){
+  const s = state.activityStopwatch; if(!s || !s.runningSince) return;
+  s.accumulatedMs = (s.accumulatedMs||0) + (Date.now() - s.runningSince);
+  s.runningSince = null;
+  saveState();
+  renderActivityStopwatchWidget();
+}
+function resumeActivityStopwatch(){
+  const s = state.activityStopwatch; if(!s || s.runningSince) return;
+  s.runningSince = Date.now();
+  saveState();
+  renderActivityStopwatchWidget();
+}
+function stopActivityStopwatch(){
+  const s = state.activityStopwatch; if(!s) return;
+  const totalMs = activityStopwatchElapsedMs();
+  const minutes = Math.max(1, Math.round(totalMs/60000));
+  const w = {
+    id: uid(), type:"workout", title: s.activityLabel, notes:"", exercises:[],
+    checklist: [{id:uid(), text:s.activityLabel, done:false, minutes}],
+    drawings:[], audioIds:[], date: todayISO, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
+  };
+  state.workouts = [...state.workouts, w];
+  state.activityStopwatch = null;
+  saveState();
+  showToast(`${s.activityLabel} uloženo (${formatElapsed(totalMs)}) ✓ — nezapomeň označit jako hotové · počítám kalorie…`);
+  renderActivityStopwatchWidget();
+  renderWorkoutsView();
+  estimateWorkoutCaloriesAI(w.id);
+}
+function cancelActivityStopwatch(){
+  state.activityStopwatch = null;
+  saveState();
+  renderActivityStopwatchWidget();
+  showToast("Aktivita zrušena bez uložení.");
+}
+// Manual (no live stopwatch) quick-log path — just pick activity + duration and confirm.
+function logQuickActivityManual(label, hours, minutes){
+  if(!label || !label.trim()) return;
+  const totalMinutes = Math.max(1, (Number(hours)||0)*60 + (Number(minutes)||0));
+  const w = {
+    id: uid(), type:"workout", title: label.trim(), notes:"", exercises:[],
+    checklist: [{id:uid(), text:label.trim(), done:false, minutes: totalMinutes}],
+    drawings:[], audioIds:[], date: state.selectedDate || todayISO, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
+  };
+  state.workouts = [...state.workouts, w];
+  saveState();
+  closeModal();
+  showToast(`${label.trim()} uloženo (${totalMinutes} min) ✓ — počítám kalorie…`);
+  renderWorkoutsView();
+  estimateWorkoutCaloriesAI(w.id);
+}
+let quickActivityPicked = null; // {emoji, label} while the modal is open
+let quickActivityMode = "manual"; // "manual" | "stopwatch"
+function quickActivityModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:380px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">🥾 Rychlá aktivita</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 8px">Vyber aktivitu:</p>
+        <div class="row gap-2 wrapf" style="margin-bottom:12px">
+          ${QUICK_ACTIVITY_TYPES.map(a => `<button class="chip ${quickActivityPicked?.id===a.id?'active':''}" data-action="pick-quick-activity" data-id="${a.id}">${a.emoji} ${a.label}</button>`).join("")}
+        </div>
+        ${quickActivityPicked ? `
+          ${quickActivityPicked.id==="other" ? `
+            <input id="quickActivityCustomLabel" class="field" style="margin-bottom:12px" placeholder="Napiš, co budeš dělat…" value="${escapeAttr(quickActivityPicked.customText||'')}" />
+          ` : ""}
+          <div class="row gap-2 wrapf" style="margin-bottom:12px">
+            <button class="chip ${quickActivityMode==='stopwatch'?'active':''}" data-action="set-quick-activity-mode" data-id="stopwatch">▶️ Živé stopky</button>
+            <button class="chip ${quickActivityMode==='manual'?'active':''}" data-action="set-quick-activity-mode" data-id="manual">✍️ Zadat ručně</button>
+          </div>
+          ${quickActivityMode==="manual" ? `
+            <div class="row gap-2" style="align-items:center;margin-bottom:14px">
+              <input id="quickActivityHours" type="number" min="0" class="field" style="width:70px" placeholder="hod" value="0" />
+              <span class="text-xs muted">h</span>
+              <input id="quickActivityMinutes" type="number" min="0" class="field" style="width:70px" placeholder="min" value="30" />
+              <span class="text-xs muted">min</span>
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="confirm-quick-activity-manual">✅ Uložit aktivitu</button>
+          ` : `
+            <p class="text-xs muted" style="margin:0 0 12px">Appka poběží na pozadí — kdykoliv jde pozastavit (např. v restauraci) a zase pokračovat.</p>
+            <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="confirm-quick-activity-stopwatch">▶️ Spustit stopky</button>
+          `}
+        ` : ""}
+      </div>
+    </div>`;
+}
+function activityStopwatchWidgetHTML(){
+  const s = state.activityStopwatch;
+  if(!s) return "";
+  const elapsed = activityStopwatchElapsedMs();
+  const paused = !s.runningSince;
+  return `
+    <div style="position:fixed;bottom:16px;left:16px;right:16px;max-width:360px;margin:0 auto;z-index:288">
+      <div class="card" style="padding:12px 16px;box-shadow:0 10px 26px rgba(0,0,0,.15);background:${paused?'#fff7ed':'#ecfdf5'}">
+        <div class="row between" style="align-items:center">
+          <div>
+            <p class="text-xs font-semi muted" style="margin:0">${paused?'⏸ Pozastaveno':'▶️ Probíhá'} — ${escapeHTML(s.activityLabel)}</p>
+            <p id="activityStopwatchTime" class="text-lg font-semi" style="margin:0;color:${paused?'#c2410c':'#059669'}">${formatElapsed(elapsed)}</p>
+          </div>
+          <div class="row gap-1">
+            ${paused
+              ? `<button class="icon-btn-sm" style="width:32px;height:32px" data-action="resume-activity-stopwatch" title="Pokračovat">▶️</button>`
+              : `<button class="icon-btn-sm" style="width:32px;height:32px" data-action="pause-activity-stopwatch" title="Pauza">⏸</button>`}
+            <button class="icon-btn-sm" style="width:32px;height:32px;background:#059669;color:#fff" data-action="stop-activity-stopwatch" title="Ukončit a uložit">⏹</button>
+            <button class="icon-btn-sm" style="width:32px;height:32px" data-action="cancel-activity-stopwatch" title="Zrušit">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+let activityStopwatchTickInterval = null;
+function renderActivityStopwatchWidget(){
+  const el = document.getElementById("activityStopwatchRoot");
+  if(!el) return;
+  el.innerHTML = activityStopwatchWidgetHTML();
+  clearInterval(activityStopwatchTickInterval);
+  if(state.activityStopwatch && state.activityStopwatch.runningSince){
+    activityStopwatchTickInterval = setInterval(() => {
+      const timeEl = document.getElementById("activityStopwatchTime");
+      if(timeEl && state.activityStopwatch) timeEl.textContent = formatElapsed(activityStopwatchElapsedMs());
+    }, 1000);
+  }
+}
+function isWorkoutBlank(w){
+  return !!w && (!w.title || w.title.trim()==="" || w.title==="Nový trénink")
+    && (!w.exercises || w.exercises.length===0) && !w.notes
+    && (!w.checklist || w.checklist.length===0)
+    && (!w.drawings || w.drawings.length===0) && (!w.audioIds || w.audioIds.length===0);
+}
+function createBlankWorkout(){
+  const newItem = {
+    id: uid(), type:"workout", title:"Nový trénink", notes:"", exercises:[], checklist:[], drawings:[], audioIds:[], deletedAt:null,
+    date: state.selectedDate || todayISO, done:false,
+    estimatedCalories:null, calorieReasoning:null, calorieAnalyzedAt:null, calorieSignature:null,
+    recurrenceType:"none", recurrenceWeekdays:[], recurrenceDurationValue:4, recurrenceDurationUnit:"weeks", recurrenceGroupId:null,
+    shareId:null, sharedStatus:null, sharedAccepterName:null,
+  };
+  state.workouts = [...state.workouts, newItem];
+  saveState();
+  openWorkoutDetail(newItem.id);
+}
+let openWorkoutId = null;
+function openWorkoutDetail(id){ openWorkoutId = id; renderWorkoutsView(); window.scrollTo({top:0, behavior:"smooth"}); }
+function closeWorkoutDetail(){
+  const w = openWorkoutId ? findWorkout(openWorkoutId) : null;
+  if(w && isWorkoutBlank(w)){ state.workouts = state.workouts.filter(x => x.id !== w.id); saveState(); }
+  openWorkoutId = null;
+  renderWorkoutsView();
+}
+function updateWorkout(id, patch){
+  state.workouts = state.workouts.map(w => w.id===id ? {...w, ...patch} : w);
+  saveState();
+}
+function saveWorkoutNow(id){
+  saveState();
+  showToast("Trénink uložen ✓");
+  closeWorkoutDetail();
+}
+function deleteWorkout(id){
+  const wasOpen = openWorkoutId === id;
+  state.workouts = state.workouts.map(w => w.id===id ? {...w, deletedAt:Date.now()} : w);
+  saveState();
+  if(wasOpen) openWorkoutId = null;
+  renderWorkoutsView();
+  showToast("Přesunuto do archivu ✓ (jde vrátit v 🗂️ Archivu)");
+}
+function permanentlyDeleteWorkout(id){
+  const w = findWorkout(id);
+  if(w) (w.audioIds||[]).forEach(a => idbDelete(a).catch(()=>{}));
+  state.workouts = state.workouts.filter(w => w.id !== id);
+  saveState();
+}
+function restoreWorkout(id){ updateWorkout(id, {deletedAt:null}); showToast("Trénink obnoven ✓"); }
+function readWorkoutAloud(id){
+  const w = findWorkout(id); if(!w) return;
+  const parts = [w.title];
+  if(w.notes) parts.push(w.notes);
+  (w.exercises||[]).forEach(e => parts.push(`${e.name}, ${e.sets} série po ${e.reps} opakováních${e.weight ? ", " + e.weight : ""}`));
+  speakText(parts.join(". "));
+}
+function addExercise(workoutId, name){
+  if(!name || !name.trim()) return;
+  const w = findWorkout(workoutId); if(!w) return;
+  const ex = { id:uid(), name:name.trim(), sets:3, reps:10, weight:"", restSeconds:60 };
+  updateWorkout(workoutId, { exercises:[...(w.exercises||[]), ex] });
+  renderWorkoutDetail();
+}
+function removeExercise(workoutId, exId){
+  const w = findWorkout(workoutId); if(!w) return;
+  updateWorkout(workoutId, { exercises:(w.exercises||[]).filter(e => e.id !== exId) });
+  renderWorkoutDetail();
+}
+function updateExerciseField(workoutId, exId, field, value){
+  const w = findWorkout(workoutId); if(!w) return;
+  const numericFields = ["sets","reps","restSeconds"];
+  updateWorkout(workoutId, { exercises:(w.exercises||[]).map(e => e.id===exId ? {...e, [field]: numericFields.includes(field) ? Math.max(0, Number(value)||0) : value} : e) });
+}
+function moveExercise(workoutId, exId, dir){
+  const w = findWorkout(workoutId); if(!w) return;
+  const arr = [...(w.exercises||[])];
+  const idx = arr.findIndex(e => e.id === exId);
+  const newIdx = idx + dir;
+  if(idx < 0 || newIdx < 0 || newIdx >= arr.length) return;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  updateWorkout(workoutId, { exercises: arr });
+  renderWorkoutDetail();
+}
+
+// ---------- AI calorie-burn estimate for a whole workout (exercises + notes
+// + to-do list, one holistic call) — mirrors the day-protein-analysis pattern:
+// instant locally without AI (rough fallback), precise on demand via AI, and
+// clearly flagged once the workout's content changes after being analyzed. ----------
+function workoutContentSignature(w){
+  const ex = (w.exercises||[]).map(e => `${e.name}|${e.sets}|${e.reps}|${e.weight||''}`).join(";");
+  const cl = (w.checklist||[]).map(i => `${i.text}|${i.minutes||''}`).join(";");
+  return `${ex}::${cl}::${w.notes||''}`;
+}
+function isWorkoutCalorieStale(w){
+  if(w.estimatedCalories == null) return false;
+  return workoutContentSignature(w) !== w.calorieSignature;
+}
+function roughWorkoutCalorieEstimate(w){
+  // Zero-network fallback so something reasonable always shows: ~7 kcal per
+  // exercise set worked, plus whatever durations can be parsed from the
+  // to-do list / notes (same minute-parsing already used for the timer
+  // button), at a generic ~8 kcal/minute for moderate activity.
+  let kcal = 0;
+  (w.exercises||[]).forEach(e => { kcal += (e.sets||1) * 7; });
+  (w.checklist||[]).forEach(i => { kcal += parseMinutesFromText(i.text) * 8; });
+  if(w.notes){
+    const matches = [...w.notes.matchAll(/(\d+)\s*(min|minut|minuty|minutu)/gi)];
+    matches.forEach(m => { kcal += Number(m[1]) * 8; });
+  }
+  return Math.round(kcal);
+}
+async function estimateWorkoutCaloriesAI(workoutId){
+  const w = findWorkout(workoutId); if(!w) return;
+  if(!(w.exercises||[]).length && !(w.checklist||[]).length && !w.notes){ showToast("Přidej aspoň cviky, to-do položky nebo poznámku, ať má appka co analyzovat."); return; }
+  // Same instant-and-free memory as the food estimates — a recurring workout
+  // (same exercises copied across many dates) or a repeated quick activity
+  // ("Horská túra" again) reuses the first real AI estimate instead of paying
+  // for the identical answer over and over.
+  const signature = workoutContentSignature(w);
+  const cached = state.aiWorkoutCache[signature];
+  if(cached){
+    updateWorkout(workoutId, {
+      estimatedCalories: cached.calories, calorieReasoning: cached.reasoning,
+      calorieAnalyzedAt: Date.now(), calorieSignature: signature,
+    });
+    showToast("✅ Odhad kalorií vyplněn z paměti appky — zdarma, bez AI ⚡");
+    renderWorkoutDetail(); renderMealsView();
+    return;
+  }
+  const btn = document.getElementById("workoutCalorieBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🔥 AI počítá…"; }
+  const exText = (w.exercises||[]).map(e => `- ${e.name}: ${e.sets} série × ${e.reps} opakování${e.weight?`, ${e.weight}`:''}`).join("\n");
+  const todoText = (w.checklist||[]).map(i => `- ${i.text}`).join("\n");
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 400,
+        messages: [{ role:"user", content:
+          `Odhadni CELKOVÝ počet spálených kalorií za tenhle trénink, na základě všech uvedených informací dohromady:\n\nCviky (posilování):\n${exText || "(žádné)"}\n\nTo-do / kardio položky:\n${todoText || "(žádné)"}\n\nPoznámka k tréninku:\n${w.notes || "(žádná)"}\n\nZohledni typ a intenzitu každé aktivity (např. běh, box, jóga, posilování mají různou spotřebu), počet sérií a opakování u cviků, a všechny minuty uvedené u kardio položek nebo v poznámce. Počítej pro průměrně fit dospělou osobu.\n\nOdpověz POUZE čistým JSON objektem, bez markdown a bez dalšího textu:\n{"caloriesBurned": číslo, "reasoning": "krátké odůvodnění v češtině, 1-3 věty, zmiň hlavní přispěvatele"}`
+        }],
+      }),
+    });
+    const data = await response.json();
+    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = text.replace(/```json|```/g,"").trim();
+    const v = JSON.parse(cleaned);
+    const calories = Math.round(Number(v.caloriesBurned))||0;
+    const reasoning = String(v.reasoning||"").slice(0,400);
+    updateWorkout(workoutId, {
+      estimatedCalories: calories,
+      calorieReasoning: reasoning,
+      calorieAnalyzedAt: Date.now(),
+      calorieSignature: signature,
+    });
+    state.aiWorkoutCache[signature] = { calories, reasoning, cachedAt: Date.now() };
+    saveState();
+    showToast("Odhad kalorií hotov ✨");
+    renderWorkoutDetail();
+    renderMealsView();
+  }catch(e){
+    showToast("AI odhad teď není dostupný — appka zatím ukazuje rychlý hrubý odhad bez AI.");
+  }finally{
+    const btn2 = document.getElementById("workoutCalorieBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🔥 AI: Odhadnout spálené kalorie"; }
+  }
+}
+function toggleWorkoutDone(workoutId){
+  const w = findWorkout(workoutId); if(!w) return;
+  updateWorkout(workoutId, { done: !w.done });
+  renderWorkoutDetail(); renderWorkoutsView(); renderMealsView();
+  syncSharedCompletionIfNeeded(findWorkout(workoutId), "done");
+}
+
+// ---------- Workout recurrence — same engine as tasks/meals/medications
+// (weekdays over a duration, or daily/weekly/monthly), applied to a full
+// workout template so every occurrence gets its own independent copy of the
+// exercises/checklist to track separately (own done-state, own calorie
+// estimate) while only needing to be built once. ----------
+function workoutOccurrenceDates(w){
+  const base = w.date;
+  if(w.recurrenceType === "none" || !w.recurrenceType) return [base];
+  const count = computeRecurrenceCount(w.recurrenceType, (w.recurrenceWeekdays||[]).length, w.recurrenceDurationValue, w.recurrenceDurationUnit);
+  if(w.recurrenceType === "weekly_days") return weekdayOccurrenceDates(base, w.recurrenceWeekdays, count);
+  const out = [];
+  for(let i=0;i<count;i++){
+    let d;
+    if(w.recurrenceType === "daily") d = addDays(parseISODate(base), i);
+    else if(w.recurrenceType === "weekly") d = addDays(parseISODate(base), i*7);
+    else if(w.recurrenceType === "monthly") d = addMonths(parseISODate(base), i);
+    else d = parseISODate(base);
+    out.push(toISO(d));
+  }
+  return out;
+}
+function generateWorkoutRecurrence(workoutId){
+  const w = findWorkout(workoutId); if(!w) return;
+  if(!w.recurrenceType || w.recurrenceType === "none"){ showToast("Nejdřív vyber typ opakování výše."); return; }
+  const allDates = [...new Set(workoutOccurrenceDates(w))];
+  const extraDates = allDates.filter(d => d !== w.date);
+  if(!extraDates.length){ showToast("Podle nastavení opakování nevznikly žádné další termíny — zkus zvětšit dobu trvání."); return; }
+  const groupId = w.recurrenceGroupId || uid();
+  const clones = extraDates.map(date => ({
+    ...w,
+    id: uid(),
+    date,
+    done: false,
+    estimatedCalories: null, calorieReasoning: null, calorieAnalyzedAt: null, calorieSignature: null,
+    exercises: (w.exercises||[]).map(e => ({...e, id: uid()})),
+    checklist: (w.checklist||[]).map(i => ({...i, id: uid(), done:false})),
+    drawings: [], audioIds: [],
+    recurrenceGroupId: groupId,
+    deletedAt: null,
+  }));
+  state.workouts = [...state.workouts.map(x => x.id===workoutId ? {...x, recurrenceGroupId: groupId} : x), ...clones];
+  saveState();
+  showToast(`Vytvořeno ${clones.length} dalších termínů tréninku ✓`);
+  renderWorkoutDetail();
+  renderWorkoutsView();
+}
+function deleteWorkoutSeries(groupId){
+  state.workouts = state.workouts.map(w => w.recurrenceGroupId === groupId ? {...w, deletedAt: Date.now()} : w);
+  saveState();
+  openWorkoutId = null;
+  closeModal();
+  renderWorkoutsView();
+  showToast("Celá série tréninků přesunuta do archivu ✓");
+}
+function activeWorkoutRecurrenceGroups(){
+  const groups = {};
+  activeWorkouts().forEach(w => {
+    if(!w.recurrenceGroupId) return;
+    if(!groups[w.recurrenceGroupId]) groups[w.recurrenceGroupId] = { id:w.recurrenceGroupId, title:w.title, count:0, nextDate:null };
+    groups[w.recurrenceGroupId].count++;
+    if(w.date >= todayISO && (!groups[w.recurrenceGroupId].nextDate || w.date < groups[w.recurrenceGroupId].nextDate)) groups[w.recurrenceGroupId].nextDate = w.date;
+  });
+  return Object.values(groups);
+}
+
+// ---------- Workout to-do checklist (e.g. "Kardio běh 20 minut") with a
+// one-tap timer per item — same proven timer/alarm system used everywhere
+// else in the app, not a separate mechanism. ----------
+function addWorkoutChecklistItem(workoutId, text, minutes){
+  if(!text || !text.trim()) return;
+  const w = findWorkout(workoutId); if(!w) return;
+  const mins = Math.max(1, Number(minutes) || parseMinutesFromText(text));
+  updateWorkout(workoutId, { checklist: [...(w.checklist||[]), {id:uid(), text:text.trim(), done:false, minutes:mins}] });
+  renderWorkoutDetail();
+}
+function setWorkoutChecklistItemMinutes(workoutId, itemId, minutes){
+  const w = findWorkout(workoutId); if(!w) return;
+  const mins = Math.max(1, Number(minutes) || 1);
+  updateWorkout(workoutId, { checklist: (w.checklist||[]).map(i => i.id===itemId ? {...i, minutes:mins} : i) });
+}
+function removeWorkoutChecklistItem(workoutId, itemId){
+  const w = findWorkout(workoutId); if(!w) return;
+  updateWorkout(workoutId, { checklist: (w.checklist||[]).filter(i => i.id !== itemId) });
+  renderWorkoutDetail();
+}
+function toggleWorkoutChecklistItem(workoutId, itemId){
+  const w = findWorkout(workoutId); if(!w) return;
+  updateWorkout(workoutId, { checklist: (w.checklist||[]).map(i => i.id===itemId ? {...i, done:!i.done} : i) });
+  renderWorkoutDetail();
+}
+// Picks up a duration the person already wrote/said ("Kardio běh 20 minut" ->
+// 20), so typing or dictating the item is usually all that's needed; falls
+// back to a sensible 5 minutes if no number is found.
+function parseMinutesFromText(text){
+  const m = /(\d+)\s*(min|minut|minuty|minutu)/i.exec(text||"");
+  if(m) return Math.max(1, Number(m[1]));
+  return 5;
+}
+function startTimerForWorkoutItem(workoutId, itemId){
+  const w = findWorkout(workoutId); if(!w) return;
+  const item = (w.checklist||[]).find(i => i.id === itemId); if(!item) return;
+  startTimer(item.minutes || parseMinutesFromText(item.text), item.text);
+}
+
+function workoutsForDate(date){ return activeWorkouts().filter(w => w.date === date); }
+let expandedPersonId = null;
+function reminderRow(label, reminderCfg, actionPrefix, ownerId, subId){
+  return `
+    <div style="background:#f8fafc;border-radius:12px;padding:10px 12px;margin-top:6px">
+      <div class="row between" style="align-items:center;margin-bottom:${reminderCfg.enabled?'8px':'0'}">
+        <span class="text-xs font-med" style="color:#475569">${label}</span>
+        <button data-action="${actionPrefix}-toggle" data-id="${ownerId}" data-sub="${subId||''}" style="width:38px;height:22px;border-radius:999px;background:${reminderCfg.enabled?'#10b981':'#cbd5e1'};position:relative;flex-shrink:0">
+          <span style="position:absolute;top:2px;left:${reminderCfg.enabled?'18px':'2px'};width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s"></span>
+        </button>
+      </div>
+      ${reminderCfg.enabled ? `
+        <div class="row gap-2" style="align-items:center;margin-bottom:6px">
+          <span class="text-xs muted">Upozornit</span>
+          <input type="number" min="0" max="60" class="field" style="width:56px;font-size:12px;padding:4px 7px" value="${reminderCfg.daysBefore||0}" data-reminder-days-field="${actionPrefix}" data-id="${ownerId}" data-sub="${subId||''}" />
+          <span class="text-xs muted">dní předem</span>
+        </div>
+        <input class="field" style="font-size:12px" placeholder="Poznámka (např. koupit dárek)" value="${escapeAttr(reminderCfg.note||'')}" data-reminder-note-field="${actionPrefix}" data-id="${ownerId}" data-sub="${subId||''}" />
+      ` : ""}
+    </div>`;
+}
+function renderSettingsView(){
+  const el = document.getElementById("settingsView");
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">⚙️ Nastavení</p>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">💾 Záloha dat</p>
+      <p class="text-xs muted" style="margin:0 0 12px">Všechna tvá data žijí jen v tomhle telefonu/prohlížeči. Stáhni si zálohu, ať o ně nepřijdeš při výměně telefonu nebo smazání appky — a jde ji kdykoliv zpátky obnovit.</p>
+      <div class="row gap-2 wrapf">
+        <button class="btn btn-primary" data-action="export-backup">⬇️ Stáhnout zálohu</button>
+        <label class="btn btn-soft" style="cursor:pointer">
+          ⬆️ Obnovit ze zálohy
+          <input type="file" accept=".json,application/json" style="display:none" data-action="upload-backup" />
+        </label>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:var(--ink)">🔔 Push upozornění</p>
+      <p class="text-xs muted" style="margin:0 0 12px">Když zapneš, appka tě upozorní i s telefonem zamčeným a appkou zavřenou, jakmile někdo, s kým sdílíš úkol, jídlo nebo trénink, něco odškrtne nebo dokončí. Na iPhonu funguje jen appka přidaná na plochu.</p>
+      <button class="btn ${state.pushSubscription ? 'btn-soft' : 'btn-primary'}" data-action="${state.pushSubscription ? 'disable-push' : 'enable-push'}">
+        ${state.pushSubscription ? '🔕 Vypnout push upozornění' : '🔔 Zapnout push upozornění'}
+      </button>
+      ${state.pushSubscription ? `<p class="text-xs" style="margin:8px 0 0;color:#059669">✅ Zapnuto na tomhle zařízení</p>` : ""}
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:var(--ink)">🎨 Barevné schéma</p>
+      <p class="text-xs muted" style="margin:0 0 12px">Vyber si barvu, co appka používá napříč celou aplikací — jen tenhle jeden akcent, zbytek zůstává stejný.</p>
+      <div class="row gap-2 wrapf">
+        ${[
+          {id:"indigo", label:"Indigo", c:"#3A3FC7"},
+          {id:"forest", label:"Forest", c:"#0F6E56"},
+          {id:"amber", label:"Amber", c:"#8A5A17"},
+          {id:"mono", label:"Mono", c:"#14161A"},
+        ].map(s => `
+          <button data-action="set-color-scheme" data-id="${s.id}" style="width:74px">
+            <div class="scheme-swatch ${state.colorScheme===s.id?'sel':''}" style="background:#F7F7F5">
+              <div class="sw-accent" style="background:${s.c}"></div>
+            </div>
+            <p class="text-xs" style="margin:5px 0 0;text-align:center;color:var(--ink2);font-weight:600">${s.label}</p>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">🎓 Co se appka už naučila</p>
+      <p class="text-xs muted" style="margin:0 0 10px">Appka si pamatuje, co už AI jednou spočítala — příště je to okamžité a zdarma, bez nového volání AI. Čím víc appku používáš, tím víc věcí umí bez placení za AI.</p>
+      <div class="row gap-4">
+        <div><p class="text-xs muted" style="margin:0">Potraviny</p><p class="text-lg font-semi" style="margin:0;color:#059669">${Object.keys(state.aiFoodCache).length}</p></div>
+        <div><p class="text-xs muted" style="margin:0">Tréninky/aktivity</p><p class="text-lg font-semi" style="margin:0;color:#d97706">${Object.keys(state.aiWorkoutCache).length}</p></div>
+      </div>
+    </div>
+    <div class="card card-pad" style="margin-bottom:16px">
+      <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">🎂 Rodina a blízcí</p>
+      <p class="text-xs muted" style="margin:0 0 12px">Přidej jméno a appka sama pozná svátek podle českého kalendáře. Zapni upozornění na narozeniny, svátek nebo vlastní výročí — appka ti sama vytvoří úkol s předstihem, který si nastavíš.</p>
+      <div class="row gap-2">
+        <input id="newPersonName" class="field grow" placeholder="Jméno (např. Jana)" />
+        <button class="icon-btn shrink0" data-action="add-person">➕</button>
+      </div>
+    </div>
+    ${state.people.length===0 ? `<div class="card card-pad text-sm muted">Zatím nikoho nemáš přidaného.</div>` : `
+      <div class="col gap-2">
+        ${state.people.map(p => {
+          const expanded = expandedPersonId === p.id;
+          const nmd = czNamedayMonthDay(p.name);
+          return `
+          <div class="card card-pad">
+            <button class="row between" style="width:100%;background:none;align-items:center" data-action="toggle-person-expand" data-id="${p.id}">
+              <div style="text-align:left">
+                <p class="text-sm font-med" style="margin:0;color:#334155">${escapeHTML(p.name)}</p>
+                <p class="text-xs muted" style="margin:0">${p.birthdayFullDate?'🎂 '+p.birthdayFullDate.split('-').reverse().join('.'):''}${nmd?' · 🎉 svátek '+nmd.split('-').reverse().join('.'):' · svátek nenalezen'}</p>
+              </div>
+              <span class="text-xs muted">${expanded?'▲':'▼'}</span>
+            </button>
+            ${expanded ? `
+              <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9">
+                <div class="row gap-2" style="align-items:center;margin-bottom:4px">
+                  <label class="label" style="margin:0">Narozeniny</label>
+                </div>
+                <input type="date" class="field" style="margin-bottom:6px" value="${p.birthdayFullDate || ''}" data-person-birthday-field="${p.id}" />
+                ${reminderRow("🎂 Upozornit na narozeniny", p.birthdayReminder, "person-birthday-reminder", p.id)}
+
+                <p class="text-xs muted" style="margin:14px 0 0">🎉 Svátek: ${nmd ? `${nmd.split('-').reverse().join('.')} (podle jména „${escapeHTML(p.name)}“)` : "appka nenašla jméno v kalendáři — zkus přesnější tvar jména"}</p>
+                ${nmd ? reminderRow("🎉 Upozornit na svátek", p.namedayReminder, "person-nameday-reminder", p.id) : ""}
+
+                <p class="text-xs font-semi muted" style="margin:16px 0 6px">📅 Vlastní výročí (např. výročí svatby)</p>
+                ${p.anniversaries.map(a => `
+                  <div style="background:#fafafa;border-radius:12px;padding:10px;margin-bottom:8px">
+                    <div class="row gap-2" style="margin-bottom:4px">
+                      <input class="field grow" style="font-size:12px" value="${escapeAttr(a.label)}" data-anniversary-label-field="${p.id}" data-anniv-id="${a.id}" placeholder="Název výročí" />
+                      <button class="icon-btn-sm shrink0" data-action="remove-anniversary" data-id="${p.id}" data-sub="${a.id}">🗑️</button>
+                    </div>
+                    <input type="date" class="field" style="margin-bottom:4px" value="${a.monthDay ? '2000-'+a.monthDay : ''}" data-anniversary-date-field="${p.id}" data-anniv-id="${a.id}" />
+                    ${reminderRow("Upozornit", a.reminder, "anniversary-reminder", p.id, a.id)}
+                  </div>`).join("")}
+                <button class="chip" data-action="add-anniversary" data-id="${p.id}">➕ Přidat výročí</button>
+
+                <div class="row gap-2" style="margin-top:14px">
+                  <button class="btn btn-primary grow" style="justify-content:center" data-action="save-person-confirm" data-id="${p.id}">💾 Uložit</button>
+                  <button class="chip" style="color:#dc2626" data-action="delete-person" data-id="${p.id}">🗑️ Odstranit</button>
+                </div>
+              </div>
+            ` : ""}
+          </div>`;
+        }).join("")}
+      </div>
+    `}
+  `;
+}
+function renderWorkoutsView(){
+  const el = document.getElementById("workoutsView");
+  const openWorkout = openWorkoutId ? findWorkout(openWorkoutId) : null;
+  const windowStart = parseISODate(state.windowStart);
+  const days = Array.from({length:14}, (_,i) => addDays(windowStart, i));
+  const dayWorkouts = workoutsForDate(state.selectedDate);
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">🏋️ Trénink</p>
+    </div>
+    ${openWorkout ? `
+      <button class="chip" style="margin-bottom:12px" data-action="close-workout-detail">← Zpět na seznam</button>
+      <div id="workoutDetailRoot"></div>
+    ` : `
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:10px;width:100%;justify-content:center;font-weight:600;color:#0284c7" data-action="create-blank-workout">
+        <span style="font-size:16px">➕</span> Přidat detailní trénink
+      </button>
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:16px;width:100%;justify-content:center;font-weight:600;color:#059669" data-action="open-modal" data-modal="quickActivity">
+        <span style="font-size:16px">🥾</span> Rychlá aktivita (túra, běh, kolo…)
+      </button>
+
+      <div class="row between" style="align-items:center;margin-bottom:8px">
+        <p class="text-xs font-semi muted" style="margin:0">Nejbližší dny</p>
+        <button class="icon-btn-sm btn-ghost-card" style="width:30px;height:30px" data-action="open-modal" data-modal="workoutMonthCalendar" title="Otevřít větší kalendář">📅</button>
+      </div>
+      <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+        ${days.map(d => {
+          const iso = toISO(d);
+          const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+          const count = workoutsForDate(iso).length;
+          return `<button class="day-cell ${isToday?'today':''} ${isSelected?'selected-scheme':''} ${!isSelected?'card':''}" data-action="select-workout-date" data-id="${iso}">
+            <span class="dow">${DAY_SHORT[d.getDay()]}</span><span class="dom">${d.getDate()}</span><span class="today-tag">Dnes</span>
+            ${count ? `<div class="day-dots"><span style="background:${isSelected?'rgba(255,255,255,0.8)':'#0284c7'}"></span>${count>1?`<span style="background:${isSelected?'rgba(255,255,255,0.8)':'#0284c7'}"></span>`:''}</div>` : `<div class="day-dots"></div>`}
+          </button>`;
+        }).join("")}
+      </div>
+
+      ${dayWorkouts.length===0 ? `<div class="card card-pad text-sm muted">Na tento den zatím nemáš naplánovaný trénink — přidej cviky, appka tě jimi provede i s hlasem 🎙️</div>` : `
+        <div class="col gap-2">
+          ${dayWorkouts.map(w => `
+            <button class="card row gap-3" style="padding:12px 14px;align-items:flex-start;width:100%;text-align:left" data-action="open-workout-detail" data-id="${w.id}">
+              <span style="font-size:19px">${w.done ? '✅' : '🏋️'}</span>
+              <div class="grow">
+                <p class="text-sm font-med text-main ${w.done?'strike':''}" style="margin:0">${escapeHTML(w.title)}</p>
+                <p class="text-xs muted" style="margin:2px 0 0">${(w.exercises||[]).length} cviků${(w.exercises||[]).length ? " · " + (w.exercises||[]).map(e=>e.name).slice(0,3).join(", ") + ((w.exercises||[]).length>3?"…":"") : ""}</p>
+                ${w.estimatedCalories!=null ? `<p class="text-xs" style="margin:2px 0 0;color:#d97706;font-weight:600">🔥 ${displayEnergy(w.estimatedCalories)}${isWorkoutCalorieStale(w)?' <span style="color:#dc2626">⚠️ neaktuální</span>':''}</p>` : ""}
+              </div>
+              <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${w.id}" data-sub="workout">↗️</button>
+              <button class="icon-btn-sm shrink0" data-action="delete-workout" data-id="${w.id}">🗑️</button>
+            </button>`).join("")}
+        </div>
+      `}
+    `}
+  `;
+  if(openWorkout) renderWorkoutDetail();
+}
+function renderWorkoutDetail(){
+  const el = document.getElementById("workoutDetailRoot");
+  if(!el) return;
+  const w = findWorkout(openWorkoutId);
+  if(!w){ el.innerHTML = ""; return; }
+  const exercises = w.exercises || [];
+  el.innerHTML = `
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div class="row between" style="margin-bottom:10px">
+        <p class="text-xs font-semi muted" style="margin:0">🏋️ Trénink</p>
+        <button class="icon-btn-sm" data-action="close-workout-detail" title="Zavřít">✕</button>
+      </div>
+      <div class="row gap-3" style="align-items:flex-start;margin-bottom:10px">
+        <span style="font-size:24px">🏋️</span>
+        <input id="workoutDetailTitle" class="field grow" style="font-size:16px;font-weight:600;border:none;background:transparent;padding:4px 0" value="${escapeAttr(w.title)}" data-workout-detail-field="title" data-id="${w.id}" />
+        <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="workoutDetailTitle" title="Diktovat název">🎙️</button>
+        <button class="icon-btn-sm shrink0" data-action="delete-workout" data-id="${w.id}">🗑️</button>
+      </div>
+      <div class="row gap-3" style="margin-bottom:12px">
+        <div class="grow"><label class="label">Datum</label>
+          <input type="date" class="field" value="${w.date}" data-workout-detail-field="date" data-id="${w.id}" /></div>
+        <div class="grow" style="display:flex;align-items:flex-end">
+          <button class="btn ${w.done?'btn-primary':'btn-soft'} grow" style="justify-content:center;${w.done?'background:linear-gradient(135deg,#34d399,#059669)':''}" data-action="toggle-workout-done" data-id="${w.id}">${w.done?'✅ Dokončeno':'⬜ Označit jako dokončené'}</button>
+        </div>
+      </div>
+      <div class="row between" style="align-items:center;margin-bottom:4px">
+        <label class="label" style="margin:0">Poznámka (nepovinné)</label>
+        <button class="icon-btn-sm" data-action="dictate-into" data-target="workoutDetailNotes" title="Diktovat">🎙️</button>
+      </div>
+      <textarea id="workoutDetailNotes" class="field" rows="2" placeholder="např. rozcvička 5 minut předem…" data-workout-detail-field="notes" style="margin-bottom:12px">${escapeHTML(w.notes||"")}</textarea>
+
+      <div style="background:#fffbeb;border-radius:16px;padding:12px;margin-bottom:12px">
+        <p class="text-xs font-semi" style="margin:0 0 6px;color:#92400e">🔥 Spálené kalorie</p>
+        ${w.estimatedCalories!=null ? `
+          <p class="text-lg font-semi" style="margin:0;color:#d97706">${displayEnergy(w.estimatedCalories)} ${isWorkoutCalorieStale(w) ? '<span style="font-size:11px;color:#dc2626;font-weight:700">⚠️ NEAKTUÁLNÍ (trénink se od odhadu změnil)</span>' : '<span style="font-size:11px;color:#059669;font-weight:700">✅ aktuální</span>'}</p>
+          ${w.calorieReasoning ? `<p class="text-xs muted" style="margin:2px 0 8px">${escapeHTML(w.calorieReasoning)}</p>` : ""}
+        ` : `<p class="text-xs muted" style="margin:0 0 8px">Zatím neodhadnuto.</p>`}
+        <button id="workoutCalorieBtn" class="chip" style="font-size:11px;${isWorkoutCalorieStale(w)?'background:#fef2f2;color:#dc2626;font-weight:700':''}" data-action="estimate-workout-calories" data-id="${w.id}">🔥 AI: ${w.estimatedCalories!=null ? 'Přepočítat' : 'Odhadnout spálené kalorie'}</button>
+      </div>
+
+      <div class="row gap-2 wrapf" style="margin-bottom:12px">
+        <button class="btn btn-soft" data-action="read-workout-aloud" data-id="${w.id}">🔊 Přečíst nahlas</button>
+        <button class="btn btn-soft" data-action="open-draw" data-target="workout" data-id="${w.id}">✏️ Nakreslit</button>
+        <button class="btn btn-soft" data-action="record-workout-audio" data-id="${w.id}">${recordingTarget?.type==="workout" && recordingTarget.workoutId===w.id ? "⏹️ Zastavit nahrávání" : "🎤 Hlasová poznámka"}</button>
+      </div>
+      ${(w.drawings && w.drawings.length) ? `
+        <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
+          ${w.drawings.map((src, idx) => `
+            <div class="rel shrink0">
+              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <button data-action="remove-workout-drawing" data-id="${w.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
+            </div>`).join("")}
+        </div>` : ""}
+      ${(w.audioIds && w.audioIds.length) ? `
+        <div class="col gap-2" style="margin-bottom:12px">
+          ${w.audioIds.map((aid, idx) => `<div class="row gap-2"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${aid}">${playingAudioId===aid?'⏸':'🔊'} Nahrávka ${idx+1}</button><button class="icon-btn-sm" data-action="remove-workout-audio" data-id="${w.id}" data-sub="${idx}">🗑️</button></div>`).join("")}
+        </div>` : ""}
+
+      <label class="label">Cviky</label>
+      <div class="col gap-2" style="margin-bottom:10px">
+        ${exercises.map((e, idx) => `
+          <div style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+            <div class="row gap-2" style="align-items:center;margin-bottom:6px">
+              <span class="text-sm font-med grow" style="color:#334155">${idx+1}. ${escapeHTML(e.name)}</span>
+              <button class="icon-btn-sm shrink0" data-action="move-exercise" data-id="${w.id}" data-sub="${e.id}" data-dir="-1" ${idx===0?'disabled style="opacity:0.3"':''}>▲</button>
+              <button class="icon-btn-sm shrink0" data-action="move-exercise" data-id="${w.id}" data-sub="${e.id}" data-dir="1" ${idx===exercises.length-1?'disabled style="opacity:0.3"':''}>▼</button>
+              <button class="icon-btn-sm shrink0" data-action="remove-exercise" data-id="${w.id}" data-sub="${e.id}">🗑️</button>
+            </div>
+            <div class="row gap-1 wrapf">
+              <div class="col"><span class="text-xs muted">Série</span><input type="number" min="1" class="field" style="width:56px;font-size:12px;padding:5px 7px" value="${e.sets}" data-exercise-field="sets" data-id="${w.id}" data-sub="${e.id}" /></div>
+              <div class="col"><span class="text-xs muted">Opakování</span><input type="number" min="1" class="field" style="width:68px;font-size:12px;padding:5px 7px" value="${e.reps}" data-exercise-field="reps" data-id="${w.id}" data-sub="${e.id}" /></div>
+              <div class="col"><span class="text-xs muted">Váha</span><input type="text" class="field" style="width:70px;font-size:12px;padding:5px 7px" placeholder="60 kg" value="${escapeAttr(e.weight||'')}" data-exercise-field="weight" data-id="${w.id}" data-sub="${e.id}" /></div>
+              <div class="col"><span class="text-xs muted">Pauza (s)</span><input type="number" min="0" step="5" class="field" style="width:64px;font-size:12px;padding:5px 7px" value="${e.restSeconds}" data-exercise-field="restSeconds" data-id="${w.id}" data-sub="${e.id}" /></div>
+            </div>
+          </div>`).join("")}
+      </div>
+      <div class="row gap-2" style="margin-bottom:14px">
+        <input id="exerciseNameInput" class="field grow" placeholder="Nový cvik — např. Bench press" />
+        <button class="icon-btn shrink0" data-action="dictate-into" data-target="exerciseNameInput" title="Diktovat">🎙️</button>
+        <button class="icon-btn shrink0" data-action="add-exercise" data-id="${w.id}">➕</button>
+      </div>
+
+      <label class="label">To-do / rozcvička, kardio, box, jóga apod. — u každé položky nastav minuty, appka pak spustí přesný budík</label>
+      <div class="col gap-1.5" style="margin-bottom:8px">
+        ${(w.checklist||[]).map(item => `
+          <div class="row gap-2" style="align-items:center">
+            <button data-action="toggle-workout-checklist-item" data-id="${w.id}" data-sub="${item.id}" style="width:20px;height:20px;border-radius:5px;border:1.5px solid ${item.done?'var(--accent)':'var(--line)'};background:${item.done?'var(--accent)':'transparent'};color:#fff;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center">${item.done?'✓':''}</button>
+            <span class="text-sm grow ${item.done?'strike':''}" style="color:${item.done?'#94a3b8':'#475569'}">${escapeHTML(item.text)}</span>
+            <input type="number" min="1" max="180" class="field" style="width:56px;font-size:12px;padding:5px 7px;flex-shrink:0" value="${item.minutes||5}" data-workout-item-minutes="${w.id}" data-id="${item.id}" />
+            <span class="text-xs muted shrink0">min</span>
+            <button class="icon-btn-sm shrink0" data-action="start-timer-for-workout-item" data-id="${w.id}" data-sub="${item.id}" title="Spustit budík na ${item.minutes||5} min">⏱️</button>
+            <button class="icon-btn-sm shrink0" data-action="remove-workout-checklist-item" data-id="${w.id}" data-sub="${item.id}">✕</button>
+          </div>`).join("")}
+      </div>
+      <div class="row gap-2" style="margin-bottom:14px;align-items:center">
+        <input id="workoutChecklistInput" class="field grow" style="font-size:12.5px;padding:7px 12px" placeholder="např. Box, Rozcvička, Jóga…" />
+        <input id="workoutChecklistMinutesInput" type="number" min="1" max="180" class="field" style="width:56px;font-size:12.5px;padding:7px 8px;flex-shrink:0" value="5" />
+        <span class="text-xs muted shrink0">min</span>
+        <button id="workoutChecklistDictateBtn" class="icon-btn shrink0" data-action="dictate-workout-checklist-loop" data-id="${w.id}" title="Diktovat řádky (po sobě)">🎙️</button>
+        <button class="icon-btn shrink0" data-action="add-workout-checklist-item" data-id="${w.id}">➕</button>
+      </div>
+
+      <div class="row between" style="align-items:center;margin-bottom:6px">
+        <label class="label" style="margin:0">Opakování</label>
+        <button class="text-xs" style="color:#6366f1;font-weight:600;background:none" data-action="open-modal" data-modal="workoutRecurringManager">🔁 Spravovat aktivní opakování</button>
+      </div>
+      <div class="row gap-2 wrapf" style="margin-bottom:6px">
+        ${RECURRENCE_TYPES.filter(r=>r.id!=="custom").map(r => `<button class="chip ${w.recurrenceType===r.id?'active':''}" data-action="set-workout-recurrence" data-id="${w.id}" data-sub="${r.id}">${r.label}</button>`).join("")}
+      </div>
+      ${w.recurrenceType==="weekly_days" ? `
+        <div class="row gap-2 wrapf" style="margin-bottom:8px">
+          ${WEEKDAY_LABELS.map(d => `<button class="chip ${(w.recurrenceWeekdays||[]).includes(d.id)?'active':''}" data-action="toggle-workout-recurrence-weekday" data-id="${w.id}" data-sub="${d.id}">${d.label}</button>`).join("")}
+        </div>
+        ${!(w.recurrenceWeekdays||[]).length ? `<p class="text-xs muted" style="margin:0 0 8px">Vyber aspoň jeden den.</p>` : ""}
+      ` : ""}
+      ${w.recurrenceType!=="none" ? `
+        <div class="row gap-2" style="align-items:center;margin-bottom:8px">
+          <label class="label" style="margin:0">Po dobu</label>
+          <input type="number" min="1" max="200" class="field" style="width:70px" value="${w.recurrenceDurationValue}" data-workout-detail-field="recurrenceDurationValue" data-id="${w.id}" />
+          <select class="field" style="width:auto" data-workout-detail-field="recurrenceDurationUnit" data-id="${w.id}">
+            ${DURATION_UNITS.map(u => `<option value="${u.id}" ${w.recurrenceDurationUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+          </select>
+        </div>
+        ${(() => {
+          const c = computeRecurrenceCount(w.recurrenceType, (w.recurrenceWeekdays||[]).length, w.recurrenceDurationValue, w.recurrenceDurationUnit);
+          return `<p class="text-xs muted" style="margin:0 0 8px">Vytvoří se ${c} termínů${w.recurrenceType==="weekly_days" ? " " + weeklyDaysCountHint(w.recurrenceWeekdays.length, c) : ""} (počínaje datem výše).</p>`;
+        })()}
+        <button class="btn btn-soft" style="margin-bottom:12px" data-action="generate-workout-recurrence" data-id="${w.id}">🔁 Vytvořit opakování podle tohoto tréninku</button>
+      ` : ""}
+
+      <label class="label">Rozcvička</label>
+      <div class="row gap-2" style="margin-bottom:14px">
+        <input id="warmupMinutesInput" type="number" min="1" max="60" class="field" style="width:80px" value="5" placeholder="min" />
+        <span class="text-xs muted" style="align-self:center">minut</span>
+        <button class="btn btn-soft grow" style="justify-content:center" data-action="start-warmup-timer" data-id="${w.id}">⏱️ Spustit budík na rozcvičku</button>
+      </div>
+
+      ${exercises.length ? `
+        <label class="label">Spustit trénink</label>
+        <div class="row gap-2" style="margin-bottom:14px">
+          <button class="btn btn-primary grow" style="justify-content:center" data-action="start-workout" data-id="${w.id}" data-sub="normal">▶️ Normální</button>
+          <button class="btn btn-primary grow" style="justify-content:center;background:linear-gradient(135deg,#38bdf8,#0284c7)" data-action="start-workout" data-id="${w.id}" data-sub="circuit">🔁 Kruhový</button>
+        </div>
+        <p class="text-xs muted" style="margin:-8px 0 14px">Normální = všechny série jednoho cviku za sebou. Kruhový = 1 série od každého cviku, pak dokola.</p>
+      ` : ""}
+
+      <button class="btn btn-primary" style="width:100%;justify-content:center" data-action="save-workout" data-id="${w.id}">💾 Uložit</button>
+    </div>
+  `;
+  updateDictateButtons();
+  autoGrowAllTextareas(el);
+}
+
+// ---------- Hands-free workout session: voice-driven sets/reps + rest timers ----------
+let workoutSession = null; // {workoutId, mode, queue, pointer, paused, listening, restEndAt, finished}
+let workoutSessionNo = 0;
+let workoutRec = null;
+let workoutErrorStreak = 0;
+const WORKOUT_DONE_WORDS = ["hotovo","další","dalsi","splněno","splneno","hotový","hotovy","dál","dal"];
+const WORKOUT_SKIP_REST_WORDS = ["přeskočit","preskocit","přeskoč","preskoc"];
+const WORKOUT_PAUSE_WORDS = ["pauza","pauzu","zastav trénink","zastav trenink","přeruš","preruš"];
+const WORKOUT_RESUME_WORDS = ["pokračuj","pokracuj","pokračovat","pokracovat","start","začni","zacni"];
+const WORKOUT_STOP_WORDS = ["ukonči trénink","ukonci trenink","ukončit trénink","ukoncit trenink","konec tréninku","konec treninku","zrušit trénink","zrusit trenink"];
+
+function buildWorkoutQueue(workout, mode){
+  const queue = [];
+  const exs = workout.exercises || [];
+  if(!exs.length) return queue;
+  if(mode === "circuit"){
+    const maxSets = Math.max(...exs.map(e => e.sets || 1));
+    for(let round=1; round<=maxSets; round++){
+      exs.forEach(ex => {
+        if(round <= (ex.sets||1)){
+          queue.push({type:"set", exerciseId:ex.id, name:ex.name, setNumber:round, totalSets:ex.sets||1, reps:ex.reps, weight:ex.weight, restSeconds:ex.restSeconds||60});
+          queue.push({type:"rest", seconds: ex.restSeconds||60, name: ex.name});
+        }
+      });
+    }
+  } else {
+    exs.forEach(ex => {
+      const total = ex.sets || 1;
+      for(let s=1; s<=total; s++){
+        queue.push({type:"set", exerciseId:ex.id, name:ex.name, setNumber:s, totalSets:total, reps:ex.reps, weight:ex.weight, restSeconds:ex.restSeconds||60});
+        queue.push({type:"rest", seconds: ex.restSeconds||60, name: ex.name});
+      }
+    });
+  }
+  if(queue.length && queue[queue.length-1].type === "rest") queue.pop(); // no need to rest after the very last set
+  return queue;
+}
+function workoutStepAnnouncement(step){
+  if(step.type === "set"){
+    const weightPart = step.weight ? `, ${step.weight}` : "";
+    return `${step.name}. Série ${step.setNumber} z ${step.totalSets}.${step.reps ? " " + step.reps + " opakování" : ""}${weightPart}.`;
+  }
+  return `Odpočinek, ${step.seconds} sekund.`;
+}
+function startWorkoutSession(workoutId, mode){
+  const w = findWorkout(workoutId); if(!w) return;
+  const queue = buildWorkoutQueue(w, mode);
+  if(!queue.length){ showToast("Přidej aspoň jeden cvik se sériemi."); return; }
+  getAudioCtx(); unlockMediaPlayback();
+  workoutSession = { workoutId, mode, queue, pointer:0, paused:false, listening:false, voiceDisabled:false, restEndAt:null, finished:false };
+  openModal("workoutSession");
+  const first = queue[0];
+  speakText(`Začínáme trénink ${w.title}. ${workoutStepAnnouncement(first)}`, () => workoutAfterAnnounce());
+}
+function workoutAfterAnnounce(){
+  if(!workoutSession) return;
+  const step = workoutSession.queue[workoutSession.pointer];
+  if(step.type === "rest") startWorkoutRest();
+  else workoutListenTurn();
+}
+let workoutRestTickInterval = null;
+function startWorkoutRest(){
+  if(!workoutSession) return;
+  const step = workoutSession.queue[workoutSession.pointer];
+  workoutSession.restEndAt = Date.now() + step.seconds*1000;
+  renderModals();
+  clearInterval(workoutRestTickInterval);
+  // Polls the real wall-clock time every second (same proven approach as the
+  // regular kitchen timers) instead of a single long setTimeout — a lone
+  // setTimeout can silently get dropped/delayed by the browser when the phone
+  // screen locks or the tab is backgrounded mid-rest, leaving the session
+  // stuck; this self-corrects even if a tick or two gets throttled.
+  workoutRestTickInterval = setInterval(() => {
+    if(!workoutSession || !workoutSession.restEndAt || workoutSession.paused) return;
+    const remaining = workoutSession.restEndAt - Date.now();
+    if(remaining <= 0){
+      clearInterval(workoutRestTickInterval);
+      workoutRestComplete();
+      return;
+    }
+    const el = document.getElementById("workoutRestCountdown");
+    if(el) el.textContent = Math.ceil(remaining/1000);
+  }, 1000);
+  workoutListenTurn(); // lets you say "hotovo"/"přeskočit" to skip the rest early
+}
+function workoutRestComplete(){
+  if(!workoutSession) return;
+  clearInterval(workoutRestTickInterval);
+  try{ playAlarmBurst(); }catch(e){}
+  workoutAdvance();
+}
+function renderWorkoutListeningIndicator(){
+  const el = document.getElementById("workoutListeningIndicator");
+  if(!el || !workoutSession) return;
+  if(workoutSession.voiceDisabled){ el.style.color = "#cbd5e1"; el.textContent = "🔇 Hlas nedostupný — potvrzuj tlačítky"; return; }
+  el.style.color = workoutSession.listening ? "#0284c7" : "#94a3b8";
+  if(workoutSession.paused){ el.textContent = workoutSession.listening ? "🎙️ Poslouchám — řekni pokračuj" : "…"; return; }
+  const step = workoutSession.queue[workoutSession.pointer];
+  const options = step && step.type === "rest" ? "hotovo, pauza nebo přeskočit" : "hotovo nebo pauza";
+  el.textContent = workoutSession.listening ? `🎙️ Poslouchám — řekni ${options}` : "…";
+}
+function workoutListenTurn(){
+  if(!workoutSession || workoutSession.voiceDisabled) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ workoutSession.voiceDisabled = true; workoutSession.listening = false; renderWorkoutListeningIndicator(); return; }
+  const session = workoutSessionNo;
+  workoutSession.listening = true;
+  renderWorkoutListeningIndicator();
+  const rec = new SR();
+  workoutRec = rec;
+  rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+  rec.onresult = (e) => {
+    if(session !== workoutSessionNo) return;
+    workoutErrorStreak = 0;
+    const text = e.results[0][0].transcript.trim().toLowerCase();
+    handleWorkoutVoiceCommand(text);
+  };
+  rec.onerror = (e) => {
+    if(session !== workoutSessionNo || !workoutSession) return;
+    if(e.error === "not-allowed" || e.error === "service-not-allowed"){
+      // Mic access is denied/blocked — stop trying entirely for the rest of this
+      // session instead of retrying (which just fails again and again). The
+      // rest timer and set progression both work fine with buttons alone.
+      workoutSession.voiceDisabled = true;
+      workoutSession.listening = false;
+      showToast("🎙️ Mikrofon je zablokovaný — trénink pokračuje dál, kroky potvrzuj tlačítky.");
+      renderWorkoutListeningIndicator();
+      return;
+    }
+    if(e.error !== "no-speech" && e.error !== "aborted") workoutErrorStreak++;
+  };
+  rec.onend = () => {
+    if(session !== workoutSessionNo || !workoutSession || workoutSession.voiceDisabled) return;
+    workoutSession.listening = false;
+    renderWorkoutListeningIndicator();
+    if(workoutErrorStreak >= 6){
+      // Voice keeps failing for some other reason — quietly give up on it for
+      // this session (not an error the person needs to keep seeing), while the
+      // workout itself keeps running normally via the buttons.
+      workoutSession.voiceDisabled = true;
+      showToast("🎙️ Poslouchání se opakovaně nedaří — trénink pokračuje dál, kroky potvrzuj tlačítky.");
+      renderWorkoutListeningIndicator();
+      return;
+    }
+    setTimeout(() => { if(workoutSession && !workoutSession.voiceDisabled && workoutSessionNo===session) workoutListenTurn(); }, 500);
+  };
+  try{ rec.start(); }
+  catch(err){
+    workoutErrorStreak++;
+    workoutSession.listening = false;
+    if(workoutErrorStreak >= 6){
+      workoutSession.voiceDisabled = true;
+      showToast("🎙️ Poslouchání se opakovaně nedaří — trénink pokračuje dál, kroky potvrzuj tlačítky.");
+      renderWorkoutListeningIndicator();
+      return;
+    }
+    setTimeout(() => { if(workoutSession && !workoutSession.voiceDisabled && workoutSessionNo===session) workoutListenTurn(); }, 600);
+  }
+}
+function stopWorkoutListening(){
+  workoutSessionNo++;
+  if(workoutRec){
+    try{ workoutRec.onend=null; workoutRec.onerror=null; workoutRec.onresult=null; workoutRec.abort(); }catch(e){}
+    workoutRec = null;
+  }
+}
+function handleWorkoutVoiceCommand(text){
+  if(!workoutSession) return;
+  if(workoutSession.paused){
+    if(WORKOUT_RESUME_WORDS.some(w => text.includes(w))) resumeWorkoutSession();
+    // anything else is ignored while paused — keep listening for "pokračuj"
+    return;
+  }
+  if(WORKOUT_STOP_WORDS.some(w => text.includes(w))){ exitWorkoutSession(); return; }
+  if(WORKOUT_PAUSE_WORDS.some(w => text.includes(w))){ pauseWorkoutSession(); return; }
+  const step = workoutSession.queue[workoutSession.pointer];
+  if(step.type === "rest" && WORKOUT_SKIP_REST_WORDS.some(w => text.includes(w))){ workoutAdvance(); return; }
+  if(WORKOUT_DONE_WORDS.some(w => text.includes(w))){ workoutAdvance(); return; }
+  // unrecognized phrase — keep listening (onend loop restarts automatically)
+}
+function workoutAdvance(){
+  if(!workoutSession) return;
+  stopWorkoutListening();
+  clearInterval(workoutRestTickInterval);
+  workoutSession.restEndAt = null;
+  if(workoutSession.pointer >= workoutSession.queue.length - 1){
+    finishWorkoutSession();
+    return;
+  }
+  workoutSession.pointer++;
+  const next = workoutSession.queue[workoutSession.pointer];
+  renderModals();
+  speakText(workoutStepAnnouncement(next), () => workoutAfterAnnounce());
+}
+function finishWorkoutSession(){
+  if(!workoutSession) return;
+  speakText("Trénink dokončen! Skvělá práce.", () => {});
+  workoutSession.finished = true;
+  if(workoutSession.workoutId){
+    updateWorkout(workoutSession.workoutId, { done: true });
+    renderMealsView();
+  }
+  renderModals();
+}
+function pauseWorkoutSession(){
+  if(!workoutSession) return;
+  stopWorkoutListening();
+  workoutSession.paused = true;
+  clearInterval(workoutRestTickInterval);
+  stopSpeaking();
+  renderModals();
+  const msg = workoutSession.voiceDisabled ? "Trénink pozastaven." : "Trénink pozastaven. Řekni pokračuj, až budeš připraven.";
+  speakText(msg, () => workoutListenTurn());
+}
+function resumeWorkoutSession(){
+  if(!workoutSession) return;
+  stopWorkoutListening();
+  workoutSession.paused = false;
+  workoutErrorStreak = 0;
+  const step = workoutSession.queue[workoutSession.pointer];
+  if(step.type === "rest") startWorkoutRest();
+  else speakText(workoutStepAnnouncement(step), () => workoutAfterAnnounce());
+}
+function exitWorkoutSession(){
+  stopSpeaking();
+  stopWorkoutListening();
+  clearInterval(workoutRestTickInterval);
+  workoutSession = null;
+  closeModal();
+}
+function workoutSessionModalHTML(){
+  if(!workoutSession) return "";
+  const w = findWorkout(workoutSession.workoutId);
+  const step = workoutSession.queue[workoutSession.pointer];
+  const progress = `${workoutSession.pointer+1} / ${workoutSession.queue.length}`;
+  return `
+    <div class="modal-overlay" style="z-index:280">
+      <div class="modal-panel" style="max-width:380px;text-align:center">
+        <div class="row between" style="margin-bottom:6px">
+          <span class="text-xs muted">${w ? escapeHTML(w.title) : ""} · ${workoutSession.mode==="circuit"?"🔁 Kruhový":"▶️ Normální"}</span>
+          <button class="icon-btn-sm" data-action="exit-workout-session">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Krok ${progress}</p>
+        ${workoutSession.finished ? `
+          <p style="font-size:48px;margin:10px 0">🎉</p>
+          <p class="text-lg font-semi" style="margin:0 0 20px;color:#334155">Trénink dokončen!</p>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px" data-action="exit-workout-session">Zavřít</button>
+        ` : step.type === "rest" ? `
+          <p style="font-size:44px;margin:6px 0">⏱️</p>
+          <p class="text-lg font-semi" style="margin:0 0 4px;color:#334155">Odpočinek — <span id="workoutRestCountdown">${Math.max(0, Math.ceil(((workoutSession.restEndAt||Date.now())-Date.now())/1000))}</span> s</p>
+          <p class="text-sm muted" style="margin:0 0 18px">Další: ${escapeHTML(step.name)}</p>
+          ${workoutSession.paused ? `
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;margin-bottom:10px" data-action="resume-workout-session">▶️ Pokračovat</button>
+          ` : `
+            <p id="workoutListeningIndicator" class="text-xs" style="margin:0 0 18px;color:${workoutSession.listening?'#0284c7':'#94a3b8'}">${workoutSession.listening?'🎙️ Poslouchám — řekni „hotovo" nebo „přeskočit"':'…'}</p>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;margin-bottom:10px" data-action="advance-workout">⏭️ Přeskočit pauzu</button>
+            <button class="btn btn-soft" style="width:100%;justify-content:center" data-action="pause-workout-session">⏸ Pauza</button>
+          `}
+        ` : `
+          <p class="text-xl font-semi" style="margin:8px 0 4px;color:#334155">${escapeHTML(step.name)}</p>
+          <p class="text-sm muted" style="margin:0 0 4px">Série ${step.setNumber} z ${step.totalSets}</p>
+          <p class="text-lg font-semi" style="margin:0 0 18px;color:#0284c7">${step.reps ? step.reps + " opakování" : ""}${step.weight ? " · " + escapeHTML(step.weight) : ""}</p>
+          ${workoutSession.paused ? `
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:14px;margin-bottom:10px" data-action="resume-workout-session">▶️ Pokračovat</button>
+          ` : `
+            <p id="workoutListeningIndicator" class="text-xs" style="margin:0 0 18px;color:${workoutSession.listening?'#0284c7':'#94a3b8'}">${workoutSession.listening?'🎙️ Poslouchám — řekni „hotovo"':'…'}</p>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:16px;font-size:16px;margin-bottom:10px" data-action="advance-workout">✅ Hotovo</button>
+            <button class="btn btn-soft" style="width:100%;justify-content:center" data-action="pause-workout-session">⏸ Pauza</button>
+          `}
+        `}
+      </div>
+    </div>`;
+}
+
+// ================= JÍDELNÍČEK VIEW =================
+function renderMealsView(){
+  const el = document.getElementById("mealsView");
+  if(!mealDraft) resetMealDraft();
+  const windowStart = parseISODate(state.windowStart);
+  const days = Array.from({length:14}, (_,i) => addDays(windowStart, i));
+  const totals = computeDayMealTotals(state.selectedDate);
+  const dayMeals = mealsForDate(state.selectedDate).slice().sort((a,b) => {
+    const ai = state.mealLabels.findIndex(l=>l.id===a.labelId), bi = state.mealLabels.findIndex(l=>l.id===b.labelId);
+    return ai - bi;
+  });
+
+  el.innerHTML = `
+    <div class="row between" style="margin-bottom:12px">
+      <p class="text-lg font-semi text-main" style="margin:0">🍽️ Jídelníček</p>
+      <div class="row gap-2">
+        <button class="icon-btn-sm btn-ghost-card" style="width:34px;height:34px" data-action="open-modal" data-modal="mealMonthCalendar" title="Otevřít celý kalendář">📅</button>
+        <button class="btn btn-soft" data-action="open-modal" data-modal="shoppingList">🛒</button>
+        <button class="btn btn-soft" data-action="open-modal" data-modal="nutritionTrends">📈</button>
+        <button class="btn btn-soft" data-action="open-modal" data-modal="mealHistory">📜 Historie</button>
+      </div>
+    </div>
+
+    ${mealFormCollapsed ? `
+      <button class="card row gap-2" style="padding:13px 16px;margin-bottom:16px;width:100%;justify-content:center;font-weight:600;color:#059669" data-action="toggle-meal-form">
+        <span style="font-size:16px">➕</span> Přidat jídlo do jídelníčku
+      </button>
+    ` : mealFormHTML()}
+
+    <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
+      ${days.map(d => {
+        const iso = toISO(d);
+        const isToday = iso===todayISO, isSelected = iso===state.selectedDate;
+        const count = mealsForDate(iso).length;
+        return `<button class="day-cell ${isToday?'today':''} ${isSelected?'selected-scheme':''} ${!isSelected?'card':''}" data-action="select-meal-date" data-id="${iso}">
+          <span class="dow">${DAY_SHORT[d.getDay()]}</span><span class="dom">${d.getDate()}</span><span class="today-tag">Dnes</span>
+          ${count ? `<div class="day-dots"><span style="background:${isSelected?'rgba(255,255,255,0.8)':'#34d399'}"></span>${count>1?`<span style="background:${isSelected?'rgba(255,255,255,0.8)':'#34d399'}"></span>`:''}</div>` : `<div class="day-dots"></div>`}
+        </button>`;
+      }).join("")}
+    </div>
+
+    ${dailyOverviewCardHTML(totals)}
+    ${dayMeals.length===0 ? `<div class="card card-pad text-sm muted">Na tento den zatím nemáš naplánované žádné jídlo.</div>` : `
+      <div class="col gap-2">
+        ${dayMeals.map(m => mealCardHTML(m)).join("")}
+      </div>
+    `}
+  `;
+}
+function mealCardHTML(m){
+  const label = mealLabelById(m.labelId);
+  const recipe = m.recipeId ? findRecipe(m.recipeId) : null;
+  const emoji = recipe ? recipe.emoji : "🍽️";
+  const n = m.nutrition;
+  const rSum = reminderSummary(m);
+  return `
+    <div class="card row gap-3" style="padding:12px 16px;align-items:flex-start">
+      <button data-action="toggle-meal-eaten" data-id="${m.id}" style="width:24px;height:24px;border-radius:5px;border:1.5px solid ${m.eaten?'var(--accent)':'var(--line)'};background:${m.eaten?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;flex-shrink:0;margin-top:2px">${m.eaten?'✓':''}</button>
+      <span style="font-size:19px;flex-shrink:0">${emoji}</span>
+      <div class="grow">
+        <div class="row gap-2" style="margin-bottom:2px">
+          <span class="chip" style="font-size:10px;padding:2px 8px;background:#ecfdf5;color:#059669">${escapeHTML(label.name)}</span>
+          ${m.servingsCount && m.servingsCount!==1 ? `<span class="text-xs muted">${m.servingsCount}× porce</span>` : ""}
+        </div>
+        ${(m.items && m.items.length>1) ? `
+          <div class="col" style="margin:0">
+            ${m.items.map(i => `<span class="text-sm ${m.eaten?'strike':''}" style="color:#334155">• ${escapeHTML(i.text)}${i.grams ? ` <span style="color:#94a3b8">— ${i.grams} ${i.unit||"g"}</span>` : ""}</span>`).join("")}
+          </div>` : `<p class="text-sm font-med ${m.eaten?'strike':''} text-main" style="margin:0">${escapeHTML(m.title)}</p>`}
+        <p class="text-xs muted" style="margin:2px 0 0">
+          ${n ? `🔥 ${displayEnergy(n.calories)} · B ${n.protein}g · T ${n.fat}g · S ${n.carbs}g` : "Makra nezadána"}
+          ${rSum ? `<span style="color:#f59e0b;font-weight:600;margin-left:4px">· ${rSum}</span>` : ""}
+        </p>
+        ${m.recurrenceGroupId ? `<button data-action="delete-meal-series" data-id="${m.recurrenceGroupId}" class="text-xs" style="color:#fb7185;font-weight:600;margin-top:4px">🔁 Smazat celou sérii opakování</button>` : ""}
+      </div>
+      <button class="icon-btn-sm shrink0" data-action="open-share-item-modal" data-id="${m.id}" data-sub="meal">↗️</button>
+      <button class="icon-btn-sm shrink0" data-action="edit-meal" data-id="${m.id}">✏️</button>
+      <button class="icon-btn-sm shrink0" data-action="delete-meal" data-id="${m.id}">🗑️</button>
+    </div>`;
+}
+function mealFormHTML(){
+  const recipes = state.recipes;
+  return `
+    <div class="card card-pad" style="margin-bottom:16px">
+      <div class="row between" style="margin-bottom:12px">
+        <p class="text-sm font-semi text-main" style="margin:0">${mealDraft.editingId ? "Upravit jídlo" : "Nové jídlo do jídelníčku"}</p>
+        <button class="icon-btn-sm" data-action="toggle-meal-form" title="Zavřít">✕</button>
+      </div>
+
+      <div class="row gap-3" style="margin-bottom:12px">
+        <div class="grow"><label class="label">Datum</label>
+          <input type="date" class="field" value="${mealDraft.date}" data-meal-field="date" /></div>
+      </div>
+
+      <label class="label">Štítek</label>
+      <div class="row gap-2 wrapf" style="margin-bottom:4px">
+        ${state.mealLabels.map(l => `<button class="chip ${mealDraft.labelId===l.id?'active':''}" data-action="pick-meal-label" data-id="${l.id}">${escapeHTML(l.name)}</button>`).join("")}
+      </div>
+      <button class="chip" style="background:none;color:#059669;font-weight:600;padding:2px 4px;margin-bottom:12px" data-action="open-modal" data-modal="mealLabels">✏️ Upravit štítky</button>
+
+      <div class="row gap-2 wrapf" style="margin-bottom:12px">
+        <button class="pill-toggle ${mealDraft.source==='custom'?'task-active':''}" data-action="set-meal-source" data-id="custom">🍎 Vlastní jídlo</button>
+        <button class="pill-toggle ${mealDraft.source==='recipe'?'note-active':''}" data-action="set-meal-source" data-id="recipe">📖 Recept</button>
+        <button class="pill-toggle" style="background:#ede9fe;color:#7c3aed" data-action="open-meal-photo-capture">📷 Vyfotit jídlo</button>
+      </div>
+
+      ${mealDraft.source === "custom" ? `
+        <div class="row between" style="align-items:center">
+          <label class="label" style="margin:0">Suroviny / co jíš</label>
+          <button class="text-xs" style="color:#059669;font-weight:600;background:none" data-action="open-modal" data-modal="foodItemPicker">📋 Vybrat ze seznamu jídel</button>
+        </div>
+        ${mealDraft.customItems.length ? `
+          <div class="col gap-2" style="margin-bottom:8px">
+            ${mealDraft.customItems.map(i => `
+              <div class="col gap-1" style="background:#f8fafc;border-radius:12px;padding:8px 10px">
+                <div class="row gap-2">
+                  <span class="text-sm grow" style="color:#334155;font-weight:500">${escapeHTML(i.text)}${i.grams ? ` <span style="color:#94a3b8;font-weight:400">— ${i.grams} ${i.unit||"g"}</span>` : ""}</span>
+                  <button data-action="remove-meal-draft-item" data-id="${i.id}" style="color:#cbd5e1">✕</button>
+                </div>
+                <div class="row gap-1 wrapf">
+                  <input type="number" min="0" placeholder="kcal" class="field" style="width:60px;font-size:11px;padding:5px 7px" value="${i.nutrition?.calories ?? ''}" data-meal-item-field="calories" data-id="${i.id}" />
+                  <input type="number" min="0" placeholder="B g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${i.nutrition?.protein ?? ''}" data-meal-item-field="protein" data-id="${i.id}" />
+                  <input type="number" min="0" placeholder="T g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${i.nutrition?.fat ?? ''}" data-meal-item-field="fat" data-id="${i.id}" />
+                  <input type="number" min="0" placeholder="S g" class="field" style="width:52px;font-size:11px;padding:5px 7px" value="${i.nutrition?.carbs ?? ''}" data-meal-item-field="carbs" data-id="${i.id}" />
+                </div>
+              </div>`).join("")}
+          </div>
+          <button id="mealItemsNutAiBtn" class="chip" style="margin-bottom:8px" data-action="estimate-meal-items-nutrition">✨ AI odhad k surovinám</button>
+          ${(() => {
+            const t = computeMealDraftItemsTotals();
+            return t ? `<p class="text-xs" style="margin:0 0 12px;color:#059669;font-weight:600">Součet ze surovin: 🔥 ${displayEnergy(t.calories)} · B ${t.protein}g · T ${t.fat}g · S ${t.carbs}g</p>` : `<p class="text-xs muted" style="margin:0 0 12px">Doplň makra u surovin výše (ručně nebo AI) — appka je sama sečte do celku.</p>`;
+          })()}
+        ` : ""}
+        <div class="row gap-2" style="margin-bottom:6px">
+          <input id="mealItemInput" class="field grow" placeholder="např. šunka, rohlík, sýr…" />
+          <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealItemInput" title="Diktovat">🎙️</button>
+        </div>
+        <div class="row gap-2" style="margin-bottom:10px">
+          <input id="mealItemGramsInput" type="number" min="0" class="field" style="width:90px" placeholder="množství" />
+          <select id="mealItemUnitInput" class="field" style="width:auto">
+            <option value="g" selected>g</option>
+            <option value="ml">ml</option>
+            <option value="dcl">dcl</option>
+            <option value="l">l</option>
+          </select>
+          <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealItemGramsInput" title="Nadiktovat množství">🎙️</button>
+          <button class="icon-btn shrink0 grow" style="justify-content:center" data-action="add-meal-draft-item">➕ Přidat</button>
+        </div>
+        ${!mealDraft.customItems.length ? `
+        <p class="text-xs muted" style="margin:0 0 4px">Nebo napiš vše jedním řádkem (bez rozpisu surovin):</p>
+        <div class="row gap-2" style="margin-bottom:10px">
+          <input id="mealTitleInput" class="field grow" placeholder="např. Kupovaná bageta se šunkou" value="${escapeAttr(mealDraft.title)}" data-meal-field="title" />
+          <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealTitleInput" title="Diktovat">🎙️</button>
+        </div>
+        <div class="row gap-2 wrapf" style="margin-bottom:6px">
+          <div style="flex:1;min-width:80px"><label class="label">Kalorie</label>
+            <input type="number" min="0" class="field" value="${mealDraft.nutCalories}" data-meal-field="nutCalories" /></div>
+          <div style="flex:1;min-width:70px"><label class="label">B (g)</label>
+            <input type="number" min="0" class="field" value="${mealDraft.nutProtein}" data-meal-field="nutProtein" /></div>
+          <div style="flex:1;min-width:70px"><label class="label">T (g)</label>
+            <input type="number" min="0" class="field" value="${mealDraft.nutFat}" data-meal-field="nutFat" /></div>
+          <div style="flex:1;min-width:70px"><label class="label">S (g)</label>
+            <input type="number" min="0" class="field" value="${mealDraft.nutCarbs}" data-meal-field="nutCarbs" /></div>
+        </div>
+        <button id="mealNutAiBtn" class="chip" style="margin-bottom:12px" data-action="estimate-meal-nutrition">✨ AI odhad maker</button>
+        ` : ""}
+      ` : `
+        ${recipes.length===0 ? `<p class="text-xs muted" style="margin-bottom:12px">Nemáš zatím žádné uložené recepty — založ si nějaký v sekci 🍳 Recepty.</p>` : `
+          <label class="label">Recept</label>
+          <select class="field" style="margin-bottom:10px" data-meal-field="recipeId">
+            ${recipes.map(r => `<option value="${r.id}" ${mealDraft.recipeId===r.id?'selected':''}>${r.emoji} ${escapeHTML(r.title)}</option>`).join("")}
+          </select>
+          <div class="row gap-2" style="margin-bottom:8px">
+            <button class="pill-toggle ${mealDraft.recipeAmountMode==='servings'?'task-active':''}" data-action="set-meal-amount-mode" data-id="servings">🍽️ Podle porcí</button>
+            <button class="pill-toggle ${mealDraft.recipeAmountMode==='grams'?'note-active':''}" data-action="set-meal-amount-mode" data-id="grams">⚖️ Podle gramáže</button>
+          </div>
+          ${mealDraft.recipeAmountMode === "grams" ? `
+            <label class="label">Kolik gramů jsi (nebo budeš) reálně jíst</label>
+            <input type="number" min="1" class="field" style="margin-bottom:10px" placeholder="např. 100" value="${escapeAttr(mealDraft.customGrams)}" data-meal-field="customGrams" />
+          ` : `
+            <label class="label">Počet porcí</label>
+            <input type="number" min="0.25" step="0.25" class="field" style="margin-bottom:10px" value="${mealDraft.servingsCount}" data-meal-field="servingsCount" />
+          `}
+          ${(() => {
+            const r = findRecipe(mealDraft.recipeId);
+            const n = currentMealDraftNutrition();
+            if(n) return `<div style="background:#f8fafc;border-radius:12px;padding:8px 12px;margin-bottom:12px" class="text-xs" style="color:#475569">🔥 ${displayEnergy(n.calories)} · B ${n.protein}g · T ${n.fat}g · S ${n.carbs}g</div>`;
+            if(r && !r.totalGrams) return `<p class="text-xs muted" style="margin-bottom:12px">Tenhle recept ještě nemá zadanou celkovou hmotnost (doplň ji v receptu, jinak nejde makra na gramáž/porci přepočítat).</p>`;
+            return `<p class="text-xs muted" style="margin-bottom:12px">Tenhle recept ještě nemá spočítané nutriční hodnoty (doplň je v receptu).</p>`;
+          })()}
+        `}
+      `}
+
+      <div class="row between" style="align-items:center">
+        <label class="label" style="margin:0">Opakování</label>
+        <button class="text-xs" style="color:#6366f1;font-weight:600;background:none" data-action="open-modal" data-modal="recurringManager">🔁 Spravovat aktivní opakování</button>
+      </div>
+        <div class="row gap-2 wrapf" style="margin-bottom:6px">
+          ${RECURRENCE_TYPES.map(r => `<button class="chip ${mealDraft.recurrenceType===r.id?'active':''}" data-action="set-meal-recurrence" data-id="${r.id}">${r.label}</button>`).join("")}
+        </div>
+        ${mealDraft.recurrenceType==="weekly_days" ? `
+          <div class="row gap-2 wrapf" style="margin-bottom:8px">
+            ${WEEKDAY_LABELS.map(w => `<button class="chip ${mealDraft.recurrenceWeekdays.includes(w.id)?'active':''}" data-action="toggle-meal-recurrence-weekday" data-id="${w.id}">${w.label}</button>`).join("")}
+          </div>
+          ${!mealDraft.recurrenceWeekdays.length ? `<p class="text-xs muted" style="margin:0 0 8px">Vyber aspoň jeden den.</p>` : ""}
+        ` : ""}
+        ${mealDraft.recurrenceType!=="none" && mealDraft.recurrenceType!=="custom" ? `
+          <div class="row gap-2" style="align-items:center;margin-bottom:10px">
+            <label class="label" style="margin:0">Po dobu</label>
+            <input type="number" min="1" max="200" class="field" style="width:70px" value="${mealDraft.recurrenceDurationValue}" data-meal-field="recurrenceDurationValue" />
+            <select class="field" style="width:auto" data-meal-field="recurrenceDurationUnit">
+              ${DURATION_UNITS.map(u => `<option value="${u.id}" ${mealDraft.recurrenceDurationUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+            </select>
+          </div>
+          ${(() => {
+            const c = computeRecurrenceCount(mealDraft.recurrenceType, mealDraft.recurrenceWeekdays.length, mealDraft.recurrenceDurationValue, mealDraft.recurrenceDurationUnit);
+            return `<p class="text-xs muted" style="margin:4px 0 10px">Vytvoří se ${c} termínů${mealDraft.recurrenceType==="weekly_days" ? " " + weeklyDaysCountHint(mealDraft.recurrenceWeekdays.length, c) : ""}.</p>`;
+          })()}` : ""}
+        ${mealDraft.recurrenceType==="custom" ? `
+          <div class="row gap-2" style="margin-bottom:6px">
+            <input type="date" id="mealRecurrenceDateInput" class="field grow" />
+            <button class="icon-btn" data-action="add-meal-recurrence-date">➕</button>
+          </div>
+          <div class="row gap-2 wrapf" style="margin-bottom:10px">
+            ${mealDraft.recurrenceCustomDates.map(d => `<span class="chip active">${d} <span data-action="remove-meal-recurrence-date" data-id="${d}" style="margin-left:4px;cursor:pointer">✕</span></span>`).join("")}
+          </div>` : ""}
+      ${mealDraft.editingId ? `<p class="text-xs muted" style="margin:0 0 12px">Opakování se použije jen při vytvoření nového jídla — u téhle úpravy se změní jen tenhle jeden záznam.</p>` : ""}
+
+      <div style="border:1px solid #f1f5f9;background:rgba(248,250,252,0.6);border-radius:18px;padding:12px;margin-bottom:12px">
+        <button class="row between" style="width:100%" data-action="toggle-meal-reminder">
+          <span class="row gap-2 font-semi text-sm" style="color:#475569">${mealDraft.reminderEnabled?'🔔':'🔕'} Upozornit, kdy jíst</span>
+          <span class="switch ${mealDraft.reminderEnabled?'on':''}"><span class="knob"></span></span>
+        </button>
+        ${mealDraft.reminderEnabled ? `
+          <div class="col gap-3" style="margin-top:12px">
+            <div class="row gap-2 wrapf">
+              ${REMINDER_MODES.map(m => `<button class="chip ${mealDraft.reminderMode===m.id?'active':''}" style="${mealDraft.reminderMode===m.id?'background:#334155;color:#fff':'background:#fff;border:1px solid #e2e8f0'}" data-action="set-meal-reminder-mode" data-id="${m.id}">${m.label}</button>`).join("")}
+            </div>
+            ${mealDraft.reminderMode==="atTime" ? `
+              <div><label class="label">Čas (v den jídla, ${mealDraft.date})</label>
+                <input type="time" class="field" value="${mealDraft.reminderTime}" data-meal-field="reminderTime" /></div>` : ""}
+            ${mealDraft.reminderMode==="before" ? `
+              <div><label class="label">Jídlo je naplánováno na</label>
+                <input type="time" class="field" value="${mealDraft.reminderBaseTime}" data-meal-field="reminderBaseTime" /></div>
+              <div class="row gap-2">
+                <div class="grow"><label class="label">Upozornit předem</label>
+                  <input type="number" min="1" class="field" value="${mealDraft.reminderAdvanceValue}" data-meal-field="reminderAdvanceValue" /></div>
+                <div class="grow"><label class="label">Jednotka</label>
+                  <select class="field" data-meal-field="reminderAdvanceUnit">
+                    ${ADVANCE_UNITS.map(u => `<option value="${u.id}" ${mealDraft.reminderAdvanceUnit===u.id?'selected':''}>${u.label}</option>`).join("")}
+                  </select></div>
+              </div>` : ""}
+            ${mealDraft.reminderMode==="custom" ? `
+              <div class="row gap-2">
+                <div class="grow"><label class="label">Datum</label><input type="date" class="field" value="${mealDraft.reminderCustomDate}" data-meal-field="reminderCustomDate" /></div>
+                <div class="grow"><label class="label">Čas</label><input type="time" class="field" value="${mealDraft.reminderCustomTime}" data-meal-field="reminderCustomTime" /></div>
+              </div>` : ""}
+            <div>
+              <label class="label">Melodie</label>
+              <select class="field" data-meal-field="reminderSound">
+                ${Object.entries(REMINDER_SOUNDS).map(([k,s]) => `<option value="${k}" ${mealDraft.reminderSound===k?'selected':''}>${s.label}</option>`).join("")}
+              </select>
+            </div>
+          </div>` : ""}
+      </div>
+
+      <div class="row gap-2" style="justify-content:flex-end">
+        ${mealDraft.editingId ? `<button class="btn btn-soft" data-action="cancel-meal-edit">Zrušit úpravu</button>` : ""}
+        <button class="btn btn-primary" data-action="add-meal">${mealDraft.editingId ? "✓ Uložit změny" : "➕ Přidat do jídelníčku"}</button>
+      </div>
+    </div>
+  `;
+}
+function mealHistoryModalHTML(){
+  const eaten = state.meals.filter(m => m.eaten).sort((a,b) => b.date.localeCompare(a.date));
+  return `
+    <div class="modal-overlay side" data-action="close-modal-bg">
+      <div class="modal-side">
+        <div class="row between" style="margin-bottom:6px">
+          <h3 style="margin:0;font-size:18px;color:#334155">📜 Historie jídelníčku</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <p class="text-xs muted" style="margin:0 0 14px">Vše, co jsi za dobu používání appky potvrdil/a jako snědené.</p>
+        ${eaten.length===0 ? `<p class="text-sm muted">Zatím tu nic není.</p>` : `
+          <div class="col gap-2">
+            ${eaten.map(m => `
+              <div style="background:#f8fafc;border-radius:14px;padding:10px 12px">
+                <div class="row between">
+                  <span class="text-xs font-semi" style="color:#059669">${escapeHTML(mealLabelById(m.labelId).name)}</span>
+                  <span class="text-xs muted">${m.date}</span>
+                </div>
+                <p class="text-sm" style="margin:2px 0 0;color:#334155">${escapeHTML(m.title)}</p>
+                ${m.nutrition ? `<p class="text-xs muted" style="margin:2px 0 0">🔥 ${displayEnergy(m.nutrition.calories)} · B ${m.nutrition.protein}g · T ${m.nutrition.fat}g · S ${m.nutrition.carbs}g</p>` : ""}
+              </div>`).join("")}
+          </div>`}
+      </div>
+    </div>`;
+}
+function mealLabelsModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:340px">
+        <div class="row between" style="margin-bottom:14px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Štítky jídel</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <div class="col gap-2" style="margin-bottom:14px">
+          ${state.mealLabels.map(l => `
+            <div class="row gap-3" style="background:#f8fafc;border-radius:14px;padding:9px 12px">
+              <span class="grow text-sm" style="color:#334155">${escapeHTML(l.name)}</span>
+              <button data-action="delete-meal-label" data-id="${l.id}" style="color:#fb7185">🗑️</button>
+            </div>`).join("")}
+        </div>
+        <div class="row gap-2">
+          <input id="newMealLabelName" class="field grow" placeholder="např. Svačina 2, Předtréninková" />
+          <button class="icon-btn-sm shrink0" data-action="dictate-into" data-target="newMealLabelName" title="Diktovat">🎙️</button>
+          <button class="icon-btn" style="background:#34d399;color:#fff" data-action="add-meal-label">➕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function drawModalHTML(){
+  return `
+    <div class="modal-overlay" data-action="close-modal-bg">
+      <div class="modal-panel" style="max-width:360px">
+        <div class="row between" style="margin-bottom:10px">
+          <h3 style="margin:0;font-size:18px;color:#334155">Nakresli si to</h3>
+          <button class="icon-btn-sm" data-action="close-modal">✕</button>
+        </div>
+        <canvas id="drawCanvas" width="300" height="220" class="canvas-draw"></canvas>
+        <div class="row between" style="margin-top:10px">
+          <div class="row gap-2">
+            ${["#334155","#ef4444","#3b82f6","#22c55e","#f59e0b"].map(c => `<button class="swatch ${drawColor===c?'sel':''}" style="background:${c}" data-action="set-draw-color" data-id="${c}"></button>`).join("")}
+          </div>
+          <button class="chip" data-action="clear-draw">🧹 Vymazat</button>
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px" data-action="save-draw">Uložit kresbu k úkolu</button>
+      </div>
+    </div>`;
+}
+function initDrawCanvas(){
+  const c = document.getElementById("drawCanvas");
+  if(!c) return;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,c.width,c.height);
+  const pos = (e) => { const rect=c.getBoundingClientRect(); const cx=e.touches?e.touches[0].clientX:e.clientX; const cy=e.touches?e.touches[0].clientY:e.clientY; return {x:cx-rect.left,y:cy-rect.top}; };
+  const start=(e)=>{ drawingActive=true; const{x,y}=pos(e); ctx.beginPath(); ctx.moveTo(x,y); e.preventDefault(); };
+  const move=(e)=>{ if(!drawingActive) return; const{x,y}=pos(e); ctx.lineTo(x,y); ctx.strokeStyle=drawColor; ctx.lineWidth=4; ctx.lineCap="round"; ctx.stroke(); e.preventDefault(); };
+  const end=()=>{ drawingActive=false; };
+  c.addEventListener("mousedown",start); c.addEventListener("mousemove",move);
+  c.addEventListener("mouseup",end); c.addEventListener("mouseleave",end);
+  c.addEventListener("touchstart",start,{passive:false}); c.addEventListener("touchmove",move,{passive:false});
+  c.addEventListener("touchend",end);
+}
+
+// ================= SHARED TASK LANDING OVERLAY =================
+function renderSharedOverlay(){
+  const el = document.getElementById("sharedOverlayRoot");
+  const p = sharedTaskPayload;
+  if(!p){ el.innerHTML = ""; return; }
+  const itemType = p.itemType || "task"; // old links (before this update) had no itemType — always a task
+  const shareMeta = SHAREABLE_STORES[itemType];
+  const label = shareMeta ? shareMeta.label : "úkol";
+  const emoji = shareMeta ? shareMeta.icon : escapeHTML(p.emoji||"📌");
+  const meta = itemType==="task" ? priorityMeta(Math.min(10, Math.max(1, Number(p.priority) || 5))) : null;
+  el.innerHTML = `
+    <div class="shared-overlay">
+      <div class="shared-card">
+        <p class="text-xs muted" style="margin:0 0 4px;text-align:center">📬 Poslal ti někdo ${label} z</p>
+        <p class="text-sm font-semi" style="margin:0 0 16px;text-align:center;color:#059669">✨ Vibe Calendar</p>
+        <div style="background:#f8fafc;border-radius:18px;padding:16px;margin-bottom:16px">
+          <div class="row gap-3" style="margin-bottom:8px">
+            <span style="font-size:26px">${emoji}</span>
+            <div class="grow">
+              <p class="text-base font-semi text-main" style="margin:0">${escapeHTML(p.title||p.name||"")}</p>
+              <p class="text-xs muted" style="margin:2px 0 0">${itemType==="task" ? `${escapeHTML(p.catLabel||"")} · ` : ""}${escapeHTML(p.date||"")}${meta ? ` · ${escapeHTML(meta.tag)}` : ""}${itemType==="medication" && p.dosage ? ` · ${escapeHTML(p.dosage)}` : ""}</p>
+            </div>
+          </div>
+          ${p.content ? `<p class="text-sm" style="color:#475569;margin:8px 0 0">${escapeHTML(p.content)}</p>` : ""}
+          ${itemType==="task" && Array.isArray(p.checklist)&&p.checklist.length ? `
+            <div class="col gap-1" style="margin-top:10px">
+              ${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(String(c))}</div>`).join("")}
+            </div>` : ""}
+          ${itemType==="meal" ? `
+            ${p.nutrition ? `<p class="text-xs" style="margin:8px 0 0;color:#059669">🔥 ${p.nutrition.calories||0} kcal · B ${p.nutrition.protein||0}g · T ${p.nutrition.fat||0}g · S ${p.nutrition.carbs||0}g</p>` : ""}
+            ${Array.isArray(p.items)&&p.items.length ? `<div class="col gap-1" style="margin-top:8px">${p.items.map(i => `<div class="text-xs" style="color:#64748b">• ${escapeHTML(i.text)}${i.grams?` (${i.grams} ${i.unit||'g'})`:''}</div>`).join("")}</div>` : ""}
+          ` : ""}
+          ${itemType==="workout" ? `
+            ${Array.isArray(p.exercises)&&p.exercises.length ? `<div class="col gap-1" style="margin-top:8px">${p.exercises.map(e => `<div class="text-xs" style="color:#64748b">• ${escapeHTML(e.name)} — ${e.sets}×${e.reps}${e.weight?`, ${escapeHTML(e.weight)}`:''}</div>`).join("")}</div>` : ""}
+            ${Array.isArray(p.checklist)&&p.checklist.length ? `<div class="col gap-1" style="margin-top:8px">${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(c.text)} (${c.minutes} min)</div>`).join("")}</div>` : ""}
+          ` : ""}
+          ${itemType==="recipe" && Array.isArray(p.sections)&&p.sections.length ? `
+            ${p.sections.map(s => `<p class="text-xs font-semi" style="margin:8px 0 2px;color:#475569">${escapeHTML(s.name)}</p><div class="col gap-1">${(s.items||[]).map(i=>`<div class="text-xs" style="color:#64748b">• ${escapeHTML(i.text)}</div>`).join("")}</div>`).join("")}
+          ` : ""}
+          ${itemType==="note" && Array.isArray(p.checklist)&&p.checklist.length ? `
+            <div class="col gap-1" style="margin-top:8px">${p.checklist.map(c => `<div class="text-xs" style="color:#64748b">☐ ${escapeHTML(String(c))}</div>`).join("")}</div>
+          ` : ""}
+        </div>
+        <div class="col gap-2">
+          <button class="btn btn-primary" style="justify-content:center" data-action="import-shared-task">➕ Přidat do mého Vibe Calendar</button>
+          ${itemType==="task" ? `
+            <button class="btn btn-soft" style="justify-content:center" data-action="download-shared-ics">📅 Stáhnout do kalendáře (.ics)</button>
+            <button class="btn btn-soft" style="justify-content:center" data-action="confirm-shared-done">✅ Poslat zpět, že mám hotovo</button>
+          ` : ""}
+          <button class="btn" style="justify-content:center;color:#94a3b8" data-action="close-shared-overlay">Zavřít bez přidání</button>
+        </div>
+        <p class="text-xs muted" style="margin-top:14px;text-align:center">Nemáš Vibe Calendar? Nevadí — appka se otevře i bez instalace.</p>
+      </div>
+    </div>`;
+}
+
+// ================= TASK AUDIO PLAYBACK =================
+let taskAudioPlayer = null, playingAudioId = null;
+async function playAudioById(audioId){
+  if(!audioId) return;
+  if(playingAudioId === audioId){ taskAudioPlayer.pause(); playingAudioId = null; renderAll(); return; }
+  const url = await getBlobURL(audioId);
+  if(!url){ showToast("Nahrávka nebyla nalezena."); return; }
+  if(taskAudioPlayer) taskAudioPlayer.pause();
+  taskAudioPlayer = new Audio(url);
+  taskAudioPlayer.onended = () => { playingAudioId = null; renderAll(); };
+  taskAudioPlayer.play().catch(() => showToast("Přehrání se nezdařilo."));
+  playingAudioId = audioId;
+  renderAll();
+}
+
+// ================= BLOB IMAGE HYDRATION (not currently needed: images stored as dataURL) =================
+function hydrateBlobImages(){ /* reserved for future blob-based images */ }
+
+// ================= FIELD BINDING (draft/state live inputs) =================
+const DRAFT_FIELDS = new Set(["formTitle","formContent","formDate","formPriority","reminderTime","reminderBaseTime","reminderAdvanceValue","reminderAdvanceUnit","reminderCustomDate","reminderCustomTime","reminderSound","recurrenceCount","recurrenceDurationValue","recurrenceDurationUnit"]);
+function handleFieldChange(e){
+  const noteDetailField = e.target.dataset.noteDetailField;
+  if(noteDetailField){
+    updateNote(e.target.dataset.id, { [noteDetailField]: e.target.value });
+    return;
+  }
+  const docDetailField = e.target.dataset.docDetailField;
+  if(docDetailField){
+    updateDocument(e.target.dataset.id, { [docDetailField]: e.target.value });
+    return;
+  }
+  const workoutDetailField = e.target.dataset.workoutDetailField;
+  if(workoutDetailField){
+    updateWorkout(e.target.dataset.id, { [workoutDetailField]: e.target.value });
+    if(workoutDetailField === "date" && e.type === "change") renderWorkoutsView();
+    return;
+  }
+  const exerciseField = e.target.dataset.exerciseField;
+  if(exerciseField){
+    updateExerciseField(e.target.dataset.id, e.target.dataset.sub, exerciseField, e.target.value);
+    return;
+  }
+  const workoutItemMinutesWorkoutId = e.target.dataset.workoutItemMinutes;
+  if(workoutItemMinutesWorkoutId){
+    setWorkoutChecklistItemMinutes(workoutItemMinutesWorkoutId, e.target.dataset.id, e.target.value);
+    return;
+  }
+  const profileField = e.target.dataset.profileField;
+  if(profileField === "weight"){
+    const raw = Number(e.target.value);
+    if(raw > 0){
+      state.userProfile.weightKg = state.userProfile.unitPref === "lb" ? lbToKg(raw) : raw;
+      saveState();
+      if(e.type === "change") renderMealsView();
+    }
+    return;
+  }
+  const targetField = e.target.dataset.targetField;
+  if(targetField){
+    const raw = Number(e.target.value);
+    if(!state.userProfile.customTargets) state.userProfile.customTargets = {protein:null,carbs:null,fat:null};
+    state.userProfile.customTargets[targetField] = raw > 0 ? raw : null;
+    saveState();
+    if(e.type === "change") renderMealsView();
+    return;
+  }
+  const personBirthdayField = e.target.dataset.personBirthdayField;
+  if(personBirthdayField){
+    const full = e.target.value || null;
+    const md = full ? full.slice(5) : null;
+    updatePerson(personBirthdayField, {birthdayFullDate: full, birthdayMonthDay: md});
+    if(e.type === "change"){ ensureAnniversaryTasks(); renderSettingsView(); }
+    return;
+  }
+  const anniversaryDateField = e.target.dataset.anniversaryDateField;
+  if(anniversaryDateField){
+    const md = e.target.value ? e.target.value.slice(5) : null;
+    updateAnniversary(anniversaryDateField, e.target.dataset.annivId, {monthDay: md});
+    if(e.type === "change") ensureAnniversaryTasks();
+    return;
+  }
+  const anniversaryLabelField = e.target.dataset.anniversaryLabelField;
+  if(anniversaryLabelField){
+    updateAnniversary(anniversaryLabelField, e.target.dataset.annivId, {label: e.target.value});
+    return;
+  }
+  const reminderDaysPrefix = e.target.dataset.reminderDaysField;
+  if(reminderDaysPrefix){
+    applyReminderFieldChange(reminderDaysPrefix, e.target.dataset.id, e.target.dataset.sub, "daysBefore", Number(e.target.value)||0);
+    if(e.type === "change") ensureAnniversaryTasks();
+    return;
+  }
+  const reminderNotePrefix = e.target.dataset.reminderNoteField;
+  if(reminderNotePrefix){
+    applyReminderFieldChange(reminderNotePrefix, e.target.dataset.id, e.target.dataset.sub, "note", e.target.value);
+    return;
+  }
+  if(e.target.id === "globalSearchInput"){
+    globalSearchQuery = e.target.value;
+    renderGlobalSearchResults();
+    return;
+  }
+  const nutritionCustomField = e.target.dataset.nutritionCustomField;
+  if(nutritionCustomField){
+    if(nutritionCustomField === "start") nutritionCustomStart = e.target.value || null;
+    else nutritionCustomEnd = e.target.value || null;
+    if(e.type === "change") renderModals();
+    return;
+  }
+  const mealField = e.target.dataset.mealField;
+  if(mealField){
+    if(!mealDraft) return;
+    mealDraft[mealField] = e.target.value;
+    const rerenderOn = ["source","labelId","recipeId","reminderMode","reminderSound","servingsCount","recurrenceType","customGrams","recurrenceCount","recurrenceDurationValue","recurrenceDurationUnit"];
+    if(e.type === "change" && rerenderOn.includes(mealField)) renderMealsView();
+    return;
+  }
+  const medField = e.target.dataset.medField;
+  if(medField){
+    if(!medDraft) return;
+    medDraft[medField] = e.target.value;
+    const rerenderOn = ["reminderMode","reminderSound","recurrenceType","recurrenceCount","recurrenceDurationValue","recurrenceDurationUnit"];
+    if(e.type === "change" && rerenderOn.includes(medField)) renderMedicationsView();
+    return;
+  }
+  const ingField = e.target.dataset.ingField;
+  if(ingField){
+    setIngredientNutrition(e.target.dataset.id, e.target.dataset.sub, e.target.dataset.item, ingField, e.target.value);
+    if(e.type === "change") renderRecipeDetail();
+    return;
+  }
+  const mealItemField = e.target.dataset.mealItemField;
+  if(mealItemField){
+    setMealDraftItemNutrition(e.target.dataset.id, mealItemField, e.target.value);
+    if(e.type === "change") renderMealsView();
+    return;
+  }
+  const foodField = e.target.dataset.foodField;
+  if(foodField === "search"){
+    foodItemFilter.search = e.target.value;
+    renderModals(); // live filter as you type
+    const inp = document.getElementById("foodItemSearchInput");
+    if(inp){ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+    return;
+  }
+  const foodItemField = e.target.dataset.foodItemField;
+  if(foodItemField){
+    const fid = e.target.dataset.id;
+    if(foodItemField === "categoryId"){
+      updateFoodItem(fid, { categoryId: e.target.value });
+    } else {
+      setFoodItemNutrition(fid, foodItemField, e.target.value);
+    }
+    if(e.type === "change") renderModals();
+    return;
+  }
+  const recipeField = e.target.dataset.recipeField;
+  if(recipeField){
+    const rid = e.target.dataset.id;
+    const numericFields = ["totalGrams","servingGrams","nutCalories","nutProtein","nutFat","nutCarbs"];
+    const isNumericField = numericFields.includes(recipeField);
+    if(recipeField.startsWith("nut")){
+      const key = {nutCalories:"calories", nutProtein:"protein", nutFat:"fat", nutCarbs:"carbs"}[recipeField];
+      const r = findRecipe(rid);
+      const nutrition = { calories:0, protein:0, fat:0, carbs:0, ...(r && r.nutrition) };
+      nutrition[key] = Number(e.target.value) || 0;
+      updateRecipe(rid, { nutrition });
+    } else {
+      const value = isNumericField ? (Number(e.target.value) || null) : e.target.value;
+      updateRecipe(rid, { [recipeField]: value });
+    }
+    if(isNumericField && e.type === "change") renderRecipeDetail();
+    return;
+  }
+  const field = e.target.dataset.field;
+  if(!field) return;
+  if(field === "wsName"){ updateWorkspace({name:e.target.value}); renderTopBar(); return; }
+  if(!DRAFT_FIELDS.has(field)) return;
+  draft[field] = e.target.value;
+  if(field === "reminderSound"){
+    if(customAudioPlayer){ customAudioPlayer.pause(); } previewPlaying = false;
+    renderReminderSection();
+  }
+  if(field === "recurrenceCount" && e.type === "change") renderRecurrenceEditor();
+  if((field === "recurrenceDurationValue" || field === "recurrenceDurationUnit") && e.type === "change") renderRecurrenceEditor();
+  if(field === "formDate"){ renderReminderSection(); }
+}
+
+let pickedFriendEmoji = FRIEND_EMOJIS[0];
+let pickedWsEmoji = WORKSPACE_EMOJIS[0];
+let pickedRecipeEmoji = "🍰";
+let pickedRecipeCategoryId = null;
+
+// ================= EVENT DELEGATION =================
+function handleClick(e){
+  try{ handleClickInner(e); }
+  catch(err){ console.error("Chyba akce:", err); showToast("Něco se nepovedlo — zkus to prosím znovu."); }
+}
+function handleClickInner(e){
+  const t = e.target.closest("[data-action]");
+  if(!t) return;
+  const action = t.dataset.action;
+  const id = t.dataset.id;
+
+  switch(action){
+    case "open-modal": {
+      if(t.dataset.modal === "quickActivity"){ quickActivityPicked = null; quickActivityMode = "manual"; }
+      openModal(t.dataset.modal);
+      break;
+    }
+    case "confirm-reminder-log-entry": confirmReminderLogEntry(id); break;
+    case "open-reminder-log-entry": {
+      const entry = (state.reminderLog||[]).find(e => e.id === id);
+      if(entry) openReminderLogEntry(entry);
+      break;
+    }
+    case "close-modal": closeModal(); break;
+    case "close-modal-bg": if(e.target === t) closeModal(); break;
+    case "toggle-personality-menu":
+      currentModal = (currentModal && currentModal.name==="personalityMenu") ? null : {name:"personalityMenu"};
+      renderQuote(); break;
+    case "set-personality":
+      state.personality = id; currentModal = null; saveState(); renderQuote(); break;
+    case "switch-workspace":
+      state.activeWorkspaceId = id; resetDraft(); saveState(); renderAll(); break;
+    case "switch-view": switchView(id); break;
+    case "cancel-timer": cancelTimer(id); break;
+    case "dismiss-alarm": dismissAlarm(id); break;
+    case "toggle-assistant": toggleAssistant(); break;
+    case "select-date":
+      state.selectedDate = id; draft.formDate = id; saveState(); renderCalendarStrip(); renderLanes(); renderForm(); break;
+    case "nav-window": {
+      const cur = parseISODate(state.windowStart);
+      state.windowStart = id === "reset" ? toISO(addDays(TODAY,-1)) : toISO(addDays(cur, Number(id)));
+      saveState(); renderCalendarStrip(); break;
+    }
+    case "set-list-filter":
+      state.activeListFilter = id; saveState(); renderListFilter(); renderLanes(); break;
+    case "set-form-type": draft.formType = t.dataset.type; renderForm(); break;
+    case "set-priority": draft.formPriority = Number(id); renderForm(); break;
+    case "set-note-priority": updateNote(t.dataset.sub, { priority: Number(id) }); renderNoteDetail(); break;
+    case "toggle-form-collapsed": formCollapsed = !formCollapsed; if(formCollapsed && organizedDictationActive) stopOrganizedNoteDictation(false); renderForm(); break;
+    case "pick-list": draft.formListId = id; renderForm(); break;
+    case "pick-category": draft.formCategoryId = id; renderForm(); break;
+    case "toggle-friend": toggleFormFriend(id); break;
+    case "add-checklist-item": {
+      const inp = document.getElementById("checklistInput");
+      addChecklistItem(inp ? inp.value : ""); break;
+    }
+    case "dictate-checklist-loop": toggleChecklistDictation({type:"form"}); break;
+    case "dictate-into": dictateOnceInto(t.dataset.target); break;
+    case "remove-checklist-item": removeChecklistItem(id); break;
+    case "set-recurrence-type": draft.recurrenceType = id; renderRecurrenceEditor(); break;
+    case "cancel-recurring-group": {
+      const type = t.dataset.sub;
+      if(type === "task") deleteSeries(id);
+      else if(type === "meal") deleteMealSeries(id);
+      else if(type === "medication") deleteMedicationSeries(id);
+      renderModals();
+      break;
+    }
+    case "toggle-recurrence-weekday": {
+      const day = Number(id);
+      draft.recurrenceWeekdays = draft.recurrenceWeekdays.includes(day) ? draft.recurrenceWeekdays.filter(d=>d!==day) : [...draft.recurrenceWeekdays, day];
+      renderRecurrenceEditor();
+      break;
+    }
+    case "add-recurrence-date": {
+      const inp = document.getElementById("recurrenceDateInput");
+      addRecurrenceDate(inp ? inp.value : ""); break;
+    }
+    case "remove-recurrence-date": removeRecurrenceDate(id); break;
+    case "open-draw": {
+      const target = t.dataset.target;
+      openDrawModal(target === "note" ? {type:"note", noteId:id} : target === "document" ? {type:"document", documentId:id} : target === "workout" ? {type:"workout", workoutId:id} : null);
+      break;
+    }
+    case "clear-draw": clearDrawCanvas(); break;
+    case "save-draw": saveDrawing(); break;
+    case "set-draw-color":
+      drawColor = id;
+      document.querySelectorAll(".swatch").forEach(s => s.classList.remove("sel"));
+      t.classList.add("sel");
+      break;
+    case "toggle-recording": toggleRecording(); break;
+    case "remove-draft-drawing": draft.formDrawings.splice(Number(id), 1); renderAttachmentsPreview(); break;
+    case "remove-draft-audio": {
+      const removedId = draft.formAudioIds[Number(id)];
+      draft.formAudioIds.splice(Number(id), 1);
+      // Only delete the underlying recording once it's no longer referenced by
+      // the task being edited (it might still be saved on the original task
+      // until the edit is actually submitted) — safe to just drop it here for
+      // brand-new tasks; for edits, addItem()'s cleanup pass handles it.
+      if(!draft.editingId) idbDelete(removedId).catch(()=>{});
+      renderAttachmentsPreview();
+      break;
+    }
+    case "remove-draft-image": removeDraftImage(Number(id)); break;
+    case "remove-draft-file": removeDraftFile(id); break;
+    case "download-task-file": downloadTaskFile(id, t.dataset.sub); break;
+    case "toggle-dictation-title": toggleDictation("title"); break;
+    case "toggle-dictation-content": toggleDictation("content"); break;
+    case "toggle-organized-dictation": toggleOrganizedNoteDictation(); break;
+    case "generate-ai-title": generateAITitle(); break;
+    case "add-item": addItem(); break;
+    case "cancel-edit": cancelEdit(); break;
+    case "open-save-template": openModal("saveTemplate"); break;
+    case "save-template": {
+      const inp = document.getElementById("newTplName");
+      saveCurrentAsTemplate(inp ? inp.value : "");
+      closeModal(); break;
+    }
+    case "delete-series": deleteSeries(id); break;
+    case "toggle-done": toggleDone(id); break;
+    case "delete-task": deleteTask(id); break;
+    case "edit-task": editTask(id); closeModal(); break;
+    case "toggle-expand": toggleExpand(id); break;
+    case "quick-view-task": openTaskQuickView(id); break;
+    case "edit-task-from-quickview": closeModal(); editTask(id); break;
+    case "toggle-subtask": toggleSubtask(id, t.dataset.sub); break;
+    case "remove-subtask": removeSubtaskFromTask(id, t.dataset.sub); break;
+    case "add-subtask": {
+      const inp = document.getElementById("subtaskInput-"+id);
+      addSubtaskToTask(id, inp ? inp.value : "");
+      break;
+    }
+    case "play-task-audio": playAudioById(id); break;
+    case "open-share-modal": openShareModal(id); break;
+    case "share-to-contact": shareTaskToContact(state.tasks.find(x=>x.id===id), t.dataset.sub); break;
+    case "open-share-item-modal": openShareItemModal(id, t.dataset.sub); break;
+    case "share-item-to-contact": {
+      const [itemType, contactId] = t.dataset.sub.split(":");
+      const item = (itemType==="meal" ? state.meals : state.workouts).find(x=>x.id===id);
+      shareItemToContact(item, itemType, contactId);
+      break;
+    }
+    case "share-item-generic": shareItemGeneric(state.meals.find(x=>x.id===id)||state.workouts.find(x=>x.id===id), t.dataset.sub); closeModal(); break;
+    case "share-item-via": {
+      const [itemType, channel] = t.dataset.sub.split(":");
+      shareItemVia(id, itemType, channel);
+      break;
+    }
+    case "copy-link": copyLink(state.tasks.find(x=>x.id===id)); shareOpenId=null; renderLanes(); break;
+    case "copy-whatsapp": {
+      const task = state.tasks.find(x=>x.id===id);
+      try{ navigator.clipboard.writeText(whatsappText(task)); }catch(err){}
+      showToast("Text zkopírován pro WhatsApp ✓"); shareOpenId=null; renderLanes(); break;
+    }
+    case "export-ics": downloadICS(state.tasks.find(x=>x.id===id)); closeModal(); break;
+    case "move-today": moveToToday(id); break;
+    case "move-date": {
+      const inp = document.getElementById("moveDate-"+id);
+      moveToDate(id, inp ? inp.value : "");
+      break;
+    }
+    case "add-category": {
+      const em = document.getElementById("newCatEmoji"), lb = document.getElementById("newCatLabel");
+      addCategory(em?em.value:"✨", lb?lb.value:"");
+      break;
+    }
+    case "delete-category": deleteCategory(id); break;
+    case "add-list": {
+      const inp = document.getElementById("newListName");
+      addList(inp ? inp.value : "");
+      break;
+    }
+    case "delete-list": deleteList(id); break;
+    case "pick-friend-emoji":
+      pickedFriendEmoji = id;
+      document.querySelectorAll("#newFriendEmojiPicker .emoji-btn").forEach(b => b.classList.toggle("active", b.dataset.id===id));
+      break;
+    case "add-friend": {
+      const inp = document.getElementById("newFriendName");
+      const phoneInp = document.getElementById("newFriendPhone");
+      addFriend(inp ? inp.value : "", pickedFriendEmoji, phoneInp ? phoneInp.value : "");
+      pickedFriendEmoji = FRIEND_EMOJIS[0];
+      break;
+    }
+    case "delete-friend": deleteFriend(id); break;
+    case "toggle-friend-confirm": toggleFriendConfirm(id, t.dataset.sub); break;
+    case "share-to-friend": shareTaskToFriend(state.tasks.find(x=>x.id===id), t.dataset.sub); break;
+    case "share-generic": shareTaskGeneric(state.tasks.find(x=>x.id===id)); closeModal(); break;
+    case "share-via": shareTaskVia(id, t.dataset.sub); break;
+    case "refresh-shared-statuses": {
+      showToast("🔄 Kontroluji stav delegovaných úkolů…");
+      refreshSharedStatuses(false).then((r) => {
+        if(r.failed > 0 && r.failed === r.checked) showToast(`⚠️ Nepodařilo se spojit se serverem (${r.failed}× selhalo) — zkus to prosím za chvíli znovu.`);
+        else if(r.failed > 0) showToast(`Zkontrolováno ✓ (${r.failed} z ${r.checked} se nepodařilo ověřit — zkus znovu za chvíli)`);
+        else showToast("Hotovo — stav aktualizován ✓");
+      });
+      break;
+    }
+    case "import-shared-task": importSharedTask(); break;
+    case "download-shared-ics": downloadSharedICS(); break;
+    case "confirm-shared-done": confirmSharedDone(); break;
+    case "close-shared-overlay": closeSharedOverlay(); break;
+    case "set-ws-emoji": updateWorkspace({emoji:id}); renderTopBar(); renderModals(); break;
+    case "delete-workspace": deleteWorkspace(); closeModal(); break;
+    case "pick-new-ws-emoji":
+      pickedWsEmoji = id;
+      document.querySelectorAll("#newWsEmojiPicker .emoji-btn").forEach(b => b.classList.toggle("active", b.dataset.id===id));
+      break;
+    case "add-workspace": {
+      const inp = document.getElementById("newWsName");
+      addWorkspace(inp ? inp.value : "", pickedWsEmoji);
+      pickedWsEmoji = WORKSPACE_EMOJIS[0];
+      closeModal();
+      break;
+    }
+    case "month-nav":
+      if(id==="today") monthCursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+      else monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+Number(id), 1);
+      renderModals(); break;
+    case "pick-month-day":
+      state.selectedDate = id; draft.formDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1));
+      saveState(); closeModal(); renderCalendarStrip(); renderLanes(); renderForm(); break;
+    case "pick-meal-month-day":
+      state.selectedDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1));
+      saveState(); closeModal(); renderMealsView(); break;
+    case "preview-reminder-sound": togglePreviewSound(); break;
+    case "stop-reminder-sound": stopReminderSound(); dismissReminderBanner(); break;
+    case "dismiss-reminder-banner": dismissReminderBanner(); break;
+    case "open-reminder-task": openReminderTask(id); break;
+    case "open-shared-update": {
+      dismissReminderBanner();
+      const type = t.dataset.sub;
+      if(type === "task"){ const tk = state.tasks.find(x=>x.id===id); if(tk){ state.selectedDate=tk.date; state.windowStart=toISO(addDays(parseISODate(tk.date),-1)); state.currentView="calendar"; saveState(); renderAll(); openTaskQuickView(tk.id); } }
+      else if(type === "meal"){ const m = state.meals.find(x=>x.id===id); if(m){ state.selectedDate=m.date; state.windowStart=toISO(addDays(parseISODate(m.date),-1)); state.currentView="meals"; saveState(); renderAll(); } }
+      else if(type === "workout"){ const w = state.workouts.find(x=>x.id===id); if(w){ state.selectedDate=w.date; state.windowStart=toISO(addDays(parseISODate(w.date),-1)); state.currentView="workouts"; saveState(); renderAll(); openWorkoutDetail(id); } }
+      break;
+    }
+    case "toggle-reminder":
+      draft.reminderEnabled = !draft.reminderEnabled;
+      if(draft.reminderEnabled){ requestNotifyPermission(); getAudioCtx(); unlockMediaPlayback(); }
+      renderReminderSection(); break;
+    case "set-reminder-mode": draft.reminderMode = id; renderReminderSection(); break;
+    case "set-theme": updateWorkspace({theme:id}); renderAll(); break;
+    case "set-accent": updateWorkspace({accent:id}); renderAll(); break;
+
+    // ---- Recipes ----
+    case "open-recipe": openRecipeId = id; renderRecipesView(); break;
+    case "close-recipe-detail": closeRecipeDetail(); break;
+    case "filter-recipe-category": activeRecipeCategoryId = id; renderRecipesView(); break;
+    case "add-recipe-category": {
+      const inp = document.getElementById("newRecipeCategoryName");
+      addRecipeCategory(inp ? inp.value : "");
+      break;
+    }
+    case "delete-recipe-category": deleteRecipeCategory(id); break;
+    case "set-recipe-category": {
+      const newCat = findRecipe(id)?.categoryId === t.dataset.sub ? null : t.dataset.sub;
+      updateRecipe(id, { categoryId: newCat });
+      renderRecipeDetail();
+      break;
+    }
+    case "pick-recipe-emoji":
+      pickedRecipeEmoji = id;
+      document.querySelectorAll("#newRecipeEmojiPicker .emoji-btn").forEach(b => b.classList.toggle("active", b.dataset.id===id));
+      break;
+    case "pick-recipe-category":
+      pickedRecipeCategoryId = (pickedRecipeCategoryId === id) ? null : id;
+      document.querySelectorAll("#newRecipeCategoryPicker .chip").forEach(b => b.classList.toggle("active", b.dataset.id===pickedRecipeCategoryId));
+      break;
+    case "add-recipe": {
+      const inp = document.getElementById("newRecipeName");
+      addRecipe(inp ? inp.value : "", pickedRecipeEmoji, pickedRecipeCategoryId);
+      pickedRecipeEmoji = "🍰";
+      pickedRecipeCategoryId = null;
+      closeModal();
+      renderRecipesView();
+      break;
+    }
+    case "delete-recipe": deleteRecipe(id); renderRecipesView(); break;
+    case "remove-recipe-cover": removeRecipeCover(id); break;
+    case "remove-recipe-gallery-photo": removeRecipeGalleryPhoto(id, Number(t.dataset.sub)); break;
+    case "add-recipe-section": {
+      const inp = document.getElementById("newSectionName");
+      addRecipeSection(id, inp ? inp.value : "");
+      break;
+    }
+    case "delete-recipe-section": deleteRecipeSection(id, t.dataset.sub); break;
+    case "toggle-section-ingredients": toggleSectionIsIngredients(id, t.dataset.sub); break;
+    case "add-recipe-item": {
+      const sectionId = t.dataset.sub;
+      const inp = document.getElementById("recipeItemInput-"+sectionId);
+      addRecipeItem(id, sectionId, inp ? inp.value : "");
+      break;
+    }
+    case "remove-recipe-item": removeRecipeItem(id, t.dataset.sub, t.dataset.item); break;
+    case "toggle-recipe-item": toggleRecipeItem(id, t.dataset.sub, t.dataset.item); break;
+    case "dictate-recipe-item": toggleChecklistDictation({type:"recipe", recipeId:id, sectionId:t.dataset.sub}); break;
+    case "start-cooking": startCookingMode(id); break;
+    case "compute-nutrition": computeNutritionAI(id); break;
+
+    // ---- Jídelníček ----
+    case "toggle-meal-form": mealFormCollapsed = !mealFormCollapsed; if(!mealFormCollapsed && !mealDraft.editingId) mealDraft.date = state.selectedDate; renderMealsView(); break;
+
+    // ---- Medications ----
+    case "toggle-med-form": medFormCollapsed = !medFormCollapsed; if(!medFormCollapsed && !medDraft.editingId) medDraft.date = state.selectedDate; renderMedicationsView(); break;
+    case "select-med-date": state.selectedDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1)); saveState(); renderMedicationsView(); break;
+    case "set-med-category": medDraft.category = id; renderMedicationsView(); break;
+    case "add-medication": addMedication(); break;
+    case "cancel-med-edit": cancelMedEdit(); break;
+    case "edit-medication": editMedication(id); break;
+    case "delete-medication": deleteMedication(id); break;
+    case "delete-medication-series": deleteMedicationSeries(id); break;
+    case "toggle-medication-taken": toggleMedicationTaken(id); break;
+    case "set-med-recurrence": medDraft.recurrenceType = id; renderMedicationsView(); break;
+    case "toggle-med-recurrence-weekday": {
+      const day = Number(id);
+      medDraft.recurrenceWeekdays = medDraft.recurrenceWeekdays.includes(day) ? medDraft.recurrenceWeekdays.filter(d=>d!==day) : [...medDraft.recurrenceWeekdays, day];
+      renderMedicationsView();
+      break;
+    }
+    case "add-med-recurrence-date": {
+      const inp = document.getElementById("medRecurrenceDateInput");
+      if(inp && inp.value && !medDraft.recurrenceCustomDates.includes(inp.value)){ medDraft.recurrenceCustomDates = [...medDraft.recurrenceCustomDates, inp.value].sort(); }
+      renderMedicationsView(); break;
+    }
+    case "remove-med-recurrence-date": medDraft.recurrenceCustomDates = medDraft.recurrenceCustomDates.filter(dt=>dt!==id); renderMedicationsView(); break;
+    case "toggle-med-reminder": medDraft.reminderEnabled = !medDraft.reminderEnabled; if(medDraft.reminderEnabled){ requestNotifyPermission(); getAudioCtx(); unlockMediaPlayback(); } renderMedicationsView(); break;
+    case "set-med-reminder-mode": medDraft.reminderMode = id; renderMedicationsView(); break;
+    case "create-blank-note": createBlankNote(); break;
+    case "open-note-detail": openNoteDetail(id); break;
+    case "close-note-detail": closeNoteDetail(); break;
+    case "delete-note": {
+      const wasOpen = openNoteId === id;
+      deleteNoteEntry(id);
+      if(wasOpen){ openNoteId = null; renderNotesView(); }
+      break;
+    }
+    case "toggle-note-checklist-item": toggleNoteChecklistItem(id, t.dataset.sub); break;
+    case "remove-note-checklist-item": removeNoteChecklistItem(id, t.dataset.sub); break;
+    case "add-note-checklist-item": {
+      const inp = document.getElementById("noteChecklistInput");
+      if(inp) addNoteChecklistItem(id, inp.value);
+      break;
+    }
+    case "dictate-note-checklist-loop": toggleChecklistDictation({type:"note", noteId:id}); break;
+    case "remove-note-image": removeNoteImage(id, Number(t.dataset.sub)); break;
+    case "remove-note-drawing": removeNoteDrawing(id, Number(t.dataset.sub||0)); break;
+    case "remove-note-audio": removeNoteAudio(id, Number(t.dataset.sub||0)); break;
+    case "read-note-aloud": readNoteAloud(id); break;
+    case "record-note-audio": toggleRecording({type:"note", noteId:id}); break;
+    case "download-note-file": downloadNoteFile(id, t.dataset.sub); break;
+    case "remove-note-file": removeNoteFile(id, t.dataset.sub); break;
+
+    // ---- Dokumenty ----
+    case "create-blank-document": createBlankDocument(); break;
+    case "open-document-detail": openDocumentDetail(id); break;
+    case "close-document-detail": closeDocumentDetail(); break;
+    case "delete-document": deleteDocument(id); break;
+    case "save-document": saveDocumentNow(id); break;
+    case "restore-task": restoreTask(id); renderModals(); renderAll(); break;
+    case "permanently-delete-task": permanentlyDeleteTask(id); renderModals(); break;
+    case "toggle-archive-select": toggleArchiveSelect(id); break;
+    case "archive-select-all": {
+      const el = document.getElementById("modalsRoot");
+      const keys = [...el.querySelectorAll("[data-action='toggle-archive-select']")].map(b=>b.dataset.id);
+      archiveSelectAll(keys);
+      break;
+    }
+    case "archive-clear-selection": archiveClearSelection(); break;
+    case "archive-bulk-restore": archiveBulkRestore(); break;
+    case "archive-bulk-delete": archiveBulkDelete(); break;
+    case "archive-delete-all": {
+      const el = document.getElementById("modalsRoot");
+      const keys = [...el.querySelectorAll("[data-action='toggle-archive-select']")].map(b=>b.dataset.id);
+      archiveDeleteAll(keys);
+      break;
+    }
+    case "restore-archive-item": {
+      const h = ARCHIVE_HANDLERS[id];
+      if(h){ h.restore(t.dataset.sub); renderModals(); renderAll(); }
+      break;
+    }
+    case "delete-archive-item": {
+      const h = ARCHIVE_HANDLERS[id];
+      if(h){ h.del(t.dataset.sub); renderModals(); }
+      break;
+    }
+    case "restore-recipe": restoreRecipe(id); renderModals(); renderAll(); break;
+    case "permanently-delete-recipe": permanentlyDeleteRecipe(id); renderModals(); break;
+    case "restore-meal": restoreMeal(id); renderModals(); renderAll(); break;
+    case "permanently-delete-meal": permanentlyDeleteMeal(id); renderModals(); break;
+    case "restore-document": restoreDocument(id); renderModals(); renderAll(); break;
+    case "permanently-delete-document": permanentlyDeleteDocument(id); renderModals(); break;
+    case "restore-medication": restoreMedication(id); renderModals(); renderAll(); break;
+    case "permanently-delete-medication": permanentlyDeleteMedication(id); renderModals(); break;
+    case "save-note": saveNoteNow(id); break;
+    case "save-recipe": saveRecipeNow(id); break;
+    case "toggle-document-checklist-item": toggleDocumentChecklistItem(id, t.dataset.sub); break;
+    case "remove-document-checklist-item": removeDocumentChecklistItem(id, t.dataset.sub); break;
+    case "add-document-checklist-item": {
+      const inp = document.getElementById("documentChecklistInput");
+      if(inp) addDocumentChecklistItem(id, inp.value);
+      break;
+    }
+    case "dictate-document-checklist-loop": toggleChecklistDictation({type:"document", documentId:id}); break;
+    case "remove-document-image": removeDocumentImage(id, Number(t.dataset.sub)); break;
+    case "remove-document-drawing": removeDocumentDrawing(id, Number(t.dataset.sub||0)); break;
+    case "remove-document-audio": removeDocumentAudio(id, Number(t.dataset.sub||0)); break;
+    case "read-document-aloud": readDocumentAloud(id); break;
+    case "record-document-audio": toggleRecording({type:"document", documentId:id}); break;
+    case "download-document-file": downloadDocumentFile(id, t.dataset.sub); break;
+    case "remove-document-file": removeDocumentFile(id, t.dataset.sub); break;
+
+    // ---- Trénink ----
+    case "create-blank-workout": createBlankWorkout(); break;
+    case "open-workout-detail": openWorkoutDetail(id); break;
+    case "close-workout-detail": closeWorkoutDetail(); break;
+    case "delete-workout": deleteWorkout(id); break;
+    case "restore-workout": restoreWorkout(id); renderModals(); renderAll(); break;
+    case "permanently-delete-workout": permanentlyDeleteWorkout(id); renderModals(); break;
+    case "save-workout": saveWorkoutNow(id); break;
+    case "read-workout-aloud": readWorkoutAloud(id); break;
+    case "record-workout-audio": toggleRecording({type:"workout", workoutId:id}); break;
+    case "remove-workout-drawing": {
+      const w = findWorkout(id); if(w){ const drawings=[...(w.drawings||[])]; drawings.splice(Number(t.dataset.sub||0),1); updateWorkout(id,{drawings}); renderWorkoutDetail(); }
+      break;
+    }
+    case "remove-workout-audio": {
+      const w = findWorkout(id); if(w){ const audioIds=[...(w.audioIds||[])]; const removed=audioIds.splice(Number(t.dataset.sub||0),1)[0]; if(removed) idbDelete(removed).catch(()=>{}); updateWorkout(id,{audioIds}); renderWorkoutDetail(); }
+      break;
+    }
+    case "add-exercise": {
+      const inp = document.getElementById("exerciseNameInput");
+      if(inp) addExercise(id, inp.value);
+      break;
+    }
+    case "remove-exercise": removeExercise(id, t.dataset.sub); break;
+    case "move-exercise": moveExercise(id, t.dataset.sub, Number(t.dataset.dir)); break;
+    case "start-workout": startWorkoutSession(id, t.dataset.sub); break;
+    case "select-workout-date": state.selectedDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1)); saveState(); renderWorkoutsView(); break;
+    case "set-workout-recurrence": updateWorkout(id, {recurrenceType: t.dataset.sub}); renderWorkoutDetail(); break;
+    case "toggle-workout-recurrence-weekday": {
+      const w = findWorkout(id);
+      const day = Number(t.dataset.sub);
+      const cur = w.recurrenceWeekdays || [];
+      const next = cur.includes(day) ? cur.filter(x=>x!==day) : [...cur, day];
+      updateWorkout(id, {recurrenceWeekdays: next});
+      renderWorkoutDetail();
+      break;
+    }
+    case "generate-workout-recurrence": generateWorkoutRecurrence(id); break;
+    case "pick-quick-activity": {
+      const a = QUICK_ACTIVITY_TYPES.find(x => x.id === id);
+      if(a) quickActivityPicked = {...a};
+      renderModals();
+      break;
+    }
+    case "set-quick-activity-mode": quickActivityMode = id; renderModals(); break;
+    case "confirm-quick-activity-manual": {
+      const label = quickActivityPicked?.id === "other" ? document.getElementById("quickActivityCustomLabel")?.value : quickActivityPicked?.label;
+      const h = document.getElementById("quickActivityHours")?.value;
+      const m = document.getElementById("quickActivityMinutes")?.value;
+      logQuickActivityManual(label, h, m);
+      break;
+    }
+    case "confirm-quick-activity-stopwatch": {
+      const label = quickActivityPicked?.id === "other" ? document.getElementById("quickActivityCustomLabel")?.value : quickActivityPicked?.label;
+      startActivityStopwatch(label);
+      break;
+    }
+    case "pause-activity-stopwatch": pauseActivityStopwatch(); break;
+    case "resume-activity-stopwatch": resumeActivityStopwatch(); break;
+    case "stop-activity-stopwatch": stopActivityStopwatch(); break;
+    case "cancel-activity-stopwatch": cancelActivityStopwatch(); break;
+    case "open-meal-photo-capture": openMealPhotoCapture(); break;
+    case "submit-meal-photo": {
+      const noteEl = document.getElementById("mealPhotoNote");
+      if(noteEl && mealPhotoState) mealPhotoState.note = noteEl.value;
+      submitMealPhoto();
+      break;
+    }
+    case "answer-meal-photo": {
+      const ansEl = document.getElementById("mealPhotoAnswer");
+      if(ansEl) answerMealPhotoQuestion(ansEl.value);
+      break;
+    }
+    case "force-meal-photo-estimate": forceMealPhotoEstimate(); break;
+    case "apply-meal-photo-result": applyMealPhotoResult(); break;
+    case "retry-meal-photo": if(mealPhotoState) runMealPhotoTurn(mealPhotoState.lastForceFinal||false); break;
+    case "export-backup": exportBackup(); break;
+    case "set-color-scheme": state.colorScheme = id; saveState(); renderAll(); renderSettingsView(); break;
+    case "enable-push": enablePushNotifications().then(() => renderSettingsView()); break;
+    case "disable-push": disablePushNotifications().then(() => renderSettingsView()); break;
+    case "open-search": openGlobalSearch(); break;
+    case "open-search-result": {
+      const r = { id, type: t.dataset.sub };
+      openGlobalSearchResult(r);
+      break;
+    }
+    case "generate-shopping-list": {
+      const daysInp = document.getElementById("shoppingDaysAheadInput");
+      const days = daysInp ? Math.max(1, Number(daysInp.value)||7) : 7;
+      shoppingDaysAhead = days;
+      generateShoppingListFromMeals(days);
+      renderModals();
+      break;
+    }
+    case "toggle-pantry-section": pantryExpanded = !pantryExpanded; renderModals(); break;
+    case "add-pantry-item": {
+      const inp = document.getElementById("pantryItemInput");
+      if(inp && inp.value.trim()){ addPantryItem(inp.value); inp.value=""; renderModals(); }
+      break;
+    }
+    case "remove-pantry-item": removePantryItem(id); renderModals(); break;
+    case "add-shopping-item": {
+      const inp = document.getElementById("shoppingItemInput");
+      if(inp && inp.value.trim()){ addShoppingListItem(inp.value); inp.value=""; renderModals(); }
+      break;
+    }
+    case "toggle-shopping-item": toggleShoppingListItem(id); renderModals(); break;
+    case "remove-shopping-item": removeShoppingListItem(id); renderModals(); break;
+    case "clear-checked-shopping": clearCheckedShoppingItems(); renderModals(); break;
+    case "set-nutrition-period": nutritionPeriodMode = id; renderModals(); break;
+    case "analyze-nutrition-period": analyzeNutritionPeriodAI(); break;
+    case "confirm-restore-backup": confirmRestoreBackup(); break;
+    case "add-person": {
+      const inp = document.getElementById("newPersonName");
+      if(inp && inp.value.trim()){
+        const p = addPerson(inp.value);
+        expandedPersonId = p ? p.id : null;
+        renderSettingsView();
+      }
+      break;
+    }
+    case "toggle-person-expand": expandedPersonId = expandedPersonId===id ? null : id; renderSettingsView(); break;
+    case "delete-person": deletePerson(id); break;
+    case "save-person-confirm": {
+      const p = findPerson(id);
+      saveState();
+      ensureAnniversaryTasks();
+      showToast(`✅ Uloženo${p?' — '+p.name:''}`);
+      break;
+    }
+    case "person-birthday-reminder-toggle": {
+      const p = findPerson(id);
+      updatePerson(id, {birthdayReminder: {...p.birthdayReminder, enabled: !p.birthdayReminder.enabled}});
+      ensureAnniversaryTasks();
+      renderSettingsView();
+      break;
+    }
+    case "person-nameday-reminder-toggle": {
+      const p = findPerson(id);
+      updatePerson(id, {namedayReminder: {...p.namedayReminder, enabled: !p.namedayReminder.enabled}});
+      ensureAnniversaryTasks();
+      renderSettingsView();
+      break;
+    }
+    case "add-anniversary": addAnniversary(id, "Výročí"); renderSettingsView(); break;
+    case "remove-anniversary": removeAnniversary(id, t.dataset.sub); renderSettingsView(); break;
+    case "anniversary-reminder-toggle": {
+      const p = findPerson(id);
+      const a = p.anniversaries.find(x=>x.id===t.dataset.sub);
+      updateAnniversary(id, t.dataset.sub, {reminder: {...a.reminder, enabled: !a.reminder.enabled}});
+      ensureAnniversaryTasks();
+      renderSettingsView();
+      break;
+    }
+    case "delete-workout-series": deleteWorkoutSeries(id); break;
+    case "pick-workout-month-day": state.selectedDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1)); saveState(); closeModal(); renderWorkoutsView(); break;
+    case "workout-month-nav": {
+      if(id === "today") workoutMonthCursor = new Date();
+      else workoutMonthCursor = new Date(workoutMonthCursor.getFullYear(), workoutMonthCursor.getMonth()+Number(id), 1);
+      renderModals();
+      break;
+    }
+    case "toggle-workout-done": toggleWorkoutDone(id); break;
+    case "estimate-workout-calories": estimateWorkoutCaloriesAI(id); break;
+    case "start-warmup-timer": {
+      const w = findWorkout(id);
+      const inp = document.getElementById("warmupMinutesInput");
+      const mins = inp ? inp.value : 5;
+      startTimer(mins, `Rozcvička${w ? " — " + w.title : ""}`);
+      break;
+    }
+    case "add-workout-checklist-item": {
+      const inp = document.getElementById("workoutChecklistInput");
+      const minInp = document.getElementById("workoutChecklistMinutesInput");
+      if(inp) addWorkoutChecklistItem(id, inp.value, minInp ? minInp.value : 5);
+      break;
+    }
+    case "remove-workout-checklist-item": removeWorkoutChecklistItem(id, t.dataset.sub); break;
+    case "toggle-workout-checklist-item": toggleWorkoutChecklistItem(id, t.dataset.sub); break;
+    case "start-timer-for-workout-item": startTimerForWorkoutItem(id, t.dataset.sub); break;
+    case "dictate-workout-checklist-loop": toggleChecklistDictation({type:"workout", workoutId:id}); break;
+    case "advance-workout": workoutAdvance(); break;
+    case "pause-workout-session": pauseWorkoutSession(); break;
+    case "resume-workout-session": resumeWorkoutSession(); break;
+    case "exit-workout-session": exitWorkoutSession(); break;
+
+    case "select-meal-date": state.selectedDate = id; state.windowStart = toISO(addDays(parseISODate(id), -1)); saveState(); renderMealsView(); break;
+    case "pick-meal-label": mealDraft.labelId = id; renderMealsView(); break;
+    case "set-meal-source": mealDraft.source = id; renderMealsView(); break;
+    case "set-meal-amount-mode": mealDraft.recipeAmountMode = id; renderMealsView(); break;
+    case "estimate-meal-nutrition": estimateMealNutritionAI(); break;
+    case "estimate-meal-items-nutrition": estimateMealItemsNutritionAI(); break;
+    case "analyze-day-protein": analyzeDayProteinAI(id); break;
+    case "toggle-daily-overview": dailyOverviewExpanded = !dailyOverviewExpanded; renderMealsView(); break;
+    case "set-profile-gender": state.userProfile.gender = id; saveState(); renderMealsView(); break;
+    case "set-weight-unit": state.userProfile.unitPref = id; saveState(); renderMealsView(); break;
+    case "set-energy-unit": state.userProfile.energyUnit = id; saveState(); renderMealsView(); break;
+    case "set-intake-goal": state.userProfile.goal = id; saveState(); renderMealsView(); break;
+    case "set-meal-item-protein-tier": {
+      mealDraft.customItems = mealDraft.customItems.map(i => i.id!==id ? i : {...i, proteinTier: t.dataset.sub, proteinUsablePercent: null});
+      renderMealsView();
+      break;
+    }
+    case "toggle-food-favorites-filter": foodItemFilter.onlyFavorites = !foodItemFilter.onlyFavorites; renderModals(); break;
+    case "set-food-category-filter": foodItemFilter.categoryId = id; renderModals(); break;
+    case "toggle-food-favorite": toggleFoodItemFavorite(id); break;
+    case "toggle-food-item-expand": expandedFoodItemId = expandedFoodItemId===id ? null : id; renderModals(); break;
+    case "delete-food-item": deleteFoodItem(id); break;
+    case "estimate-food-item-nutrition": estimateFoodItemNutritionAI(id); break;
+    case "set-food-item-protein-tier": updateFoodItem(id, {proteinTier: t.dataset.sub, proteinUsablePercent: null}); renderModals(); break;
+    case "set-food-item-unit-kind": updateFoodItem(id, {unitKind: t.dataset.sub}); renderModals(); break;
+    case "insert-food-item": {
+      const gramsInp = document.getElementById("foodInsertGrams-"+id);
+      const unitInp = document.getElementById("foodInsertUnit-"+id);
+      insertFoodItemIntoMeal(id, gramsInp ? gramsInp.value : 100, unitInp ? unitInp.value : "ml");
+      break;
+    }
+    case "add-food-item-quick": {
+      const inp = document.getElementById("newFoodItemNameInput");
+      if(inp && inp.value.trim()){
+        const created = addFoodItem(inp.value, foodItemFilter.categoryId!=="all" ? foodItemFilter.categoryId : "fc9");
+        inp.value = "";
+        showToast(`„${created.name}" přidáno do seznamu — doplň makra ✓`);
+        renderModals();
+      }
+      break;
+    }
+    case "restore-food-item": restoreFoodItem(id); renderModals(); break;
+    case "permanently-delete-food-item": permanentlyDeleteFoodItem(id); renderModals(); break;
+    case "set-meal-recurrence": mealDraft.recurrenceType = id; renderMealsView(); break;
+    case "toggle-meal-recurrence-weekday": {
+      const day = Number(id);
+      mealDraft.recurrenceWeekdays = mealDraft.recurrenceWeekdays.includes(day) ? mealDraft.recurrenceWeekdays.filter(d=>d!==day) : [...mealDraft.recurrenceWeekdays, day];
+      renderMealsView();
+      break;
+    }
+    case "add-meal-recurrence-date": {
+      const inp = document.getElementById("mealRecurrenceDateInput");
+      if(inp && inp.value && !mealDraft.recurrenceCustomDates.includes(inp.value)){ mealDraft.recurrenceCustomDates = [...mealDraft.recurrenceCustomDates, inp.value].sort(); }
+      renderMealsView(); break;
+    }
+    case "remove-meal-recurrence-date": mealDraft.recurrenceCustomDates = mealDraft.recurrenceCustomDates.filter(d=>d!==id); renderMealsView(); break;
+    case "toggle-meal-reminder": mealDraft.reminderEnabled = !mealDraft.reminderEnabled; if(mealDraft.reminderEnabled){ requestNotifyPermission(); getAudioCtx(); unlockMediaPlayback(); } renderMealsView(); break;
+    case "set-meal-reminder-mode": mealDraft.reminderMode = id; renderMealsView(); break;
+    case "add-meal": addMeal(); break;
+    case "add-meal-draft-item": {
+      const inp = document.getElementById("mealItemInput");
+      const gramsInp = document.getElementById("mealItemGramsInput");
+      const unitInp = document.getElementById("mealItemUnitInput");
+      if(inp) addMealDraftItem(inp.value, gramsInp ? gramsInp.value : null, unitInp ? unitInp.value : "g");
+      break;
+    }
+    case "remove-meal-draft-item": removeMealDraftItem(id); break;
+    case "cancel-meal-edit": cancelMealEdit(); break;
+    case "edit-meal": editMeal(id); break;
+    case "delete-meal": deleteMeal(id); break;
+    case "delete-meal-series": deleteMealSeries(id); break;
+    case "toggle-meal-eaten": toggleMealEaten(id); break;
+    case "add-meal-label": {
+      const inp = document.getElementById("newMealLabelName");
+      addMealLabel(inp ? inp.value : "");
+      break;
+    }
+    case "delete-meal-label": deleteMealLabel(id); break;
+    case "read-recipe": {
+      const r = findRecipe(id);
+      if(r){
+        const parts = [`Recept: ${r.title}.`];
+        r.sections.forEach(s => { parts.push(s.name + "."); s.items.forEach(i => parts.push(i.text)); });
+        speakText(parts.join(" "));
+      }
+      break;
+    }
+    case "exit-cooking": exitCookingMode(); break;
+    case "cooking-advance": cookingAdvance(); break;
+    case "cooking-back": cookingBack(); break;
+    case "cooking-repeat": cookingRepeat(); break;
+    case "cooking-pause": pauseCookingMode(); break;
+    case "cooking-resume": resumeCookingMode(); break;
+
+    // ---- Timers ----
+    case "quick-timer": startTimer(id, `Stopky na ${id} min`); break;
+    case "custom-timer": {
+      const inp = document.getElementById("customTimerMinutes");
+      startTimer(inp ? inp.value : "", null);
+      break;
+    }
+    case "voice-timer": {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SR){ showToast("Diktování bohužel není v tomto prohlížeči podporováno."); break; }
+      showToast("🎙️ Řekni např. „nastav budík na 20 minut“");
+      const rec = new SR();
+      rec.lang = "cs-CZ"; rec.continuous = false; rec.interimResults = false;
+      rec.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        const mins = parseVoiceTimerCommand(text);
+        if(mins) startTimer(mins, `Stopky na ${mins} min`);
+        else showToast("Nerozuměl jsem počtu minut, zkus to prosím znovu.");
+      };
+      rec.onerror = () => showToast("Diktování se nezdařilo.");
+      try{ rec.start(); }catch(e){}
+      break;
+    }
+  }
+}
+
+function handleChangeUpload(e){
+  const t = e.target.closest("[data-action]");
+  if(!t) return;
+  const action = t.dataset.action;
+  if(action === "upload-image") handleImageUpload(e.target.files);
+  else if(action === "upload-bg") handleBgUpload(e.target.files[0]);
+  else if(action === "upload-reminder-audio") handleReminderAudioUpload(e.target.files[0]);
+  else if(action === "upload-recipe-cover") handleRecipeCoverUpload(t.dataset.id, e.target.files[0]);
+  else if(action === "upload-recipe-gallery") handleRecipeGalleryUpload(t.dataset.id, e.target.files);
+  else if(action === "upload-note-image") handleNoteImageUpload(t.dataset.id, e.target.files);
+  else if(action === "upload-draft-file") handleDraftFileUpload(e.target.files);
+  else if(action === "upload-note-file") handleNoteFileUpload(t.dataset.id, e.target.files);
+  else if(action === "upload-document-image") handleDocumentImageUpload(t.dataset.id, e.target.files);
+  else if(action === "upload-document-file") handleDocumentFileUpload(t.dataset.id, e.target.files);
+  else if(action === "upload-meal-photo") handleMealPhotoUpload(e.target.files);
+  else if(action === "upload-backup") handleBackupUpload(e.target.files);
+  else if(action === "use-template"){ if(e.target.value) useTemplate(e.target.value); }
+}
+
+// Auto-growing textareas: instead of a fixed small box that forces scrolling
+// inside itself, every <textarea class="field"> expands to fit its content —
+// used for task descriptions, notes, documents, recipes, meds, workout notes.
+function autoGrowTextarea(el){
+  if(!el || el.tagName !== "TEXTAREA") return;
+  el.style.height = "auto";
+  el.style.height = (el.scrollHeight + 2) + "px";
+}
+function autoGrowAllTextareas(root){
+  (root || document).querySelectorAll("textarea.field").forEach(autoGrowTextarea);
+}
+function initEvents(){
+  const app = document.getElementById("app");
+  const unlockOnce = () => { getAudioCtx(); unlockMediaPlayback(); document.removeEventListener("pointerdown", unlockOnce); };
+  document.addEventListener("pointerdown", unlockOnce, { once: true });
+  app.addEventListener("click", handleClick);
+  app.addEventListener("input", handleFieldChange);
+  app.addEventListener("input", (e) => { if(e.target.tagName === "TEXTAREA") autoGrowTextarea(e.target); });
+  app.addEventListener("change", (e) => { handleFieldChange(e); handleChangeUpload(e); });
+  app.addEventListener("keydown", (e) => {
+    if(e.key !== "Enter") return;
+    const id = e.target.id || "";
+    if(id === "checklistInput"){ e.preventDefault(); addChecklistItem(e.target.value); }
+    else if(id === "recurrenceDateInput"){ e.preventDefault(); addRecurrenceDate(e.target.value); }
+    else if(id.startsWith("subtaskInput-")){ e.preventDefault(); addSubtaskToTask(id.replace("subtaskInput-",""), e.target.value); }
+    else if(id === "newCatLabel"){ e.preventDefault(); const em=document.getElementById("newCatEmoji"); addCategory(em?em.value:"✨", e.target.value); }
+    else if(id === "newListName"){ e.preventDefault(); addList(e.target.value); }
+    else if(id === "newFriendName" || id === "newFriendPhone"){
+      e.preventDefault();
+      const nameV = document.getElementById("newFriendName")?.value || "";
+      const phoneV = document.getElementById("newFriendPhone")?.value || "";
+      addFriend(nameV, pickedFriendEmoji, phoneV);
+      pickedFriendEmoji = FRIEND_EMOJIS[0];
+    }
+    else if(id === "newWsName"){ e.preventDefault(); addWorkspace(e.target.value, pickedWsEmoji); pickedWsEmoji = WORKSPACE_EMOJIS[0]; closeModal(); }
+    else if(id === "newTplName"){ e.preventDefault(); saveCurrentAsTemplate(e.target.value); closeModal(); }
+    else if(id.startsWith("moveDate-")){ e.preventDefault(); moveToDate(id.replace("moveDate-",""), e.target.value); }
+    else if(id.startsWith("recipeItemInput-")){
+      e.preventDefault();
+      const sectionId = id.replace("recipeItemInput-","");
+      if(openRecipeId) addRecipeItem(openRecipeId, sectionId, e.target.value);
+    }
+    else if(id === "newSectionName"){ e.preventDefault(); if(openRecipeId) addRecipeSection(openRecipeId, e.target.value); }
+    else if(id === "noteChecklistInput"){ e.preventDefault(); if(openNoteId) addNoteChecklistItem(openNoteId, e.target.value); }
+    else if(id === "documentChecklistInput"){ e.preventDefault(); if(openDocumentId) addDocumentChecklistItem(openDocumentId, e.target.value); }
+    else if(id === "workoutChecklistInput"){
+      e.preventDefault();
+      if(openWorkoutId){
+        const minInp = document.getElementById("workoutChecklistMinutesInput");
+        addWorkoutChecklistItem(openWorkoutId, e.target.value, minInp ? minInp.value : 5);
+      }
+    }
+    else if(id === "exerciseNameInput"){ e.preventDefault(); if(openWorkoutId) addExercise(openWorkoutId, e.target.value); }
+    else if(id === "shoppingItemInput"){ e.preventDefault(); if(e.target.value.trim()){ addShoppingListItem(e.target.value); e.target.value=""; renderModals(); } }
+    else if(id === "pantryItemInput"){ e.preventDefault(); if(e.target.value.trim()){ addPantryItem(e.target.value); e.target.value=""; renderModals(); } }
+    else if(id === "mealItemInput" || id === "mealItemGramsInput"){
+      e.preventDefault();
+      const textInp = document.getElementById("mealItemInput");
+      const gramsInp = document.getElementById("mealItemGramsInput");
+      const unitInp = document.getElementById("mealItemUnitInput");
+      addMealDraftItem(textInp ? textInp.value : "", gramsInp ? gramsInp.value : null, unitInp ? unitInp.value : "g");
+    }
+    else if(id === "newRecipeName"){ e.preventDefault(); addRecipe(e.target.value, pickedRecipeEmoji, pickedRecipeCategoryId); pickedRecipeEmoji="🍰"; pickedRecipeCategoryId=null; closeModal(); renderRecipesView(); }
+    else if(id === "customTimerMinutes"){ e.preventDefault(); startTimer(e.target.value, null); }
+    else if(id === "mealRecurrenceDateInput"){
+      e.preventDefault();
+      if(e.target.value && !mealDraft.recurrenceCustomDates.includes(e.target.value)){ mealDraft.recurrenceCustomDates = [...mealDraft.recurrenceCustomDates, e.target.value].sort(); }
+      renderMealsView();
+    }
+    else if(id === "newMealLabelName"){ e.preventDefault(); addMealLabel(e.target.value); }
+    else if(id === "newRecipeCategoryName"){ e.preventDefault(); addRecipeCategory(e.target.value); }
+    else if(id === "mealTitleInput"){ e.preventDefault(); addMeal(); }
+    else if(id === "medRecurrenceDateInput"){
+      e.preventDefault();
+      if(e.target.value && !medDraft.recurrenceCustomDates.includes(e.target.value)){ medDraft.recurrenceCustomDates = [...medDraft.recurrenceCustomDates, e.target.value].sort(); }
+      renderMedicationsView();
+    }
+    else if(id === "medNameInput" || id === "medDosageInput"){ e.preventDefault(); addMedication(); }
+    else if(id === "newFoodItemNameInput"){
+      e.preventDefault();
+      if(e.target.value.trim()){
+        const created = addFoodItem(e.target.value, foodItemFilter.categoryId!=="all" ? foodItemFilter.categoryId : "fc9");
+        e.target.value = "";
+        showToast(`„${created.name}" přidáno do seznamu — doplň makra ✓`);
+        renderModals();
+      }
+    }
+  });
+}
+
+// ================= PWA: ICON, MANIFEST (data URL), SERVICE WORKER =================
+// App icon files (icon-192.png, icon-512.png, maskable-icon-512.png, apple-touch-icon.png)
+// are real image files that must sit in the SAME folder as this index.html when hosted.
+const APP_ICON_192 = "icon-192.png";
+const APP_ICON_512 = "icon-512.png";
+const APP_ICON_MASKABLE = "maskable-icon-512.png";
+const APP_ICON_APPLE = "apple-touch-icon.png";
+
+function setupManifest(){
+  const manifest = {
+    name: "Vibe Calendar",
+    short_name: "Vibe Calendar",
+    description: "Vizuální plánovač úkolů, poznámek a priorit",
+    start_url: ".",
+    scope: ".",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#F3FBF8",
+    theme_color: "#34D399",
+    icons: [
+      { src: APP_ICON_192, sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: APP_ICON_512, sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: APP_ICON_MASKABLE, sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+  const dataUrl = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(manifest));
+  const link = document.getElementById("manifestLink");
+  if(link) link.setAttribute("href", dataUrl);
+  const appleIcon = document.getElementById("appleTouchIcon");
+  if(appleIcon) appleIcon.setAttribute("href", APP_ICON_APPLE);
+  const favicon = document.getElementById("faviconLink");
+  if(favicon) favicon.setAttribute("href", APP_ICON_192);
+}
+
+function setupServiceWorker(){
+  if(!("serviceWorker" in navigator)) return;
+  const swCode = `
+    const CACHE_NAME = "kalendar-cache-v2";
+    self.addEventListener("install", (event) => {
+      self.skipWaiting();
+    });
+    self.addEventListener("activate", (event) => {
+      event.waitUntil(
+        caches.keys()
+          .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+          .then(() => self.clients.claim())
+      );
+    });
+    self.addEventListener("fetch", (event) => {
+      event.respondWith(
+        fetch(event.request).then((res) => {
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone)).catch(()=>{});
+          return res;
+        }).catch(() => caches.match(event.request))
+      );
+    });
+    self.addEventListener("push", (event) => {
+      let data = { title: "Vibe Calendar", message: "Něco se změnilo ve sdílené položce.", url: "./" };
+      try{ if(event.data) data = { ...data, ...event.data.json() }; }catch(e){}
+      event.waitUntil(
+        self.registration.showNotification(data.title, {
+          body: data.message,
+          icon: "./icon-192.png",
+          badge: "./icon-192.png",
+          data: { url: data.url },
+          tag: "vibe-calendar-share-update",
+        })
+      );
+    });
+    self.addEventListener("notificationclick", (event) => {
+      const taskId = (event.notification.data && event.notification.data.taskId) || null;
+      const url = (event.notification.data && event.notification.data.url) || "./";
+      const action = event.action || "open";
+      event.notification.close();
+      event.waitUntil(
+        self.clients.matchAll({type:"window", includeUncontrolled:true}).then((list) => {
+          const msg = { type: action === "mute" ? "stop-reminder-sound" : "open-reminder-task", taskId };
+          if(list.length > 0){
+            list.forEach((c) => c.postMessage(msg));
+            return list[0].focus();
+          }
+          return self.clients.openWindow(url).then((c) => { if(c) c.postMessage(msg); });
+        })
+      );
+    });
+  `;
+  // 1) Preferred: a real same-origin sw.js file next to index.html (works reliably for install + offline).
+  // 2) Fallback: inline blob-based worker (browsers may block blob: SW scripts — degrades gracefully).
+  navigator.serviceWorker.register("./sw.js").then(() => {
+    console.log("Service worker (sw.js) zaregistrován — plná instalovatelnost a offline režim.");
+  }).catch(() => {
+    try{
+      const blob = new Blob([swCode], { type: "application/javascript" });
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl).then(() => {
+        console.log("Inline service worker zaregistrován.");
+      }).catch((e) => {
+        console.warn("Service worker se nepodařilo zaregistrovat (prohlížeč blokuje blob: — pro plnou instalovatelnost nahraj i přiložený sw.js na hosting):", e);
+      });
+    }catch(e){ console.warn("Service worker není v tomto prostředí podporován.", e); }
+  });
+}
+
+// ================= INIT =================
+function setupSWMessages(){
+  if(!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const data = event.data || {};
+    if(data.type === "stop-reminder-sound"){ stopReminderSound(); dismissReminderBanner(); }
+    else if(data.type === "open-reminder-task" && data.taskId){ openReminderTask(data.taskId); }
+  });
+}
+
+function init(){
+  try{
+    setupManifest();
+    setupServiceWorker();
+    setupSWMessages();
+    resetDraft();
+    resetMealDraft();
+    resetMedDraft();
+    initEvents();
+    ensureAnniversaryTasks();
+    renderAll();
+    renderAssistantWidget();
+    renderActivityStopwatchWidget();
+    scheduleReminders();
+    checkForSharedTaskLink();
+    refreshSharedStatuses(true); // quiet check on load; loud toasts only from the manual refresh button
+    // Mobile PWAs are almost always "resumed" from background rather than
+    // freshly reloaded, so a one-time check on first launch alone would miss
+    // most real sessions — this re-checks every time the app comes back to
+    // the foreground, so delegated status updates actually show up without
+    // needing the manual refresh button.
+    document.addEventListener("visibilitychange", () => {
+      if(document.visibilityState === "visible"){
+        refreshSharedStatuses(true);
+        startLiveShareSyncLoop();
+      } else {
+        stopLiveShareSyncLoop();
+      }
+    });
+    // Zatímco appku aktivně sleduješ (obrazovka svítí, appka je na popředí),
+    // appka se ptá na aktuální stav sdílených úkolů/jídel/tréninků každých
+    // pár vteřin — pokud má druhá strana appku otevřenou taky, uvidíte se
+    // navzájem prakticky naživo. Jakmile appku zavřeš nebo zamkneš telefon,
+    // kontrola se zastaví (šetří baterii i data) a obnoví se hned, jak se
+    // vrátíš zpátky.
+    startLiveShareSyncLoop();
+  }catch(e){
+    console.error("Chyba při startu aplikace:", e);
+    const app = document.getElementById("app");
+    if(app){
+      app.innerHTML = `<div style="max-width:420px;margin:60px auto;padding:24px;text-align:center;font-family:sans-serif;color:#475569">
+        <p style="font-size:32px;margin:0 0 12px">⚠️</p>
+        <p style="font-weight:600;margin:0 0 8px">Něco se nepovedlo načíst.</p>
+        <p style="font-size:13px;margin:0 0 16px">Zkus obnovit stránku. Pokud to nepomůže, tvá uložená data mohou být poškozená.</p>
+        <button onclick="location.reload()" style="padding:10px 20px;border-radius:12px;background:#34d399;color:#fff;font-weight:600;border:none">Obnovit stránku</button>
+      </div>`;
+    }
+  }
+}
+document.addEventListener("DOMContentLoaded", init);
+
+

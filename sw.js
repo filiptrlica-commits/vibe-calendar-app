@@ -30,8 +30,24 @@ self.addEventListener("fetch", (event) => {
     }).catch(() => caches.match(event.request))
   );
 });
+// Přijetí skutečné push notifikace ze serveru (funguje i s appkou zavřenou
+// a telefonem zamčeným) — appka na pozadí jen ukáže, co jí server poslal.
+self.addEventListener("push", (event) => {
+  let data = { title: "Vibe Calendar", message: "Něco se změnilo ve sdílené položce.", url: "./" };
+  try{ if(event.data) data = { ...data, ...event.data.json() }; }catch(e){}
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.message,
+      icon: "./icon-192.png",
+      badge: "./icon-192.png",
+      data: { url: data.url },
+      tag: "vibe-calendar-share-update",
+    })
+  );
+});
 self.addEventListener("notificationclick", (event) => {
   const taskId = (event.notification.data && event.notification.data.taskId) || null;
+  const url = (event.notification.data && event.notification.data.url) || "./";
   const action = event.action || "open";
   event.notification.close();
   event.waitUntil(
@@ -41,7 +57,7 @@ self.addEventListener("notificationclick", (event) => {
         list.forEach((c) => c.postMessage(msg));
         return list[0].focus();
       }
-      return self.clients.openWindow("./").then((c) => { if(c) c.postMessage(msg); });
+      return self.clients.openWindow(url).then((c) => { if(c) c.postMessage(msg); });
     })
   );
 });
