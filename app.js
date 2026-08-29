@@ -5681,6 +5681,7 @@ function renderForm(){
           <label class="label" style="margin:0">Přátelé u úkolu</label>
           <button class="chip" style="background:none;color:#059669;font-weight:600;padding:2px 4px" data-action="open-modal" data-modal="friends">✏️ Spravovat přátele</button>
         </div>
+        <p class="text-xs muted" style="margin:0 0 6px">ℹ️ Tohle je jen značka pro tebe (kdo se úkolu týká) — úkol tím nikomu neodešleš ani nesdílíš. Na to použij tlačítko ↗️ „Sdílet“ u úkolu.</p>
         <div class="row gap-2 wrapf">
           ${state.friends.length===0 ? `<span class="text-xs muted">Zatím žádní přátelé — přidej je přes „Spravovat přátele“.</span>` : ""}
           ${state.friends.map(f => `<button class="chip ${draft.formFriendIds.includes(f.id)?'active-green':''}" data-action="toggle-friend" data-id="${f.id}">${f.emoji} ${escapeHTML(f.name)}</button>`).join("")}
@@ -10680,7 +10681,7 @@ function setupManifest(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v2";
+    const CACHE_NAME = "kalendar-cache-v3";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
