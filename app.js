@@ -905,6 +905,7 @@ function defaultState(){
     aiWorkoutCache: {},
     colorScheme: "indigo",
     pushSubscription: null,
+    lastPushSendLog: null,
     foodCategories: FOOD_CATEGORIES,
     currentView: "calendar",
     selectedDate: todayISO,
@@ -1079,6 +1080,7 @@ function loadState(){
       aiWorkoutCache: (parsed.aiWorkoutCache && typeof parsed.aiWorkoutCache === "object") ? parsed.aiWorkoutCache : {},
       colorScheme: ["indigo","forest","amber","mono"].includes(parsed.colorScheme) ? parsed.colorScheme : "indigo",
       pushSubscription: (parsed.pushSubscription && typeof parsed.pushSubscription === "object") ? parsed.pushSubscription : null,
+      lastPushSendLog: (parsed.lastPushSendLog && typeof parsed.lastPushSendLog === "object") ? parsed.lastPushSendLog : null,
       currentView: ["recipes","meals","notes","documents","medications","workouts","settings"].includes(parsed.currentView) ? parsed.currentView : "calendar",
       selectedDate: todayISO,
       activeListFilter: parsed.activeListFilter || "all",
@@ -2295,6 +2297,17 @@ function toggleSubtask(taskId, subId){
   const before = state.tasks.find(t => t.id === taskId);
   const wasAllDone = allChecklistItemsDone(before);
   state.tasks = state.tasks.map(t => t.id === taskId ? {...t, checklist:(t.checklist||[]).map(s => s.id===subId?{...s,done:!s.done}:s)} : t);
+  const afterToggle = state.tasks.find(t => t.id === taskId);
+  const nowAllDone = allChecklistItemsDone(afterToggle);
+  // Když checklist dorovná na kompletně hotový, appka automaticky označí
+  // i celý úkol jako hotový — díky tomu se to hned promítne i do stavu
+  // "Delegované úkoly" (dřív tam zůstávalo jen "otevřela", protože appka
+  // věděla o dokončení jen z ručního odškrtnutí celého úkolu) a úkol se
+  // v kalendáři výrazně odliší (přeškrtnutí), i když ho dokončil někdo jiný.
+  // Odškrtnutí zpátky pod 100 % naopak úkol vrátí na nedokončený.
+  if(nowAllDone !== wasAllDone){
+    state.tasks = state.tasks.map(t => t.id === taskId ? {...t, done: nowAllDone} : t);
+  }
   saveState(); renderLanes(); if(currentModal) renderModals();
   const updated = state.tasks.find(t => t.id === taskId);
   // Checklist se posílá druhé straně vždycky, potichu — ať appka odškrtnuté
@@ -2304,7 +2317,7 @@ function toggleSubtask(taskId, subId){
   // Jinak by u nákupního seznamu s deseti položkami přišlo deset upozornění
   // za sebou, což by jen otravovalo.
   pushChecklistToShare(updated);
-  const nowAllDone = allChecklistItemsDone(updated);
+  if(nowAllDone !== wasAllDone) syncSharedCompletionIfNeeded(updated, "done");
   if(nowAllDone && !wasAllDone) notifyOtherPartyOfChange(updated, updated.title, "🎉 Celý seznam je hotový!");
 }
 function allChecklistItemsDone(task){
@@ -4701,7 +4714,11 @@ async function refreshSharedStatuses(silent){
     // opravdovou zprávu, že druhá strana něco udělala.
     if(item.shareId && record.status && record.status !== item.sharedStatus){
       anyChange = true;
-      state[arr] = state[arr].map(x => x.id===item.id ? {...x, sharedStatus:record.status, sharedAccepterName:record.accepterName||null} : x);
+      // Když druhá strana úkol dokončí, appka to promítne i do MÉHO
+      // zaškrtávátka — ať to vypadá stejně u obou, ne jen jako text v
+      // Delegovaných úkolech.
+      const nowDone = record.status === "completed";
+      state[arr] = state[arr].map(x => x.id===item.id ? {...x, sharedStatus:record.status, sharedAccepterName:record.accepterName||null, done: nowDone ? true : x.done} : x);
       const who = record.accepterName ? record.accepterName : "Někdo";
       const label = { seen:"si to otevřel/a", accepted:"to přijal/a", declined:"to odmítl/a", completed:"to dokončil/a ✓" }[record.status];
       if(label) showSharedUpdateBanner(`👥 ${who} ${label}`, item.title, item.id, typeLabel[arr]);
@@ -4821,11 +4838,26 @@ async function disablePushNotifications(){
 async function sendPushTo(subscription, title, message, url){
   if(!subscription) return;
   try{
-    await fetch("/.netlify/functions/send-push", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ subscription, title, message, url: url || "./" }),
-    });
-  }catch(e){ /* tichý neúspěch — appka to zkusí zase příště při další změně */ }
+    await withRetry(async () => {
+      const res = await fetch("/.netlify/functions/send-push", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ subscription, title, message, url: url || "./" }),
+      });
+      if(!res.ok){
+        const bodyText = await res.text().catch(()=>"");
+        throw new Error("http-"+res.status+(bodyText?(": "+bodyText.slice(0,200)):""));
+      }
+    }, 2);
+    state.lastPushSendLog = { at: Date.now(), ok: true, title, message };
+  }catch(e){
+    // Appka si zapamatuje POSLEDNÍ pokus o odeslání push (úspěch i chybu) —
+    // dřív se chyba úplně ztratila (tiché "catch"), takže nešlo poznat, jestli
+    // appka o odeslání vůbec zkusila, nebo proč to nevyšlo. Appka na tenhle
+    // neúspěch nijak dál nereaguje (tichý neúspěch je v pořádku, notifikace
+    // se pokusí příště zase), jen si to zaznamená pro diagnostiku.
+    state.lastPushSendLog = { at: Date.now(), ok: false, title, message, error: e.message };
+  }
+  saveState();
 }
 // Testovací tlačítko v Nastavení — na rozdíl od sendPushTo NESKRÝVÁ chybu,
 // ale ukáže přesně, co server (Netlify funkce) vrátil, ať jde najít
@@ -6078,8 +6110,13 @@ function taskCardHTML(task, lane, ws){
   const thumb = (task.images && task.images[0]) || task.image || task.drawing;
   const pulse = !task.done ? pulseClass(task.priority) : "";
   const rSum = reminderSummary(task);
+  // Úkol, co jsi sdílel/a a druhá strana ho dokončila, dostane výrazné
+  // zvýraznění — ne jen tiché přeškrtnutí jako u běžného dokončení, ať to
+  // v kalendáři hned praští do očí, i když jsi to nedokončil/a ty sám/sama.
+  const completedByOther = task.shareId && task.sharedStatus === "completed";
   return `
-    <div class="task-card ${cardClass()} ${lane.cls} ${pulse} ${task.done?'done':''}" style="position:relative">
+    <div class="task-card ${cardClass()} ${lane.cls} ${pulse} ${task.done?'done':''}" style="position:relative;${completedByOther?'background:var(--accent-soft);border:1.5px solid var(--success)':''}">
+      ${completedByOther ? `<div style="padding:7px 16px 0"><span class="chip" style="background:var(--success);color:#fff;font-size:10.5px;font-weight:700;padding:3px 9px">✅ Dokončil/a ${escapeHTML(task.sharedAccepterName || "kamarád/ka")}</span></div>` : ""}
       <div class="row gap-3" style="padding:12px 16px;padding-bottom:${taskFriends.length?'6px':'12px'}">
         <button class="shrink0" data-action="toggle-done" data-id="${task.id}" style="width:22px;height:22px;border-radius:5px;border:1.5px solid ${task.done?'var(--accent)':'var(--line)'};background:${task.done?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${task.done?'✓':''}</button>
         ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>`}
@@ -6926,19 +6963,20 @@ function delegatedDrawerHTML(){
           <h3 style="margin:0;font-size:18px;color:#334155">👥 Delegované úkoly</h3>
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
-        <p class="text-xs muted" style="margin:0 0 14px">Úkoly, na kterých se s tebou podílí i někdo jiný. Klepnutím na jméno potvrdíš, že tu svou část dokončil/a.</p>
+        <p class="text-xs muted" style="margin:0 0 14px">Úkoly, na kterých se s tebou podílí i někdo jiný. Klepni na úkol a rovnou ho vyřeš — klepnutím na jméno potvrdíš, že tu svou část dokončil/a.</p>
         ${items.length===0 ? `<p class="text-sm muted" style="margin-bottom:16px">Zatím jsi nikomu žádný úkol nepřiřadil/a. U úkolu otevři "Přátelé" ve formuláři, nebo ho ↗️ pošli kamarádovi.</p>` : `
           <div class="col gap-2" style="margin-bottom:16px">
             ${items.map(t => {
               const friends = (t.friendIds||[]).map(friendById).filter(Boolean);
               return `
               <div style="background:#f8fafc;border-radius:16px;padding:12px">
-                <div class="row gap-3" style="margin-bottom:8px">
+                <div class="row gap-3" style="margin-bottom:8px;cursor:pointer" data-action="open-delegated-task" data-id="${t.id}">
                   <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
                   <div class="grow">
                     <p class="text-sm font-med truncate ${t.done?'strike':''}" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                     <p class="text-xs muted" style="margin:0">${t.date} ${t.done?'· hotovo':''}</p>
                   </div>
+                  <span class="text-xs muted" style="flex-shrink:0">›</span>
                 </div>
                 <div class="row gap-1.5 wrapf">
                   ${friends.map(f => {
@@ -6958,13 +6996,14 @@ function delegatedDrawerHTML(){
         ${linkShared.length===0 ? `<p class="text-sm muted">Zatím jsi žádný úkol takhle neposlal/a — u úkolu klikni na ↗️.</p>` : `
           <div class="col gap-2">
             ${linkShared.map(t => `
-              <div style="background:#f8fafc;border-radius:16px;padding:12px">
+              <div style="background:#f8fafc;border-radius:16px;padding:12px;cursor:pointer" data-action="open-delegated-task" data-id="${t.id}">
                 <div class="row gap-3" style="margin-bottom:6px">
                   <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
                   <div class="grow">
                     <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                     <p class="text-xs muted" style="margin:0">${t.date}</p>
                   </div>
+                  <span class="text-xs muted" style="flex-shrink:0">›</span>
                 </div>
                 <p class="text-xs" style="margin:0;color:#059669;font-weight:600">${shareStatusLabel(t.sharedStatus, t.sharedAccepterName)}</p>
               </div>`).join("")}
@@ -8744,6 +8783,11 @@ function renderSettingsView(){
       ` : ""}
       <button class="btn btn-soft" style="margin-top:10px" data-action="test-sharing">🧪 Otestovat sdílení (bez druhé osoby)</button>
       <div id="sharingDiagnosticsRoot" style="margin-top:8px"></div>
+      ${state.lastPushSendLog ? `
+        <p class="text-xs" style="margin:10px 0 0;${state.lastPushSendLog.ok?'color:#059669':'color:#dc2626'}">
+          ${state.lastPushSendLog.ok?'✅':'❌'} Poslední pokus odeslat push druhé straně (${new Date(state.lastPushSendLog.at).toLocaleString('cs-CZ')}): „${escapeHTML(state.lastPushSendLog.message||'')}“${state.lastPushSendLog.ok?' — odesláno v pořádku':' — selhalo: '+escapeHTML(state.lastPushSendLog.error||'')}
+        </p>
+      ` : `<p class="text-xs muted" style="margin:10px 0 0">Appka si sem zapíše výsledek posledního pokusu upozornit druhou stranu (užitečné pro diagnostiku, i na jejím telefonu).</p>`}
     </div>
     <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:var(--ink)">🎨 Barevné schéma</p>
@@ -10041,6 +10085,18 @@ function handleClickInner(e){
     case "edit-task": editTask(id); closeModal(); break;
     case "toggle-expand": toggleExpand(id); break;
     case "quick-view-task": openTaskQuickView(id); break;
+    case "open-delegated-task": {
+      const dt = state.tasks.find(x => x.id === id);
+      if(dt){
+        closeModal();
+        state.selectedDate = dt.date;
+        state.windowStart = toISO(addDays(parseISODate(dt.date), -1));
+        state.currentView = "calendar";
+        saveState(); renderAll();
+        openTaskQuickView(dt.id);
+      }
+      break;
+    }
     case "edit-task-from-quickview": closeModal(); editTask(id); break;
     case "toggle-subtask": toggleSubtask(id, t.dataset.sub); break;
     case "remove-subtask": removeSubtaskFromTask(id, t.dataset.sub); break;
