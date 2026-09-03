@@ -1,16 +1,26 @@
 // netlify/functions/share-proxy.js
 //
 // Ukládá sdílené záznamy (stav úkolu, checklist, odběry push notifikací)
-// do NETLIFY BLOBS — vlastního úložiště appky přímo na Netlify. Appka dřív
-// používala cizí bezplatnou službu jsonblob.com, ale ta appku blokovala
-// (Cloudflare ochrana blokovala serverové volání jako "podezřelé" a
-// samotné volání z telefonu appka občas nedostala vůbec skrz kvůli
-// pravidlům prohlížeče). Netlify Blobs je součást stejné platformy, kde
-// appka běží, takže žádné z těchhle omezení nehrozí.
+// do NETLIFY BLOBS — vlastního úložiště appky přímo na Netlify.
+//
+// Netlify Blobs se v tomhle nasazení neumí nakonfigurovat automaticky
+// (potvrzeno chybou "MissingBlobsEnvironmentError" přímo z appky), takže
+// appka mu to řekne explicitně — potřebuje k tomu dvě hodnoty z Netlify
+// (Site ID a přístupový token), uložené jako proměnné prostředí
+// BLOBS_SITE_ID a BLOBS_TOKEN (Site configuration → Environment variables).
 const { getStore } = require("@netlify/blobs");
 
 function randomId(){
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+function getSharedStore(){
+  const siteID = process.env.BLOBS_SITE_ID;
+  const token = process.env.BLOBS_TOKEN;
+  if (!siteID || !token) {
+    throw new Error("BLOBS_SITE_ID / BLOBS_TOKEN nejsou nastavené v Netlify (Site configuration → Environment variables).");
+  }
+  return getStore({ name: "shared-items", siteID, token });
 }
 
 exports.handler = async (event) => {
@@ -22,9 +32,10 @@ exports.handler = async (event) => {
   }
 
   const { op, shareId, data } = body;
-  const store = getStore("shared-items");
 
   try {
+    const store = getSharedStore();
+
     if (op === "create") {
       const id = randomId();
       const record = { ...data, createdAt: Date.now(), updatedAt: Date.now() };
