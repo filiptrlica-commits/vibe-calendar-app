@@ -4833,6 +4833,33 @@ async function sendPushTo(subscription, title, message, url){
 // skutečnou příčinu (špatné VAPID klíče, nezabalená funkce, chybný odběr…),
 // místo dohadování naslepo.
 let pushDebugReceivedAt = null;
+// Ověří celý řetěz appka → share-proxy → jsonblob BEZ nutnosti zapojit
+// druhou osobu: appka si sama vytvoří testovací záznam, hned si ho stáhne
+// zpátky a zkusí ho upravit — pokud všechny tři kroky projdou a appka
+// dostane zpátky přesně to, co poslala, je server-side propojení v pořádku.
+async function testSharing(){
+  const el = document.getElementById("sharingDiagnosticsRoot");
+  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">1/3 — vytvářím testovací záznam na serveru…</p>`;
+  const testId = await createShareStatusRecord({ taskTitle: "🧪 Diagnostický test", status: "sent", testMarker: "abc123" });
+  if(!testId){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 selhal — appka se nedovolala na share-proxy.js nebo jí nevrátil ID. Zkontroluj, jestli je soubor netlify/functions/share-proxy.js správně nahraný a appka nasazená bez chyby.</p>`;
+    return;
+  }
+  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">2/3 — čtu záznam zpátky (ID: ${escapeHTML(testId)})…</p>`;
+  const fetched = await fetchShareStatusRecord(testId);
+  if(!fetched || fetched.testMarker !== "abc123"){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 2/3 selhal — záznam se vytvořil (ID existuje), ale appka ho neumí spolehlivě přečíst zpátky.</p>`;
+    return;
+  }
+  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">3/3 — zkouším záznam upravit…</p>`;
+  const updateOk = await updateShareStatusRecord(testId, { status: "accepted", testMarker: "xyz789" });
+  const afterUpdate = await fetchShareStatusRecord(testId);
+  if(!updateOk || !afterUpdate || afterUpdate.testMarker !== "xyz789" || afterUpdate.taskTitle !== "🧪 Diagnostický test"){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 3/3 selhal — appka umí vytvořit a přečíst záznam, ale úprava (slučování dat) nefunguje spolehlivě.</p>`;
+    return;
+  }
+  if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#059669">✅ Všechny 3 kroky prošly! Appka umí spolehlivě vytvořit, přečíst i upravit sdílený záznam na serveru. Tahle část appky je v pořádku — pokud sdílení s druhou osobou přesto nefunguje, příčina je jinde (odběr push, service worker, nebo appka na jejím telefonu).</p>`;
+}
 async function testPushNotification(){
   const el = document.getElementById("pushDiagnosticsRoot");
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">Odesílám testovací notifikaci…</p>`;
@@ -8698,6 +8725,8 @@ function renderSettingsView(){
         <button class="btn btn-soft" style="margin-top:10px" data-action="test-push">🧪 Otestovat push (pošle notifikaci na tohle zařízení)</button>
         <div id="pushDiagnosticsRoot" style="margin-top:8px"></div>
       ` : ""}
+      <button class="btn btn-soft" style="margin-top:10px" data-action="test-sharing">🧪 Otestovat sdílení (bez druhé osoby)</button>
+      <div id="sharingDiagnosticsRoot" style="margin-top:8px"></div>
     </div>
     <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:var(--ink)">🎨 Barevné schéma</p>
@@ -10365,6 +10394,7 @@ function handleClickInner(e){
     case "enable-push": enablePushNotifications().then(() => renderSettingsView()); break;
     case "disable-push": disablePushNotifications().then(() => renderSettingsView()); break;
     case "test-push": testPushNotification(); break;
+    case "test-sharing": testSharing(); break;
     case "open-search": openGlobalSearch(); break;
     case "open-search-result": {
       const r = { id, type: t.dataset.sub };
