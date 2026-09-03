@@ -4827,6 +4827,7 @@ async function sendPushTo(subscription, title, message, url){
 // ale ukáže přesně, co server (Netlify funkce) vrátil, ať jde najít
 // skutečnou příčinu (špatné VAPID klíče, nezabalená funkce, chybný odběr…),
 // místo dohadování naslepo.
+let pushDebugReceivedAt = null;
 async function testPushNotification(){
   const el = document.getElementById("pushDiagnosticsRoot");
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">Odesílám testovací notifikaci…</p>`;
@@ -4834,6 +4835,8 @@ async function testPushNotification(){
     if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Appka nemá uložený odběr push notifikací — zkus nejdřív appku znovu zapnout tlačítkem výše.</p>`;
     return;
   }
+  pushDebugReceivedAt = null;
+  const sentAt = Date.now();
   try{
     const res = await fetch("/.netlify/functions/send-push", {
       method: "POST", headers: {"Content-Type":"application/json"},
@@ -4841,10 +4844,26 @@ async function testPushNotification(){
     });
     let bodyText = "";
     try{ bodyText = await res.text(); }catch(e){}
-    if(res.ok){
-      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#059669">✅ Server notifikaci odeslal v pořádku (${res.status}). Pokud se na telefonu neobjevila do pár vteřin, je problém v systémových oprávněních telefonu/prohlížeče pro notifikace, ne v appce/serveru.</p>`;
-    } else {
+    if(!res.ok){
       if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Server vrátil chybu ${res.status}:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code></p>`;
+      return;
+    }
+    // Server řekl úspěch — teď appka až 8 vteřin POSLOUCHÁ, jestli service
+    // worker na TOMHLE telefonu push skutečně přijal (potvrzuje to zprávou
+    // "push-received-debug"). Tohle jistě rozliší, jestli se problém odehrává
+    // ještě před telefonem (appka/server/VAPID), nebo až uvnitř telefonu
+    // (zastaralý service worker / systémová oprávnění).
+    if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">✅ Server přijal (${res.status}). Čekám, jestli telefon push skutečně dostal… (nech appku otevřenou)</p>`;
+    const gotIt = await new Promise((resolve) => {
+      const check = setInterval(() => {
+        if(pushDebugReceivedAt && pushDebugReceivedAt >= sentAt){ clearInterval(check); resolve(true); }
+      }, 200);
+      setTimeout(() => { clearInterval(check); resolve(false); }, 8000);
+    });
+    if(gotIt){
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#059669">✅ Telefon push skutečně přijal a service worker ho zpracoval! Pokud se notifikace přesto nezobrazila na obrazovce, jde o systémové oprávnění pro notifikace (Nastavení telefonu → Aplikace → [tvůj prohlížeč] → Oznámení), ne o appku.</p>`;
+    } else {
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Server push odeslal, ale TENHLE telefon ho vůbec nedostal do 8 vteřin. Nejčastější příčina: telefon pořád běží na staré verzi appky na pozadí (service worker). Zkus appku úplně zavřít (i z přehledu naposledy spuštěných aplikací), vymazat jí úložiště v nastavení telefonu, a otevřít úplně znovu — pak zkus test znovu.</p>`;
     }
   }catch(e){
     if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Appka se vůbec nedovolala na server: ${escapeHTML(e.message)}<br>Nejčastěji to znamená, že funkce send-push.js není správně nasazená na Netlify.</p>`;
@@ -10717,6 +10736,9 @@ function setupServiceWorker(){
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
+    self.addEventListener("message", (event) => {
+      if(event.data && event.data.type === "skip-waiting") self.skipWaiting();
+    });
     self.addEventListener("activate", (event) => {
       event.waitUntil(
         caches.keys()
@@ -10737,13 +10759,18 @@ function setupServiceWorker(){
       let data = { title: "Vibe Calendar", message: "Něco se změnilo ve sdílené položce.", url: "./" };
       try{ if(event.data) data = { ...data, ...event.data.json() }; }catch(e){}
       event.waitUntil(
-        self.registration.showNotification(data.title, {
-          body: data.message,
-          icon: "./icon-192.png",
-          badge: "./icon-192.png",
-          data: { url: data.url },
-          tag: "vibe-calendar-share-update",
-        })
+        Promise.all([
+          self.registration.showNotification(data.title, {
+            body: data.message,
+            icon: "./icon-192.png",
+            badge: "./icon-192.png",
+            data: { url: data.url },
+            tag: "vibe-calendar-share-update",
+          }),
+          self.clients.matchAll({type:"window", includeUncontrolled:true}).then((list) => {
+            list.forEach((c) => c.postMessage({ type: "push-received-debug", receivedAt: Date.now() }));
+          }),
+        ])
       );
     });
     self.addEventListener("notificationclick", (event) => {
@@ -10765,8 +10792,35 @@ function setupServiceWorker(){
   `;
   // 1) Preferred: a real same-origin sw.js file next to index.html (works reliably for install + offline).
   // 2) Fallback: inline blob-based worker (browsers may block blob: SW scripts — degrades gracefully).
-  navigator.serviceWorker.register("./sw.js").then(() => {
+  //
+  // DŮLEŽITÉ: prohlížeče kontrolují, jestli se sw.js změnil, jen líně (občas
+  // jednou za den, jen při navigaci). Aby appka po nasazení nové verze (např.
+  // s podporou push notifikací) nečekala, appka si sama pamatuje poslední
+  // známou verzi a při změně VYNUTÍ okamžitou kontrolu a aktivaci nové verze,
+  // místo aby spoléhala na to, že si toho prohlížeč sám včas všimne.
+  const SW_LOGIC_VERSION = "v3-push";
+  navigator.serviceWorker.register("./sw.js").then((reg) => {
     console.log("Service worker (sw.js) zaregistrován — plná instalovatelnost a offline režim.");
+    const lastKnownVersion = localStorage.getItem("swLogicVersion");
+    if(lastKnownVersion !== SW_LOGIC_VERSION){
+      reg.update().then(() => {
+        localStorage.setItem("swLogicVersion", SW_LOGIC_VERSION);
+        console.log("Service worker: vynucena kontrola nové verze (" + SW_LOGIC_VERSION + ").");
+      }).catch(()=>{});
+    }
+    // Jakmile je nová verze nainstalovaná (i na pozadí), appka ji nechá
+    // okamžitě převzít vládu (skipWaiting/clients.claim to na její straně
+    // dovolí) — jinak by čekala, až uživatel appku úplně zavře a znovu otevře.
+    if(reg.waiting) reg.waiting.postMessage({type:"skip-waiting"});
+    reg.addEventListener("updatefound", () => {
+      const newWorker = reg.installing;
+      if(!newWorker) return;
+      newWorker.addEventListener("statechange", () => {
+        if(newWorker.state === "installed" && navigator.serviceWorker.controller){
+          console.log("Service worker: nová verze nainstalována a připravená.");
+        }
+      });
+    });
   }).catch(() => {
     try{
       const blob = new Blob([swCode], { type: "application/javascript" });
@@ -10787,6 +10841,7 @@ function setupSWMessages(){
     const data = event.data || {};
     if(data.type === "stop-reminder-sound"){ stopReminderSound(); dismissReminderBanner(); }
     else if(data.type === "open-reminder-task" && data.taskId){ openReminderTask(data.taskId); }
+    else if(data.type === "push-received-debug"){ pushDebugReceivedAt = data.receivedAt || Date.now(); }
   });
 }
 
