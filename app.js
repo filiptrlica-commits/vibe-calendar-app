@@ -4840,9 +4840,29 @@ let pushDebugReceivedAt = null;
 async function testSharing(){
   const el = document.getElementById("sharingDiagnosticsRoot");
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">1/3 — vytvářím testovací záznam na serveru…</p>`;
-  const testId = await createShareStatusRecord({ taskTitle: "🧪 Diagnostický test", status: "sent", testMarker: "abc123" });
-  if(!testId){
-    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 selhal — appka se nedovolala na share-proxy.js nebo jí nevrátil ID. Zkontroluj, jestli je soubor netlify/functions/share-proxy.js správně nahraný a appka nasazená bez chyby.</p>`;
+  // Krok 1 volá server PŘÍMO (ne přes createShareStatusRecord, co chybu
+  // skrývá), ať appka umí ukázat přesný HTTP status a tělo odpovědi —
+  // to jistě rozliší "funkce vůbec neexistuje" (404) od "funkce spadla
+  // s chybou" (500 a proč) od "appka se na server vůbec nedostala".
+  let testId = null;
+  try{
+    const res = await fetch(SHARE_PROXY_API, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ op:"create", data: { taskTitle: "🧪 Diagnostický test", status: "sent", testMarker: "abc123" } }),
+    });
+    let bodyText = ""; try{ bodyText = await res.text(); }catch(e){}
+    if(!res.ok){
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — server vrátil chybu ${res.status}:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code>${res.status===404?'<br><br>Status 404 obvykle znamená, že soubor netlify/functions/share-proxy.js buď není vůbec nahraný, nebo je nahraný na špatném místě/s jiným názvem.':''}</p>`;
+      return;
+    }
+    let json = {}; try{ json = JSON.parse(bodyText); }catch(e){}
+    if(!json.id){
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — server odpověděl (200), ale bez ID:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code></p>`;
+      return;
+    }
+    testId = json.id;
+  }catch(e){
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — appka se vůbec nedovolala na server: ${escapeHTML(e.message)}</p>`;
     return;
   }
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">2/3 — čtu záznam zpátky (ID: ${escapeHTML(testId)})…</p>`;
