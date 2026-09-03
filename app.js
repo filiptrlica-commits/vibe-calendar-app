@@ -4607,12 +4607,12 @@ function shareTaskModalHTML(taskId){
 // shared "status board": one blob per shared task, holding just its status.
 // If the service is ever unreachable, sharing/importing still works exactly
 // as before — only the live status tracking is skipped, silently and safely.
-// Appka NEVOLÁ jsonblob.com přímo z prohlížeče — jde to přes vlastní malou
-// serverless funkci (share-proxy.js). Důvod: prohlížeč z bezpečnostních
-// důvodů schovává hlavičku "Location" (ID nového záznamu) u volání na cizí
-// server, pokud to ten server výslovně nedovolí — a jsonblob.com to nedělá.
-// Server-to-server volání (naše funkce → jsonblob) tohle omezení nemá.
-const SHARE_PROXY_API = "/.netlify/functions/share-proxy";
+// DŮLEŽITÉ ZJIŠTĚNÍ (potvrzeno diagnostikou v appce, ne jen teorie):
+// jsonblob.com je chráněný Cloudflare a BLOKUJE požadavky ze serverových/
+// datacentrových IP adres (mj. i Netlify funkcí) s chybou 403. Appka proto
+// musí volat jsonblob.com PŘÍMO Z TELEFONU (běžná IP adresa, tu Cloudflare
+// neblokuje), ne přes vlastní server, jak appka dřív krátce zkoušela.
+const SHARE_STATUS_API = "https://jsonblob.com/api/jsonBlob";
 // A tiny retry helper — free third-party services like jsonblob occasionally
 // have a transient hiccup (timeout, brief rate-limit); retrying 2-3 times
 // with a short pause turns "silently doesn't work" into "quietly recovers"
@@ -4629,14 +4629,21 @@ async function withRetry(fn, attempts){
 async function createShareStatusRecord(data){
   try{
     return await withRetry(async () => {
-      const res = await fetch(SHARE_PROXY_API, {
+      const res = await fetch(SHARE_STATUS_API, {
         method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ op:"create", data }),
+        body: JSON.stringify({ ...data, createdAt: Date.now(), updatedAt: Date.now() }),
       });
       if(!res.ok) throw new Error("http-"+res.status);
-      const json = await res.json();
-      if(!json.id) throw new Error("no-id-in-response");
-      return json.id;
+      // Primárně čte ID z hlavičky Location (jak jsonblob.com dokumentuje).
+      // Pro jistotu zkusí i tělo odpovědi jako záložní možnost, kdyby ho
+      // prohlížeč z nějakého důvodu nedovolil přečíst z hlavičky.
+      const loc = res.headers.get("Location") || res.headers.get("location") || "";
+      let id = loc.split("/").filter(Boolean).pop();
+      if(!id){
+        try{ const body = await res.json(); id = body && (body.id || body._id); }catch(e){}
+      }
+      if(!id) throw new Error("no-id-in-response");
+      return id;
     });
   }catch(e){ return null; }
 }
@@ -4644,10 +4651,7 @@ async function fetchShareStatusRecord(shareId){
   if(!shareId) return null;
   try{
     return await withRetry(async () => {
-      const res = await fetch(SHARE_PROXY_API, {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ op:"get", shareId }),
-      });
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`);
       if(!res.ok) throw new Error("http-"+res.status);
       return await res.json();
     }, 2);
@@ -4657,9 +4661,11 @@ async function updateShareStatusRecord(shareId, patch){
   if(!shareId) return false;
   try{
     await withRetry(async () => {
-      const res = await fetch(SHARE_PROXY_API, {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ op:"update", shareId, data: patch }),
+      const current = (await fetchShareStatusRecord(shareId)) || {};
+      const merged = { ...current, ...patch, updatedAt: Date.now() };
+      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`, {
+        method: "PUT", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(merged),
       });
       if(!res.ok) throw new Error("http-"+res.status);
     });
@@ -4839,30 +4845,33 @@ let pushDebugReceivedAt = null;
 // dostane zpátky přesně to, co poslala, je server-side propojení v pořádku.
 async function testSharing(){
   const el = document.getElementById("sharingDiagnosticsRoot");
-  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">1/3 — vytvářím testovací záznam na serveru…</p>`;
-  // Krok 1 volá server PŘÍMO (ne přes createShareStatusRecord, co chybu
-  // skrývá), ať appka umí ukázat přesný HTTP status a tělo odpovědi —
-  // to jistě rozliší "funkce vůbec neexistuje" (404) od "funkce spadla
-  // s chybou" (500 a proč) od "appka se na server vůbec nedostala".
+  if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">1/3 — appka z tohohle zařízení vytváří testovací záznam přímo na jsonblob.com…</p>`;
+  // Appka teď volá jsonblob.com PŘÍMO (ne přes vlastní server — ten
+  // jsonblob.com kvůli Cloudflare ochraně blokuje). Krok 1 dělá syrové
+  // volání (ne přes createShareStatusRecord, co chybu skrývá), ať appka
+  // umí ukázat přesný HTTP status a tělo odpovědi.
   let testId = null;
   try{
-    const res = await fetch(SHARE_PROXY_API, {
+    const res = await fetch(SHARE_STATUS_API, {
       method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ op:"create", data: { taskTitle: "🧪 Diagnostický test", status: "sent", testMarker: "abc123" } }),
+      body: JSON.stringify({ taskTitle: "🧪 Diagnostický test", status: "sent", testMarker: "abc123", createdAt: Date.now(), updatedAt: Date.now() }),
     });
-    let bodyText = ""; try{ bodyText = await res.text(); }catch(e){}
     if(!res.ok){
-      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — server vrátil chybu ${res.status}:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code>${res.status===404?'<br><br>Status 404 obvykle znamená, že soubor netlify/functions/share-proxy.js buď není vůbec nahraný, nebo je nahraný na špatném místě/s jiným názvem.':''}</p>`;
+      let bodyText = ""; try{ bodyText = await res.text(); }catch(e){}
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — jsonblob.com vrátil chybu ${res.status}:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText.slice(0,300))}</code>${res.status===403?'<br><br>Status 403 může znamenat, že i přímé volání z tohohle připojení/sítě (třeba firemní Wi-Fi nebo VPN) jsonblob.com blokuje.':''}</p>`;
       return;
     }
-    let json = {}; try{ json = JSON.parse(bodyText); }catch(e){}
-    if(!json.id){
-      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — server odpověděl (200), ale bez ID:<br><code style="font-size:10px;word-break:break-all">${escapeHTML(bodyText)}</code></p>`;
+    const loc = res.headers.get("Location") || res.headers.get("location") || "";
+    testId = loc.split("/").filter(Boolean).pop();
+    if(!testId){
+      try{ const body = await res.json(); testId = body && (body.id || body._id); }catch(e){}
+    }
+    if(!testId){
+      if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — jsonblob.com odpověděl (${res.status}), ale appka z odpovědi nezískala ID nového záznamu (ani z hlavičky, ani z těla).</p>`;
       return;
     }
-    testId = json.id;
   }catch(e){
-    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — appka se vůbec nedovolala na server: ${escapeHTML(e.message)}</p>`;
+    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ Krok 1/3 — appka se vůbec nedovolala na jsonblob.com: ${escapeHTML(e.message)}</p>`;
     return;
   }
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">2/3 — čtu záznam zpátky (ID: ${escapeHTML(testId)})…</p>`;
