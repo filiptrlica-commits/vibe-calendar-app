@@ -4607,7 +4607,12 @@ function shareTaskModalHTML(taskId){
 // shared "status board": one blob per shared task, holding just its status.
 // If the service is ever unreachable, sharing/importing still works exactly
 // as before — only the live status tracking is skipped, silently and safely.
-const SHARE_STATUS_API = "https://jsonblob.com/api/jsonBlob";
+// Appka NEVOLÁ jsonblob.com přímo z prohlížeče — jde to přes vlastní malou
+// serverless funkci (share-proxy.js). Důvod: prohlížeč z bezpečnostních
+// důvodů schovává hlavičku "Location" (ID nového záznamu) u volání na cizí
+// server, pokud to ten server výslovně nedovolí — a jsonblob.com to nedělá.
+// Server-to-server volání (naše funkce → jsonblob) tohle omezení nemá.
+const SHARE_PROXY_API = "/.netlify/functions/share-proxy";
 // A tiny retry helper — free third-party services like jsonblob occasionally
 // have a transient hiccup (timeout, brief rate-limit); retrying 2-3 times
 // with a short pause turns "silently doesn't work" into "quietly recovers"
@@ -4624,15 +4629,14 @@ async function withRetry(fn, attempts){
 async function createShareStatusRecord(data){
   try{
     return await withRetry(async () => {
-      const res = await fetch(SHARE_STATUS_API, {
+      const res = await fetch(SHARE_PROXY_API, {
         method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ ...data, createdAt: Date.now(), updatedAt: Date.now() }),
+        body: JSON.stringify({ op:"create", data }),
       });
       if(!res.ok) throw new Error("http-"+res.status);
-      const loc = res.headers.get("Location") || res.headers.get("location") || "";
-      const id = loc.split("/").filter(Boolean).pop();
-      if(!id) throw new Error("no-location-header");
-      return id;
+      const json = await res.json();
+      if(!json.id) throw new Error("no-id-in-response");
+      return json.id;
     });
   }catch(e){ return null; }
 }
@@ -4640,7 +4644,10 @@ async function fetchShareStatusRecord(shareId){
   if(!shareId) return null;
   try{
     return await withRetry(async () => {
-      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`);
+      const res = await fetch(SHARE_PROXY_API, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ op:"get", shareId }),
+      });
       if(!res.ok) throw new Error("http-"+res.status);
       return await res.json();
     }, 2);
@@ -4650,11 +4657,9 @@ async function updateShareStatusRecord(shareId, patch){
   if(!shareId) return false;
   try{
     await withRetry(async () => {
-      const current = (await fetchShareStatusRecord(shareId)) || {};
-      const merged = { ...current, ...patch, updatedAt: Date.now() };
-      const res = await fetch(`${SHARE_STATUS_API}/${shareId}`, {
-        method: "PUT", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(merged),
+      const res = await fetch(SHARE_PROXY_API, {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ op:"update", shareId, data: patch }),
       });
       if(!res.ok) throw new Error("http-"+res.status);
     });
