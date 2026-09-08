@@ -910,6 +910,7 @@ function defaultState(){
     currentView: "calendar",
     selectedDate: todayISO,
     activeListFilter: "all",
+    showDelegatedInMain: false,
     windowStart: toISO(addDays(TODAY, -1)),
   };
 }
@@ -1084,6 +1085,7 @@ function loadState(){
       currentView: ["recipes","meals","notes","documents","medications","workouts","settings"].includes(parsed.currentView) ? parsed.currentView : "calendar",
       selectedDate: todayISO,
       activeListFilter: parsed.activeListFilter || "all",
+      showDelegatedInMain: !!parsed.showDelegatedInMain,
       windowStart: toISO(addDays(TODAY, -1)),
     };
     if(!safe.workspaces.length) return defaultState();
@@ -1318,6 +1320,48 @@ function addShoppingListItem(text){
   if(!text || !text.trim()) return;
   state.shoppingList = [...state.shoppingList, { id: uid(), text: text.trim(), name: text.trim(), checked:false, source:"manual" }];
   saveState();
+}
+// Appka umí poznat, že "500g cacio e pepe" není jednotlivá surovina, ale
+// celý pokrm — zeptá se AI, z čeho se typicky skládá a v jakém přibližném
+// množství pro zadanou porci, a rozepíše to na jednotlivé suroviny rovnou
+// do nákupního seznamu (místo jedné položky "cacio e pepe", co by v
+// obchodě stejně nikdo nekoupil).
+async function expandDishToIngredientsAI(){
+  const inp = document.getElementById("shoppingItemInput");
+  const text = inp ? inp.value.trim() : "";
+  if(!text){ showToast("Napiš prosím nejdřív název pokrmu, třeba „500g cacio e pepe“."); return; }
+  const btn = document.getElementById("smartDishBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🧠 AI přemýšlí…"; }
+  try{
+    const response = await fetch("/.netlify/functions/ai-proxy", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6", max_tokens: 600,
+        messages: [{ role:"user", content:
+          `Uživatel napsal do nákupního seznamu: "${text}"\n\nZjisti, jestli jde o HOTOVÝ POKRM/JÍDLO (např. "cacio e pepe", "guláš", "500g lasagní") nebo už o JEDNOTLIVOU SUROVINU/POLOŽKU (např. "mléko", "2 rohlíky", "toaletní papír").\n\nPokud jde o pokrm, rozepiš ho na typické syrové suroviny potřebné na jeho přípravu, v přibližném množství odpovídajícím zadané porci (pokud porce/váha není uvedená, počítej se 2 porcemi). Pokud jde o obyčejnou položku, vrať ji beze změny jako jedinou položku seznamu.\n\nOdpověz POUZE čistým JSON objektem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru:\n{"isDish": true/false, "dishName": "název pokrmu nebo null", "items": ["surovina 1 s množstvím", "surovina 2 s množstvím", ...]}`
+        }],
+      }),
+    });
+    if(!response.ok) throw new Error("http-"+response.status);
+    const data = await response.json();
+    const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+    const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if(!parsed.items || !Array.isArray(parsed.items) || !parsed.items.length) throw new Error("empty-items");
+    parsed.items.forEach(item => addShoppingListItem(item));
+    if(inp) inp.value = "";
+    if(parsed.isDish){
+      showToast(`🧠 „${parsed.dishName||text}“ rozpoznáno jako pokrm — přidáno ${parsed.items.length} surovin ✓`);
+    } else {
+      showToast("Appka to poznala jako běžnou položku, přidáno rovnou ✓");
+    }
+    renderModals();
+  }catch(e){
+    showToast("AI teď nedokázala pokrm rozpoznat — zkus to znovu, nebo přidej suroviny ručně přes ➕.");
+  }finally{
+    const btn2 = document.getElementById("smartDishBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🧠 Rozpoznat jako pokrm a rozepsat suroviny"; }
+  }
 }
 function toggleShoppingListItem(id){
   state.shoppingList = state.shoppingList.map(i => i.id===id ? {...i, checked:!i.checked} : i);
@@ -1608,10 +1652,14 @@ function shoppingListModalHTML(){
             ` : `<p class="text-xs muted" style="margin:0">Zatím nic.</p>`}
           </div>
         ` : ""}
-        <div class="row gap-2" style="margin-bottom:14px">
-          <input id="shoppingItemInput" class="field grow" placeholder="Přidat vlastní položku…" />
+        <div class="row gap-2" style="margin-bottom:6px">
+          <input id="shoppingItemInput" class="field grow" placeholder="Přidat položku, nebo napiš celý pokrm…" />
           <button class="icon-btn shrink0" data-action="add-shopping-item">➕</button>
         </div>
+        <div class="row" style="margin-bottom:14px">
+          <button id="smartDishBtn" class="btn btn-soft" style="font-size:12px" data-action="expand-dish-to-ingredients">🧠 Rozpoznat jako pokrm a rozepsat suroviny</button>
+        </div>
+        <p class="text-xs muted" style="margin:-10px 0 14px">Např. napiš „500g cacio e pepe" a appka sama pozná, jaké suroviny a kolik jich na to koupit.</p>
         ${state.shoppingList.length===0 ? `<p class="text-sm muted" style="text-align:center;padding:16px 0">Seznam je zatím prázdný.</p>` : `
           <div class="col gap-2" style="margin-bottom:${checked.length?'14px':'0'}">
             ${unchecked.map(row).join("")}
@@ -1686,7 +1734,12 @@ function toggleFriendConfirm(taskId, friendId){
 }
 function wsTasks(){
   return state.tasks.filter(t => !t.deletedAt && t.workspaceId === state.activeWorkspaceId &&
-    (state.activeListFilter === "all" || t.listId === state.activeListFilter));
+    (state.activeListFilter === "all" || t.listId === state.activeListFilter) &&
+    // Úkoly, co jsi odeslal/a někomu jinému (mají shareId — nejde o úkoly,
+    // co ti jen někdo přiřadil, ale o ty, co jsi TY delegoval/a pryč), se
+    // v hlavním přehledu skryjí, ať vidíš hlavně to svoje. Najdeš je v
+    // panelu "👥 Delegováno", nebo si je sem necháš zobrazit přepínačem.
+    (state.showDelegatedInMain || !t.shareId));
 }
 function tasksByDate(){
   const map = {};
@@ -1701,7 +1754,11 @@ function completedTasks(){
   return wsTasks().filter(t => t.type === "task" && t.done).sort((a,b) => b.date.localeCompare(a.date));
 }
 function delegatedTasks(){
-  return wsTasks().filter(t => t.type === "task" && (t.friendIds||[]).length > 0).sort((a,b) => a.date.localeCompare(b.date));
+  // Čerpá přímo ze všech úkolů daného kalendáře, ne z wsTasks() — ta teď
+  // schovává delegované úkoly z hlavního přehledu, ale tady v panelu
+  // Delegováno je naopak chceme vidět vždycky, bez ohledu na ten přepínač.
+  return state.tasks.filter(t => !t.deletedAt && t.workspaceId === state.activeWorkspaceId &&
+    t.type === "task" && (t.friendIds||[]).length > 0).sort((a,b) => a.date.localeCompare(b.date));
 }
 function allDelegationRelatedCount(){
   const ids = new Set();
@@ -2199,7 +2256,11 @@ function addItem(){
 function resetDraft(){
   const ws = getWorkspace();
   draft = freshDraft();
-  draft.formCategoryId = ws.categories[0] ? ws.categories[0].id : null;
+  // Nový úkol NEMÁ mít automaticky přiřazenou aktivitu (dřív appka vždycky
+  // předvyplnila první kategorii, typicky "Mindfulness", i když si to
+  // člověk vůbec nepřál) — appka teď nechá aktivitu prázdnou, dokud si ji
+  // člověk sám nezvolí.
+  draft.formCategoryId = null;
   draft.formListId = ws.lists[0] ? ws.lists[0].id : null;
 }
 
@@ -2350,7 +2411,7 @@ function deleteCategory(id){
   const ws = getWorkspace();
   if(ws.categories.length <= 1){ showToast("Musí zůstat alespoň jedna aktivita."); return; }
   updateWorkspace({ categories: ws.categories.filter(c => c.id !== id) });
-  if(draft.formCategoryId === id) draft.formCategoryId = getWorkspace().categories[0].id;
+  if(draft.formCategoryId === id) draft.formCategoryId = null;
   showToast("Aktivita smazána ✓"); renderAll();
 }
 function addList(name){
@@ -4985,14 +5046,33 @@ function stopLiveShareSyncLoop(){
 function taskShareLinkId(task){
   return task.shareId || task.sharedFromId || null;
 }
+// Appka si pamatuje, KDY naposledy sama odeslala změnu checklistu pro daný
+// úkol. Pokud appka na pozadí (každých 8 vteřin) stáhne stav ze serveru
+// těsně po tomhle odeslání, ale dřív, než se odeslání skutečně zapsalo,
+// hrozí, že appka přepíše čerstvě odškrtnutou položku starými daty —
+// přesně tenhle scénář: odškrtneš tepláky, appka na pozadí stáhne starý
+// stav (ještě bez teplák), a tepláky se "odškrtnou zpátky". Tohle
+// ochranné okno (5 vteřin) tomu zabrání — po vlastním odeslání appka
+// chvíli nedůvěřuje staženým datům, ať vlastní čerstvou změnu nepřepíše.
+let lastLocalChecklistPushAt = {};
 async function pushChecklistToShare(task){
   const linkId = taskShareLinkId(task);
   if(!linkId) return;
   const checklist = (task.checklist||[]).map(c => ({ text:c.text, done:!!c.done }));
+  lastLocalChecklistPushAt[task.id] = Date.now();
   await updateShareStatusRecord(linkId, { checklist });
+  // Znovu si "razítko" nastaví i PO dokončení odeslání — ne aby se okno
+  // zkracovalo tím, jak dlouho odeslání trvalo, ale aby se počítalo od
+  // chvíle, kdy appka měla jistotu, že se to skutečně zapsalo.
+  lastLocalChecklistPushAt[task.id] = Date.now();
 }
 function mergeChecklistFromRecord(task, remoteChecklist){
   if(!Array.isArray(remoteChecklist) || !task.checklist) return task;
+  // Pokud jsme sami před chvílí (posledních 5 vteřin) odeslali vlastní
+  // změnu tohohle checklistu, nedůvěřuj staženým datům — mohly by být
+  // starší než naše čerstvá změna a přepsat ji zpátky.
+  const recentlyPushedLocally = (Date.now() - (lastLocalChecklistPushAt[task.id] || 0)) < 5000;
+  if(recentlyPushedLocally) return task;
   const doneByText = {};
   remoteChecklist.forEach(r => { if(r && r.text) doneByText[r.text] = !!r.done; });
   const merged = task.checklist.map(c => doneByText.hasOwnProperty(c.text) ? {...c, done:doneByText[c.text]} : c);
@@ -5735,7 +5815,6 @@ function renderQuote(){
 
 function renderForm(){
   const ws = getWorkspace();
-  if(!draft.formCategoryId && ws.categories[0]) draft.formCategoryId = ws.categories[0].id;
   if(!draft.formListId && ws.lists[0]) draft.formListId = ws.lists[0].id;
 
   if(formCollapsed){
@@ -5796,6 +5875,9 @@ function renderForm(){
           <button class="chip" style="background:none;color:#059669;font-weight:600;padding:2px 4px" data-action="open-modal" data-modal="categories">✏️ Upravit aktivity</button>
         </div>
         <div class="row gap-2 wrapf">
+          <button class="emoji-btn ${!draft.formCategoryId?'active':''}" data-action="pick-category" data-id="">
+            <span>—</span><span class="lbl">Bez aktivity</span>
+          </button>
           ${ws.categories.map(c => `
             <button class="emoji-btn ${draft.formCategoryId===c.id?'active':''}" data-action="pick-category" data-id="${c.id}">
               <span>${c.emoji}</span><span class="lbl">${escapeHTML(c.label)}</span>
@@ -6039,10 +6121,12 @@ function renderReminderSection(){
 
 function renderListFilter(){
   const ws = getWorkspace();
+  const delegatedCount = state.tasks.filter(t => !t.deletedAt && t.workspaceId === state.activeWorkspaceId && t.shareId).length;
   document.getElementById("listFilter").innerHTML = `
     <div class="row gap-2 scrollx" style="margin-bottom:14px">
       <button class="chip ${state.activeListFilter==='all'?'active':''}" data-action="set-list-filter" data-id="all">Vše</button>
       ${ws.lists.map(l => `<button class="chip ${state.activeListFilter===l.id?'active':''}" data-action="set-list-filter" data-id="${l.id}">${escapeHTML(l.name)}</button>`).join("")}
+      ${delegatedCount>0 ? `<button class="chip ${state.showDelegatedInMain?'active':''}" data-action="toggle-delegated-in-main">👥 Delegováno (${delegatedCount})</button>` : ""}
     </div>
   `;
 }
@@ -10005,12 +10089,14 @@ function handleClickInner(e){
     }
     case "set-list-filter":
       state.activeListFilter = id; saveState(); renderListFilter(); renderLanes(); break;
+    case "toggle-delegated-in-main":
+      state.showDelegatedInMain = !state.showDelegatedInMain; saveState(); renderListFilter(); renderLanes(); break;
     case "set-form-type": draft.formType = t.dataset.type; renderForm(); break;
     case "set-priority": draft.formPriority = Number(id); renderForm(); break;
     case "set-note-priority": updateNote(t.dataset.sub, { priority: Number(id) }); renderNoteDetail(); break;
     case "toggle-form-collapsed": formCollapsed = !formCollapsed; if(formCollapsed && organizedDictationActive) stopOrganizedNoteDictation(false); renderForm(); break;
     case "pick-list": draft.formListId = id; renderForm(); break;
-    case "pick-category": draft.formCategoryId = id; renderForm(); break;
+    case "pick-category": draft.formCategoryId = id || null; renderForm(); break;
     case "toggle-friend": toggleFormFriend(id); break;
     case "add-checklist-item": {
       const inp = document.getElementById("checklistInput");
@@ -10494,6 +10580,7 @@ function handleClickInner(e){
       if(inp && inp.value.trim()){ addShoppingListItem(inp.value); inp.value=""; renderModals(); }
       break;
     }
+    case "expand-dish-to-ingredients": expandDishToIngredientsAI(); break;
     case "toggle-shopping-item": toggleShoppingListItem(id); renderModals(); break;
     case "remove-shopping-item": removeShoppingListItem(id); renderModals(); break;
     case "clear-checked-shopping": clearCheckedShoppingItems(); renderModals(); break;
