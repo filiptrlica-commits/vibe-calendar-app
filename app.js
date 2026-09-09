@@ -1350,9 +1350,14 @@ async function generateShoppingListFromMeals(daysAhead){
   // na recept), appka přidá jako VIDITELNOU položku "čeká na AI rozpoznání"
   // — na tu se pak spustí TLAČÍTKO 2 z 2, samostatně.
   const needsAiIds = [];
+  const debugLog = []; // diagnostika: jak appka vyhodnotila každé jídlo
+  let totalMealsScanned = 0;
   dates.forEach(date => {
-    mealsForDate(date).filter(m => !m.eaten).forEach(m => {
+    const mealsThatDay = mealsForDate(date);
+    mealsThatDay.filter(m => !m.eaten).forEach(m => {
+      totalMealsScanned++;
       if(m.items && m.items.length){
+        debugLog.push(`"${m.title}" (${date}) → má ${m.items.length} rozepsaných položek`);
         m.items.forEach(it => {
           const key = it.text.trim().toLowerCase();
           if(!gathered[key]) gathered[key] = { name: it.text.trim(), totalGrams:0, unit: it.unit||"g", count:0 };
@@ -1362,6 +1367,7 @@ async function generateShoppingListFromMeals(daysAhead){
         return;
       }
       if(m.customIngredientsText && m.customIngredientsText.trim()){
+        debugLog.push(`"${m.title}" (${date}) → má vlastní suroviny`);
         m.customIngredientsText.split("\n").map(l=>l.trim()).filter(Boolean).forEach(line => {
           const key = line.toLowerCase();
           if(!gathered[key]) gathered[key] = { name: line, totalGrams:0, unit:"g", count:0, isCustomLine:true };
@@ -1379,6 +1385,7 @@ async function generateShoppingListFromMeals(daysAhead){
           });
         }
         if(ingredientLines.length){
+          debugLog.push(`"${m.title}" (${date}) → má propojený recept s ${ingredientLines.length} surovinami`);
           ingredientLines.forEach(text => {
             const key = text.toLowerCase();
             if(!gathered[key]) gathered[key] = { name: text, totalGrams:0, unit:"g", count:0, isRecipeLine:true };
@@ -1386,9 +1393,13 @@ async function generateShoppingListFromMeals(daysAhead){
           });
           return;
         }
+        debugLog.push(`"${m.title}" (${date}) → má propojený recept, ale BEZ vyplněných surovin`);
       }
       if(m.title && m.title.trim()){
+        debugLog.push(`"${m.title}" (${date}) → NEROZPOZNÁNO (jde do fronty na AI), id=${m.id}`);
         needsAiIds.push(m.id);
+      } else {
+        debugLog.push(`(jídlo bez názvu, přeskočeno, id=${m.id})`);
       }
     });
   });
@@ -1425,8 +1436,12 @@ async function generateShoppingListFromMeals(daysAhead){
     });
   });
 
+  const debugEl = document.getElementById("mealAiDiagnosticsRoot");
+  const debugHtml = `<details style="margin-top:4px"><summary class="text-xs muted" style="cursor:pointer">🔍 Diagnostika (klepni pro zobrazení) — nalezeno ${totalMealsScanned} naplánovaných jídel</summary><div style="font-size:10px;color:#64748b;margin-top:4px;white-space:pre-wrap">${escapeHTML(debugLog.join("\n") || "(v jídelníčku appka nenašla žádné naplánované, nesnězené jídlo v tomhle rozmezí dní)")}</div></details>`;
+
   if(!newItems.length){
     showToast(skippedPantry.length ? `Vše potřebné už máš doma (${skippedPantry.join(", ")}) ✓` : "Žádné nové suroviny k přidání — buď nemáš naplánovaná jídla, nebo už je máš na seznamu.");
+    if(debugEl) debugEl.innerHTML = debugHtml;
     return;
   }
   state.shoppingList = [...state.shoppingList, ...newItems];
@@ -1434,6 +1449,7 @@ async function generateShoppingListFromMeals(daysAhead){
   const unresolvedCount = newItems.filter(i=>i.source==="meal-unresolved").length;
   const unresolvedPart = unresolvedCount ? ` · ${unresolvedCount}× jídlo čeká na AI rozpoznání (tlačítko níže)` : "";
   showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${unresolvedPart}${skippedPantry.length ? ` · ${skippedPantry.length}× přeskočeno, máš doma` : ''} ✓`);
+  if(debugEl) debugEl.innerHTML = debugHtml;
 }
 
 // TLAČÍTKO 2 z 2 — appka projde položky nákupního seznamu označené jako
@@ -4954,7 +4970,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v7-two-buttons";
+const SW_LOGIC_VERSION_DISPLAY = "v8-diagnostics";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -11070,7 +11086,7 @@ function setupManifest(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v7";
+    const CACHE_NAME = "kalendar-cache-v8";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
