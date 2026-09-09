@@ -1341,14 +1341,20 @@ async function generateShoppingListFromMeals(daysAhead){
   const days = daysAhead || 7;
   const dates = Array.from({length:days}, (_,i) => toISO(addDays(new Date(), i)));
   const gathered = {}; // name -> {totalGrams, unit, count}
-  // Appka teď rozlišuje TŘI způsoby, jak zjistit suroviny u jídla, co nemá
-  // klasický recept ani rozepsané položky — v pořadí podle spolehlivosti:
-  //  1) vlastní ručně napsané suroviny (customIngredientsText) — appka
-  //     tomu věří na 100 %, žádná AI netřeba
-  //  2) odkaz na recept (recipeUrl) — appka stránku stáhne a nechá AI
+  // Appka pro KAŽDÉ naplánované jídlo zvlášť zjistí, odkud vzít suroviny —
+  // v tomhle pořadí priority (další se zkusí, jen pokud ten předchozí
+  // nedal žádný výsledek — ne podle toho, JAK bylo jídlo přidané):
+  //  1) rozepsané položky (m.items) — appka je zná přesně
+  //  2) vlastní ručně napsané suroviny (customIngredientsText) — appka
+  //     jim věří na 100 %, žádná AI netřeba
+  //  3) propojený recept ZE SEKCE RECEPTY, pokud má vyplněné suroviny
+  //  4) odkaz na recept (recipeUrl) — appka stránku stáhne a nechá AI
   //     vytáhnout suroviny ze SKUTEČNÉHO obsahu, ne z hádání
-  //  3) jen holý název jídla — appka hádá jen podle názvu (nejméně přesné,
-  //     ale pořád lepší než nic)
+  //  5) jen holý název jídla (např. "Pizza Quattro Formaggi") — appka
+  //     nechá AI odhadnout typické suroviny podle názvu
+  // Předchozí verze appky u jídla propojeného s receptem BEZ vyplněných
+  // surovin mlčky nic nepřidala — teď se v tom případě zkusí i zbylé
+  // možnosti, ať appka nikdy neskončí s prázdnou rukou.
   const customIngredientMeals = []; // {title, text}
   const recipeUrlMeals = []; // {title, url}
   const bareMealNames = [];
@@ -1361,29 +1367,37 @@ async function generateShoppingListFromMeals(daysAhead){
           gathered[key].totalGrams += Number(it.grams)||0;
           gathered[key].count++;
         });
-      } else if(m.source === "recipe" && m.recipeId){
+        return;
+      }
+      if(m.customIngredientsText && m.customIngredientsText.trim()){
+        customIngredientMeals.push({ title: m.title||"Jídlo", text: m.customIngredientsText.trim() });
+        return;
+      }
+      if(m.source === "recipe" && m.recipeId){
         const r = findRecipe(m.recipeId);
+        const ingredientLines = [];
         if(r){
           (r.sections||[]).forEach(sec => {
             if(!sec.isIngredients) return;
-            (sec.items||[]).forEach(ing => {
-              const key = ing.text.trim().toLowerCase();
-              if(!gathered[key]) gathered[key] = { name: ing.text.trim(), totalGrams:0, unit:"g", count:0, isRecipeLine:true };
-              gathered[key].count++;
-            });
+            (sec.items||[]).forEach(ing => { if(ing.text && ing.text.trim()) ingredientLines.push(ing.text.trim()); });
           });
-        } else if(m.customIngredientsText && m.customIngredientsText.trim()){
-          customIngredientMeals.push({ title: m.title||"Jídlo", text: m.customIngredientsText.trim() });
-        } else if(m.recipeUrl && m.recipeUrl.trim()){
-          recipeUrlMeals.push({ title: m.title||"Jídlo", url: m.recipeUrl.trim() });
-        } else if(m.title && m.title.trim()){
-          bareMealNames.push(m.title.trim());
         }
-      } else if(m.customIngredientsText && m.customIngredientsText.trim()){
-        customIngredientMeals.push({ title: m.title||"Jídlo", text: m.customIngredientsText.trim() });
-      } else if(m.recipeUrl && m.recipeUrl.trim()){
+        if(ingredientLines.length){
+          ingredientLines.forEach(text => {
+            const key = text.toLowerCase();
+            if(!gathered[key]) gathered[key] = { name: text, totalGrams:0, unit:"g", count:0, isRecipeLine:true };
+            gathered[key].count++;
+          });
+          return;
+        }
+        // Recept buď neexistuje, nebo nemá vyplněné žádné suroviny —
+        // appka nekončí naprázdno, zkusí zbylé možnosti podle názvu jídla.
+      }
+      if(m.recipeUrl && m.recipeUrl.trim()){
         recipeUrlMeals.push({ title: m.title||"Jídlo", url: m.recipeUrl.trim() });
-      } else if(m.title && m.title.trim()){
+        return;
+      }
+      if(m.title && m.title.trim()){
         bareMealNames.push(m.title.trim());
       }
     });
