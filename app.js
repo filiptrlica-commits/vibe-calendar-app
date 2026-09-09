@@ -1361,7 +1361,16 @@ async function generateShoppingListFromMeals(daysAhead){
     const mealsThatDay = mealsForDate(date);
     mealsThatDay.filter(m => !m.eaten).forEach(m => {
       totalMealsScanned++;
-      if(m.items && m.items.length){
+      // DŮLEŽITÁ OPRAVA: appka dřív myslela, že má "rozepsanou surovinu",
+      // i když tam byla jen JEDNA položka se STEJNÝM textem jako název
+      // celého jídla (typicky když se jídlo přidá přes "+ Přidat" s celým
+      // názvem jídla místo jednotlivé suroviny — přesně to appka viděla u
+      // "cacio e pepe", "šunkofleky", "lasagne"). To NENÍ rozepsaná
+      // surovina, je to jen zopakovaný název jídla — appka ho teď pošle
+      // na AI rozpoznání stejně jako holý název bez položek.
+      const isJustRepeatedTitle = m.items && m.items.length === 1 &&
+        m.items[0].text && m.items[0].text.trim().toLowerCase() === (m.title||"").trim().toLowerCase();
+      if(m.items && m.items.length && !isJustRepeatedTitle){
         debugLog.push(`"${m.title}" (${date}) → má ${m.items.length} rozepsaných položek`);
         m.items.forEach(it => {
           const key = it.text.trim().toLowerCase();
@@ -1370,6 +1379,9 @@ async function generateShoppingListFromMeals(daysAhead){
           gathered[key].count++;
         });
         return;
+      }
+      if(isJustRepeatedTitle){
+        debugLog.push(`"${m.title}" (${date}) → jediná položka je jen zopakovaný název jídla, NE skutečná surovina — appka to řeší jako nerozpoznané`);
       }
       if(m.customIngredientsText && m.customIngredientsText.trim()){
         debugLog.push(`"${m.title}" (${date}) → má vlastní suroviny`);
@@ -4971,7 +4983,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v10-safe-update";
+const SW_LOGIC_VERSION_DISPLAY = "v11-repeated-title-fix";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -11120,7 +11132,7 @@ async function checkForAppUpdate(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v10";
+    const CACHE_NAME = "kalendar-cache-v11";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
