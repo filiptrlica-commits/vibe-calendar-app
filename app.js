@@ -1423,7 +1423,15 @@ async function generateShoppingListFromMeals(daysAhead){
     const m = findMeal(mealId);
     if(!m) return;
     const key = m.title.trim().toLowerCase();
-    if(existingNames.has(key) || newItems.some(ni=>ni.name.toLowerCase()===key)) return;
+    // DŮLEŽITÉ: appka tady záměrně NEKONTROLUJE `existingNames` (to jsou
+    // už VYŘEŠENÉ suroviny) — jinak by starý řádek v nákupním seznamu se
+    // stejným textem (třeba z dřívějšího testování appky, nebo obyčejná
+    // ruční položka, co náhodou má stejný název jako plánované jídlo)
+    // navždy zablokoval vytvoření správně označené "čeká na AI" položky.
+    // Kontroluje jen to, jestli už pro TOHLE KONKRÉTNÍ jídlo (podle mealId,
+    // ne podle textu) nerozpoznaná položka neexistuje.
+    if(state.shoppingList.some(i => i.source==="meal-unresolved" && i.mealId===m.id && !i.checked)) return;
+    if(newItems.some(ni=>ni.mealId===m.id)) return;
     if(isInPantry(m.title)){ skippedPantry.push(m.title); return; }
     newItems.push({
       id: uid(), name: m.title.trim(),
@@ -4969,7 +4977,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v4-shopping-ai";
+const SW_LOGIC_VERSION_DISPLAY = "v5-shopping-fix";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -11085,7 +11093,7 @@ function setupManifest(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v4";
+    const CACHE_NAME = "kalendar-cache-v5";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
