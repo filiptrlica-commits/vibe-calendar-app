@@ -1321,48 +1321,6 @@ function addShoppingListItem(text){
   state.shoppingList = [...state.shoppingList, { id: uid(), text: text.trim(), name: text.trim(), checked:false, source:"manual" }];
   saveState();
 }
-// Appka umí poznat, že "500g cacio e pepe" není jednotlivá surovina, ale
-// celý pokrm — zeptá se AI, z čeho se typicky skládá a v jakém přibližném
-// množství pro zadanou porci, a rozepíše to na jednotlivé suroviny rovnou
-// do nákupního seznamu (místo jedné položky "cacio e pepe", co by v
-// obchodě stejně nikdo nekoupil).
-async function expandDishToIngredientsAI(){
-  const inp = document.getElementById("shoppingItemInput");
-  const text = inp ? inp.value.trim() : "";
-  if(!text){ showToast("Napiš prosím nejdřív název pokrmu, třeba „500g cacio e pepe“."); return; }
-  const btn = document.getElementById("smartDishBtn");
-  if(btn){ btn.disabled = true; btn.textContent = "🧠 AI přemýšlí…"; }
-  try{
-    const response = await fetch("/.netlify/functions/ai-proxy", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6", max_tokens: 600,
-        messages: [{ role:"user", content:
-          `Uživatel napsal do nákupního seznamu: "${text}"\n\nZjisti, jestli jde o HOTOVÝ POKRM/JÍDLO (např. "cacio e pepe", "guláš", "500g lasagní") nebo už o JEDNOTLIVOU SUROVINU/POLOŽKU (např. "mléko", "2 rohlíky", "toaletní papír").\n\nPokud jde o pokrm, rozepiš ho na typické syrové suroviny potřebné na jeho přípravu, v přibližném množství odpovídajícím zadané porci (pokud porce/váha není uvedená, počítej se 2 porcemi). Pokud jde o obyčejnou položku, vrať ji beze změny jako jedinou položku seznamu.\n\nOdpověz POUZE čistým JSON objektem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru:\n{"isDish": true/false, "dishName": "název pokrmu nebo null", "items": ["surovina 1 s množstvím", "surovina 2 s množstvím", ...]}`
-        }],
-      }),
-    });
-    if(!response.ok) throw new Error("http-"+response.status);
-    const data = await response.json();
-    const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
-    const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
-    const parsed = JSON.parse(cleaned);
-    if(!parsed.items || !Array.isArray(parsed.items) || !parsed.items.length) throw new Error("empty-items");
-    parsed.items.forEach(item => addShoppingListItem(item));
-    if(inp) inp.value = "";
-    if(parsed.isDish){
-      showToast(`🧠 „${parsed.dishName||text}“ rozpoznáno jako pokrm — přidáno ${parsed.items.length} surovin ✓`);
-    } else {
-      showToast("Appka to poznala jako běžnou položku, přidáno rovnou ✓");
-    }
-    renderModals();
-  }catch(e){
-    showToast("AI teď nedokázala pokrm rozpoznat — zkus to znovu, nebo přidej suroviny ručně přes ➕.");
-  }finally{
-    const btn2 = document.getElementById("smartDishBtn");
-    if(btn2){ btn2.disabled = false; btn2.textContent = "🧠 Rozpoznat jako pokrm a rozepsat suroviny"; }
-  }
-}
 function toggleShoppingListItem(id){
   state.shoppingList = state.shoppingList.map(i => i.id===id ? {...i, checked:!i.checked} : i);
   saveState();
@@ -1379,10 +1337,21 @@ function clearCheckedShoppingItems(){
 // Pulls ingredients from planned (not-yet-eaten) meals over the next N days —
 // both freely-typed items and recipe-sourced ones — and merges same-named
 // items into one line instead of duplicating them.
-function generateShoppingListFromMeals(daysAhead){
+async function generateShoppingListFromMeals(daysAhead){
   const days = daysAhead || 7;
   const dates = Array.from({length:days}, (_,i) => toISO(addDays(new Date(), i)));
   const gathered = {}; // name -> {totalGrams, unit, count}
+  // Appka teď rozlišuje TŘI způsoby, jak zjistit suroviny u jídla, co nemá
+  // klasický recept ani rozepsané položky — v pořadí podle spolehlivosti:
+  //  1) vlastní ručně napsané suroviny (customIngredientsText) — appka
+  //     tomu věří na 100 %, žádná AI netřeba
+  //  2) odkaz na recept (recipeUrl) — appka stránku stáhne a nechá AI
+  //     vytáhnout suroviny ze SKUTEČNÉHO obsahu, ne z hádání
+  //  3) jen holý název jídla — appka hádá jen podle názvu (nejméně přesné,
+  //     ale pořád lepší než nic)
+  const customIngredientMeals = []; // {title, text}
+  const recipeUrlMeals = []; // {title, url}
+  const bareMealNames = [];
   dates.forEach(date => {
     mealsForDate(date).filter(m => !m.eaten).forEach(m => {
       if(m.items && m.items.length){
@@ -1403,7 +1372,19 @@ function generateShoppingListFromMeals(daysAhead){
               gathered[key].count++;
             });
           });
+        } else if(m.customIngredientsText && m.customIngredientsText.trim()){
+          customIngredientMeals.push({ title: m.title||"Jídlo", text: m.customIngredientsText.trim() });
+        } else if(m.recipeUrl && m.recipeUrl.trim()){
+          recipeUrlMeals.push({ title: m.title||"Jídlo", url: m.recipeUrl.trim() });
+        } else if(m.title && m.title.trim()){
+          bareMealNames.push(m.title.trim());
         }
+      } else if(m.customIngredientsText && m.customIngredientsText.trim()){
+        customIngredientMeals.push({ title: m.title||"Jídlo", text: m.customIngredientsText.trim() });
+      } else if(m.recipeUrl && m.recipeUrl.trim()){
+        recipeUrlMeals.push({ title: m.title||"Jídlo", url: m.recipeUrl.trim() });
+      } else if(m.title && m.title.trim()){
+        bareMealNames.push(m.title.trim());
       }
     });
   });
@@ -1421,14 +1402,110 @@ function generateShoppingListFromMeals(daysAhead){
       text: g.totalGrams > 0 ? `${g.name} (${Math.round(g.totalGrams)} ${g.unit})` : g.name,
       checked:false, source:"meal",
     }));
+
+  // 1) Vlastní ručně napsané suroviny — appka jim věří na 100 %, jen
+  // rozdělí podle řádků a přidá, žádná AI netřeba.
+  customIngredientMeals.forEach(({text}) => {
+    text.split("\n").map(l=>l.trim()).filter(Boolean).forEach(line => {
+      const key = line.toLowerCase();
+      if(existingNames.has(key) || newItems.some(ni=>ni.name.toLowerCase()===key)) return;
+      if(isInPantry(line)){ skippedPantry.push(line); return; }
+      newItems.push({ id: uid(), name: line, text: line, checked:false, source:"meal-custom" });
+    });
+  });
+
+  // 2) Odkaz na recept — appka stránku stáhne přes vlastní server a nechá
+  // AI vytáhnout suroviny ze SKUTEČNÉHO obsahu stránky, ne z hádání podle
+  // názvu. Když se stažení nepovede (stránka nedostupná, appka bez
+  // internetu…), jídlo se tiše přesune mezi "holé názvy" — appka to
+  // aspoň zkusí odhadnout, než by úplně mlčela.
+  let urlRecognizedCount = 0;
+  for(const {title, url} of recipeUrlMeals){
+    try{
+      const fetchRes = await fetch("/.netlify/functions/fetch-recipe", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ url }),
+      });
+      if(!fetchRes.ok) throw new Error("fetch-failed");
+      const { text: pageText } = await fetchRes.json();
+      const aiRes = await fetch("/.netlify/functions/ai-proxy", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6", max_tokens: 700,
+          messages: [{ role:"user", content:
+            `Tohle je stažený text webové stránky s receptem na "${title}":\n\n"""${pageText.slice(0,10000)}"""\n\nVytáhni z něj SKUTEČNÝ seznam surovin a jejich množství, tak jak jsou uvedené na stránce (počítej s 2 porcemi, pokud stránka udává jiný počet a nejde snadno přepočítat, použij jak je).\n\nOdpověz POUZE čistým JSON polem řetězců, bez markdown bloků a bez jakéhokoliv dalšího textu:\n["surovina 1 s množstvím", "surovina 2 s množstvím", ...]`
+          }],
+        }),
+      });
+      if(!aiRes.ok) throw new Error("ai-failed");
+      const data = await aiRes.json();
+      const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+      const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+      const items = JSON.parse(cleaned);
+      if(Array.isArray(items) && items.length){
+        items.forEach(line => {
+          const key = String(line).trim().toLowerCase();
+          if(!key || existingNames.has(key) || newItems.some(ni=>ni.name.toLowerCase()===key)) return;
+          if(isInPantry(line)){ skippedPantry.push(line); return; }
+          newItems.push({ id: uid(), name: String(line).trim(), text: String(line).trim(), checked:false, source:"meal-url" });
+          urlRecognizedCount++;
+        });
+      } else {
+        bareMealNames.push(title);
+      }
+    }catch(e){
+      bareMealNames.push(title); // aspoň to appka zkusí odhadnout podle názvu
+    }
+  }
+
+  // Holá jídla (bez surovin/receptu) — appka je pošle na AI JEDNÍM
+  // hromadným dotazem (ne po jednom, ať to není zbytečně pomalé a drahé),
+  // ať rozpozná suroviny pro každé z nich najednou.
+  let aiRecognizedCount = 0;
+  const uniqueBareMeals = [...new Set(bareMealNames.map(n=>n.trim()))].filter(n => !existingNames.has(n.toLowerCase()));
+  if(uniqueBareMeals.length){
+    try{
+      const response = await fetch("/.netlify/functions/ai-proxy", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6", max_tokens: 1000,
+          messages: [{ role:"user", content:
+            `Uživatel má v jídelníčku naplánovaná tato jídla, u kterých appka nezná rozepsané suroviny ani recept: ${uniqueBareMeals.map(n=>`"${n}"`).join(", ")}.\n\nPro KAŽDÉ z nich odhadni typické suroviny potřebné na jeho přípravu (počítej s 2 porcemi u každého jídla), v přibližném množství.\n\nOdpověz POUZE čistým JSON polem, bez markdown bloků a bez jakéhokoliv dalšího textu, přesně v tomto tvaru — jedna položka pro každé jídlo ve STEJNÉM pořadí:\n[{"meal": "název jídla", "items": ["surovina 1 s množstvím", "surovina 2 s množstvím", ...]}, ...]`
+          }],
+        }),
+      });
+      if(response.ok){
+        const data = await response.json();
+        const raw = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+        const cleaned = raw.replace(/^```json\s*|\s*```$/g, "").trim();
+        const parsed = JSON.parse(cleaned);
+        if(Array.isArray(parsed)){
+          parsed.forEach(entry => {
+            (entry.items||[]).forEach(ingredientText => {
+              const key = ingredientText.trim().toLowerCase();
+              if(existingNames.has(key) || newItems.some(ni=>ni.name.toLowerCase()===key)) return;
+              if(isInPantry(ingredientText)){ skippedPantry.push(ingredientText); return; }
+              newItems.push({ id: uid(), name: ingredientText.trim(), text: ingredientText.trim(), checked:false, source:"meal-ai" });
+              aiRecognizedCount++;
+            });
+          });
+        }
+      }
+    }catch(e){ /* AI se nepodařila — appka pokračuje aspoň s tím, co má bez AI */ }
+  }
   if(!newItems.length){
     showToast(skippedPantry.length ? `Vše potřebné už máš doma (${skippedPantry.join(", ")}) ✓` : "Žádné nové suroviny k přidání — buď nemáš naplánovaná jídla, nebo už je máš na seznamu.");
     return;
   }
   state.shoppingList = [...state.shoppingList, ...newItems];
   saveState();
-  showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${skippedPantry.length ? ` (${skippedPantry.length}× přeskočeno, máš doma)` : ''} ✓`);
+  const parts = [];
+  if(urlRecognizedCount) parts.push(`${urlRecognizedCount}× ze staženého receptu`);
+  if(aiRecognizedCount) parts.push(`${aiRecognizedCount}× odhadnuto AI podle názvu`);
+  const aiPart = parts.length ? ` (${parts.join(", ")})` : "";
+  showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${aiPart}${skippedPantry.length ? ` · ${skippedPantry.length}× přeskočeno, máš doma` : ''} ✓`);
 }
+
 // ================= PANTRY / "MÁM DOMA" =================
 // Anything already in the fridge/freezer/garden — the shopping-list generator
 // skips ingredients that match, so it doesn't ask you to buy what you already have.
@@ -1635,7 +1712,7 @@ function shoppingListModalHTML(){
         <div class="row gap-2" style="align-items:center;margin-bottom:8px">
           <input id="shoppingDaysAheadInput" type="number" min="1" max="60" class="field" style="width:60px" value="${shoppingDaysAhead}" />
           <span class="text-xs muted">dní dopředu</span>
-          <button class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🔄 Doplnit z jídelníčku</button>
+          <button id="genShoppingBtn" class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🔄 Doplnit z jídelníčku</button>
         </div>
         <button class="chip" style="margin-bottom:12px" data-action="toggle-pantry-section">${pantryExpanded?'▲':'🏠'} Mám doma (${state.pantryStock.length})</button>
         ${pantryExpanded ? `
@@ -1652,14 +1729,10 @@ function shoppingListModalHTML(){
             ` : `<p class="text-xs muted" style="margin:0">Zatím nic.</p>`}
           </div>
         ` : ""}
-        <div class="row gap-2" style="margin-bottom:6px">
-          <input id="shoppingItemInput" class="field grow" placeholder="Přidat položku, nebo napiš celý pokrm…" />
+        <div class="row gap-2" style="margin-bottom:14px">
+          <input id="shoppingItemInput" class="field grow" placeholder="Přidat vlastní položku…" />
           <button class="icon-btn shrink0" data-action="add-shopping-item">➕</button>
         </div>
-        <div class="row" style="margin-bottom:14px">
-          <button id="smartDishBtn" class="btn btn-soft" style="font-size:12px" data-action="expand-dish-to-ingredients">🧠 Rozpoznat jako pokrm a rozepsat suroviny</button>
-        </div>
-        <p class="text-xs muted" style="margin:-10px 0 14px">Např. napiš „500g cacio e pepe" a appka sama pozná, jaké suroviny a kolik jich na to koupit.</p>
         ${state.shoppingList.length===0 ? `<p class="text-sm muted" style="text-align:center;padding:16px 0">Seznam je zatím prázdný.</p>` : `
           <div class="col gap-2" style="margin-bottom:${checked.length?'14px':'0'}">
             ${unchecked.map(row).join("")}
@@ -2771,6 +2844,8 @@ function freshMealDraft(){
     labelId: state.mealLabels[0] ? state.mealLabels[0].id : null,
     source: "custom",
     title: "",
+    recipeUrl: "", // odkaz na recept mimo appku — appka si z něj sama vytáhne suroviny
+    customIngredientsText: "", // vlastní ručně napsané suroviny k tomuto jídlu (jeden řádek = jedna surovina)
     customItems: [], // [{id, text}] — individual ingredients like "1 rohlík", "100g šunky"
     recipeId: state.recipes[0] ? state.recipes[0].id : null,
     servingsCount: 1,
@@ -2892,6 +2967,7 @@ function addMeal(){
     state.meals = state.meals.map(m => m.id===mealDraft.editingId ? {
       ...m, date:mealDraft.date, labelId:mealDraft.labelId, source:mealDraft.source,
       title, items, recipeId: mealDraft.source==="recipe" ? mealDraft.recipeId : null,
+      recipeUrl: mealDraft.recipeUrl.trim(), customIngredientsText: mealDraft.customIngredientsText.trim(),
       servingsCount: mealDraft.servingsCount, recipeAmountMode: mealDraft.recipeAmountMode, customGrams: mealDraft.customGrams,
       nutrition, reminder, reminderBaseTime: mealDraft.reminderBaseTime,
     } : m);
@@ -2907,6 +2983,7 @@ function addMeal(){
   const newItems = dates.map(date => ({
     id: uid(), type:"meal", date, labelId: mealDraft.labelId, source: mealDraft.source,
     title, items: items.map(i=>({...i})), recipeId: mealDraft.source==="recipe" ? mealDraft.recipeId : null,
+    recipeUrl: mealDraft.recipeUrl.trim(), customIngredientsText: mealDraft.customIngredientsText.trim(),
     servingsCount: mealDraft.servingsCount, recipeAmountMode: mealDraft.recipeAmountMode, customGrams: mealDraft.customGrams,
     nutrition: nutrition ? {...nutrition} : null,
     eaten:false, reminder: reminder ? {...reminder} : null, reminderBaseTime: mealDraft.reminderBaseTime,
@@ -2926,6 +3003,8 @@ function editMeal(id){
   mealDraft = {
     editingId: m.id, date: m.date, labelId: m.labelId, source: m.source,
     title: (m.source==="custom" && !(m.items&&m.items.length)) ? m.title : "",
+    recipeUrl: m.recipeUrl || "",
+    customIngredientsText: m.customIngredientsText || "",
     customItems: (m.items||[]).map(i => ({...i})),
     recipeId: m.recipeId || (state.recipes[0]?.id||null),
     servingsCount: m.servingsCount || 1,
@@ -9593,6 +9672,15 @@ function mealFormHTML(){
           <input id="mealTitleInput" class="field grow" placeholder="např. Kupovaná bageta se šunkou" value="${escapeAttr(mealDraft.title)}" data-meal-field="title" />
           <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealTitleInput" title="Diktovat">🎙️</button>
         </div>
+        <div style="margin-bottom:6px">
+          <label class="label">🔗 Odkaz na recept (nepovinné)</label>
+          <input id="mealRecipeUrlInput" class="field" placeholder="https://…" value="${escapeAttr(mealDraft.recipeUrl)}" data-meal-field="recipeUrl" />
+        </div>
+        <div style="margin-bottom:10px">
+          <label class="label">📝 Vlastní suroviny na nákup (nepovinné, jeden řádek = jedna surovina)</label>
+          <textarea id="mealCustomIngredientsInput" class="field" rows="3" placeholder="např.&#10;500g mouky&#10;2 vejce&#10;250g mozzarelly" data-meal-field="customIngredientsText">${escapeHTML(mealDraft.customIngredientsText)}</textarea>
+          <p class="text-xs muted" style="margin:4px 0 0">Appka tohle použije pro nákupní seznam místo hádání AI podle názvu — pokud vyplníš odkaz i vlastní suroviny zároveň, appka dá přednost vlastním surovinám.</p>
+        </div>
         <div class="row gap-2 wrapf" style="margin-bottom:6px">
           <div style="flex:1;min-width:80px"><label class="label">Kalorie</label>
             <input type="number" min="0" class="field" value="${mealDraft.nutCalories}" data-meal-field="nutCalories" /></div>
@@ -10564,8 +10652,9 @@ function handleClickInner(e){
       const daysInp = document.getElementById("shoppingDaysAheadInput");
       const days = daysInp ? Math.max(1, Number(daysInp.value)||7) : 7;
       shoppingDaysAhead = days;
-      generateShoppingListFromMeals(days);
-      renderModals();
+      const genBtn = document.getElementById("genShoppingBtn");
+      if(genBtn){ genBtn.disabled = true; genBtn.textContent = "🧠 Doplňuji, AI rozpoznává jídla bez receptu…"; }
+      generateShoppingListFromMeals(days).finally(() => renderModals());
       break;
     }
     case "toggle-pantry-section": pantryExpanded = !pantryExpanded; renderModals(); break;
@@ -10580,7 +10669,6 @@ function handleClickInner(e){
       if(inp && inp.value.trim()){ addShoppingListItem(inp.value); inp.value=""; renderModals(); }
       break;
     }
-    case "expand-dish-to-ingredients": expandDishToIngredientsAI(); break;
     case "toggle-shopping-item": toggleShoppingListItem(id); renderModals(); break;
     case "remove-shopping-item": removeShoppingListItem(id); renderModals(); break;
     case "clear-checked-shopping": clearCheckedShoppingItems(); renderModals(); break;
