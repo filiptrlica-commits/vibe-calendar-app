@@ -4971,7 +4971,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v9-diag-fixed";
+const SW_LOGIC_VERSION_DISPLAY = "v10-safe-update";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -8987,7 +8987,9 @@ function renderSettingsView(){
     <div class="row between" style="margin-bottom:4px">
       <p class="text-lg font-semi text-main" style="margin:0">⚙️ Nastavení</p>
     </div>
-    <p class="text-xs muted" style="margin:0 0 12px">Verze appky: ${SW_LOGIC_VERSION_DISPLAY} — pokud po nahrání nové appky vidíš pořád starou verzi tady, appka běží na staré verzi z cache (zkus appku úplně zavřít a vymazat jí úložiště v Nastavení telefonu).</p>
+    <p class="text-xs muted" style="margin:0 0 6px">Verze appky: ${SW_LOGIC_VERSION_DISPLAY}</p>
+    <button id="checkUpdateBtn" class="btn btn-soft" style="margin-bottom:4px" data-action="check-app-update">🔄 Zkontrolovat aktualizaci appky</button>
+    <p class="text-xs muted" style="margin:0 0 12px">Bezpečné — tvoje recepty, jídelníček i úkoly zůstanou zachované. Appku NIKDY neaktualizuj mazáním úložiště v telefonu, to by smazalo i tvoje data.</p>
     <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">💾 Záloha dat</p>
       <p class="text-xs muted" style="margin:0 0 12px">Všechna tvá data žijí jen v tomhle telefonu/prohlížeči. Stáhni si zálohu, ať o ně nepřijdeš při výměně telefonu nebo smazání appky — a jde ji kdykoliv zpátky obnovit.</p>
@@ -10705,6 +10707,7 @@ function handleClickInner(e){
     case "export-backup": exportBackup(); break;
     case "set-color-scheme": state.colorScheme = id; saveState(); renderAll(); renderSettingsView(); break;
     case "enable-push": enablePushNotifications().then(() => renderSettingsView()); break;
+    case "check-app-update": checkForAppUpdate(); break;
     case "disable-push": disablePushNotifications().then(() => renderSettingsView()); break;
     case "test-push": testPushNotification(); break;
     case "test-sharing": testSharing(); break;
@@ -11084,10 +11087,40 @@ function setupManifest(){
   if(favicon) favicon.setAttribute("href", APP_ICON_192);
 }
 
+// Bezpečná ruční kontrola aktualizace appky — nikdy se nedotkne localStorage
+// (recepty, jídelníček, úkoly), jen zkontroluje a případně aktivuje novou
+// verzi appky přesně stejným mechanismem jako automatická kontrola na pozadí.
+async function checkForAppUpdate(){
+  const btn = document.getElementById("checkUpdateBtn");
+  if(btn){ btn.disabled = true; btn.textContent = "🔄 Kontroluji…"; }
+  try{
+    if(!("serviceWorker" in navigator)){
+      showToast("Tenhle prohlížeč nepodporuje automatické aktualizace appky.");
+      return;
+    }
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg){
+      showToast("Appka ještě nemá zaregistrovanou podkladovou vrstvu — zkus appku nejdřív jednou zavřít a znovu otevřít.");
+      return;
+    }
+    await reg.update();
+    if(reg.waiting){
+      reg.waiting.postMessage({type:"skip-waiting"});
+      showToast("🔄 Nalezena nová verze — appka se za chvíli sama obnoví (data zůstanou).");
+    } else {
+      showToast("✅ Appka už běží na nejnovější verzi.");
+    }
+  }catch(e){
+    showToast("Kontrola aktualizace se nezdařila: " + e.message);
+  }finally{
+    const btn2 = document.getElementById("checkUpdateBtn");
+    if(btn2){ btn2.disabled = false; btn2.textContent = "🔄 Zkontrolovat aktualizaci appky"; }
+  }
+}
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v9";
+    const CACHE_NAME = "kalendar-cache-v10";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
@@ -11172,9 +11205,26 @@ function setupServiceWorker(){
       if(!newWorker) return;
       newWorker.addEventListener("statechange", () => {
         if(newWorker.state === "installed" && navigator.serviceWorker.controller){
-          console.log("Service worker: nová verze nainstalována a připravená.");
+          console.log("Service worker: nová verze nainstalována — vynucuji převzetí vlády.");
+          // DŮLEŽITÝ POSLEDNÍ KROK, co appce dřív chyběl: appka nová
+          // verze sice zjistila a nainstalovala, ale nikdy jí neřekla
+          // "aktivuj se teď hned" — appka proto pořád ukazovala starou
+          // verzi, i když nová byla dávno stažená. Tohle appku donutí
+          // přepnout se OKAMŽITĚ.
+          newWorker.postMessage({type:"skip-waiting"});
         }
       });
+    });
+    // Jakmile nová verze skutečně převezme vládu (controllerchange), appka
+    // se JEDNOU sama obnoví — ať garantovaně běží na nejnovější appce.
+    // Tohle se NIKDY nedotkne localStorage (recepty, jídelníček, úkoly) —
+    // to je úplně jiné úložiště, obnovení appky ho nijak nesmaže.
+    let reloadedForUpdate = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if(reloadedForUpdate) return;
+      reloadedForUpdate = true;
+      console.log("Service worker: nová verze převzala vládu, appka se obnovuje (data zůstávají).");
+      window.location.reload();
     });
   }).catch(() => {
     try{
