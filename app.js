@@ -1709,11 +1709,12 @@ function shoppingListModalHTML(){
           <h3 style="margin:0;font-size:18px;color:#334155">🛒 Nákupní seznam</h3>
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
-        <div class="row gap-2" style="align-items:center;margin-bottom:8px">
+        <div class="row gap-2" style="align-items:center;margin-bottom:6px">
           <input id="shoppingDaysAheadInput" type="number" min="1" max="60" class="field" style="width:60px" value="${shoppingDaysAhead}" />
           <span class="text-xs muted">dní dopředu</span>
-          <button id="genShoppingBtn" class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🔄 Doplnit z jídelníčku</button>
+          <button id="genShoppingBtn" class="btn btn-soft grow" style="justify-content:center" data-action="generate-shopping-list">🧠 Natáhnout jídla a rozpoznat suroviny (AI)</button>
         </div>
+        <p class="text-xs muted" style="margin:0 0 10px">Appka projde naplánovaná jídla z jídelníčku — u receptů a rozepsaných surovin je zná přesně, u jídel jen s názvem (např. „Pizza") sama pomocí AI odhadne, co koupit.</p>
         <button class="chip" style="margin-bottom:12px" data-action="toggle-pantry-section">${pantryExpanded?'▲':'🏠'} Mám doma (${state.pantryStock.length})</button>
         ${pantryExpanded ? `
           <div style="background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:12px">
@@ -6282,12 +6283,11 @@ function taskCardHTML(task, lane, ws){
       ${completedByOther ? `<div style="padding:7px 16px 0"><span class="chip" style="background:var(--success);color:#fff;font-size:10.5px;font-weight:700;padding:3px 9px">✅ Dokončil/a ${escapeHTML(task.sharedAccepterName || "kamarád/ka")}</span></div>` : ""}
       <div class="row gap-3" style="padding:12px 16px;padding-bottom:${taskFriends.length?'6px':'12px'}">
         <button class="shrink0" data-action="toggle-done" data-id="${task.id}" style="width:22px;height:22px;border-radius:5px;border:1.5px solid ${task.done?'var(--accent)':'var(--line)'};background:${task.done?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${task.done?'✓':''}</button>
-        ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>`}
+        ${thumb ? `<img src="${thumb}" class="thumb" />` : (task.categoryId ? `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>` : "")}
         <div class="grow" data-action="quick-view-task" data-id="${task.id}" style="cursor:pointer">
           <p class="text-sm font-med ${task.done?'strike':''} text-main" style="margin:0;white-space:normal;word-break:break-word">${escapeHTML(task.title)}</p>
           <p class="text-xs muted" style="margin:2px 0 0">
-            ${escapeHTML(cat.label)} · ${escapeHTML(listById(task.listId).name)}
-            ${checklist.length ? `<span style="color:#10b981;font-weight:600;margin-left:4px">· ${doneCount}/${checklist.length} kroků</span>`:""}
+            ${task.categoryId ? `${escapeHTML(cat.label)} · ` : ""}${escapeHTML(listById(task.listId).name)}
             ${rSum ? `<span style="color:#f59e0b;font-weight:600;margin-left:4px">· ${rSum}</span>`:""}
             ${taskFriends.length ? `<span style="color:#6366f1;font-weight:600;margin-left:4px">· 👥 ${taskFriends.map(f=>escapeHTML(f.name)).join(", ")}</span>`:""}
             ${(task.files&&task.files.length) ? `<span style="color:#d97706;font-weight:600;margin-left:4px">· 📎 ${task.files.length}</span>`:""}
@@ -6347,11 +6347,11 @@ function renderNotes(){
           ${notes.map(n => {
             const cat = catById(n.categoryId); const thumb = n.image || n.drawing;
             return `<div class="${cardClass()} row gap-2" style="padding:12px 14px;align-items:flex-start">
-              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:17px">${cat.emoji}</span>`}
+              ${thumb ? `<img src="${thumb}" class="thumb" />` : (n.categoryId ? `<span style="font-size:17px">${cat.emoji}</span>` : "")}
               <div class="grow">
                 <span class="text-sm font-med text-main" style="display:block">${escapeHTML(n.title)}</span>
                 ${n.content ? `<span class="text-xs muted" style="display:block;margin-top:2px">${escapeHTML(n.content.slice(0,140))}</span>` : ""}
-                <span class="text-xs muted">${escapeHTML(cat.label)}</span>
+                ${n.categoryId ? `<span class="text-xs muted">${escapeHTML(cat.label)}</span>` : ""}
               </div>
               <button class="icon-btn-sm shrink0" data-action="edit-task" data-id="${n.id}">✏️</button>
               <button class="icon-btn-sm shrink0" data-action="delete-task" data-id="${n.id}">🗑️</button>
@@ -6666,7 +6666,7 @@ function overdueDrawerHTML(){
               const daysLate = Math.round((parseISODate(todayISO) - parseISODate(t.date))/86400000);
               return `<div style="background:#f8fafc;border-radius:16px;padding:12px">
                 <div class="row gap-3" style="margin-bottom:8px">
-                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  ${t.categoryId ? `<span style="font-size:17px">${catById(t.categoryId).emoji}</span>` : ""}
                   <div class="grow">
                     <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                     <p class="text-xs" style="margin:0;color:#fb7185;font-weight:600">${t.date} · ${daysLate} ${daysLate===1?'den':daysLate<5?'dny':'dní'} po termínu</p>
@@ -6697,7 +6697,7 @@ function completedDrawerHTML(){
           <div class="col gap-2">
             ${items.map(t => `
               <div style="background:#f8fafc;border-radius:16px;padding:12px" class="row gap-3">
-                <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                ${t.categoryId ? `<span style="font-size:17px">${catById(t.categoryId).emoji}</span>` : ""}
                 <div class="grow">
                   <p class="text-sm font-med truncate strike" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                   <p class="text-xs muted" style="margin:0">${t.date}</p>
@@ -6959,7 +6959,7 @@ function taskQuickViewModalHTML(taskId){
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
         <p class="text-lg font-semi" style="margin:0 0 4px;word-break:break-word;color:#1e293b">${escapeHTML(t.title)}</p>
-        <p class="text-xs muted" style="margin:0 0 14px">${cat.emoji} ${escapeHTML(cat.label)} · ${escapeHTML(listById(t.listId).name)} · 📅 ${t.date}</p>
+        <p class="text-xs muted" style="margin:0 0 14px">${t.categoryId ? `${cat.emoji} ${escapeHTML(cat.label)} · ` : ""}${escapeHTML(listById(t.listId).name)} · 📅 ${t.date}</p>
         ${t.content ? `<p class="text-sm" style="margin:0 0 14px;white-space:pre-wrap;word-break:break-word;color:#475569;line-height:1.5">${escapeHTML(t.content)}</p>` : ""}
         ${(t.images && t.images.length) ? `
           <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
@@ -7134,7 +7134,7 @@ function delegatedDrawerHTML(){
               return `
               <div style="background:#f8fafc;border-radius:16px;padding:12px">
                 <div class="row gap-3" style="margin-bottom:8px;cursor:pointer" data-action="open-delegated-task" data-id="${t.id}">
-                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  ${t.categoryId ? `<span style="font-size:17px">${catById(t.categoryId).emoji}</span>` : ""}
                   <div class="grow">
                     <p class="text-sm font-med truncate ${t.done?'strike':''}" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                     <p class="text-xs muted" style="margin:0">${t.date} ${t.done?'· hotovo':''}</p>
@@ -7161,7 +7161,7 @@ function delegatedDrawerHTML(){
             ${linkShared.map(t => `
               <div style="background:#f8fafc;border-radius:16px;padding:12px;cursor:pointer" data-action="open-delegated-task" data-id="${t.id}">
                 <div class="row gap-3" style="margin-bottom:6px">
-                  <span style="font-size:17px">${catById(t.categoryId).emoji}</span>
+                  ${t.categoryId ? `<span style="font-size:17px">${catById(t.categoryId).emoji}</span>` : ""}
                   <div class="grow">
                     <p class="text-sm font-med truncate" style="margin:0;color:#334155">${escapeHTML(t.title)}</p>
                     <p class="text-xs muted" style="margin:0">${t.date}</p>
@@ -9666,12 +9666,6 @@ function mealFormHTML(){
           <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealItemGramsInput" title="Nadiktovat množství">🎙️</button>
           <button class="icon-btn shrink0 grow" style="justify-content:center" data-action="add-meal-draft-item">➕ Přidat</button>
         </div>
-        ${!mealDraft.customItems.length ? `
-        <p class="text-xs muted" style="margin:0 0 4px">Nebo napiš vše jedním řádkem (bez rozpisu surovin):</p>
-        <div class="row gap-2" style="margin-bottom:10px">
-          <input id="mealTitleInput" class="field grow" placeholder="např. Kupovaná bageta se šunkou" value="${escapeAttr(mealDraft.title)}" data-meal-field="title" />
-          <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealTitleInput" title="Diktovat">🎙️</button>
-        </div>
         <div style="margin-bottom:6px">
           <label class="label">🔗 Odkaz na recept (nepovinné)</label>
           <input id="mealRecipeUrlInput" class="field" placeholder="https://…" value="${escapeAttr(mealDraft.recipeUrl)}" data-meal-field="recipeUrl" />
@@ -9679,7 +9673,13 @@ function mealFormHTML(){
         <div style="margin-bottom:10px">
           <label class="label">📝 Vlastní suroviny na nákup (nepovinné, jeden řádek = jedna surovina)</label>
           <textarea id="mealCustomIngredientsInput" class="field" rows="3" placeholder="např.&#10;500g mouky&#10;2 vejce&#10;250g mozzarelly" data-meal-field="customIngredientsText">${escapeHTML(mealDraft.customIngredientsText)}</textarea>
-          <p class="text-xs muted" style="margin:4px 0 0">Appka tohle použije pro nákupní seznam místo hádání AI podle názvu — pokud vyplníš odkaz i vlastní suroviny zároveň, appka dá přednost vlastním surovinám.</p>
+          <p class="text-xs muted" style="margin:4px 0 0">Appka tohle použije pro nákupní seznam místo hádání AI podle názvu — pokud vyplníš odkaz i vlastní suroviny zároveň, appka dá přednost vlastním surovinám. Funguje bez ohledu na to, jestli máš výše přidané jednotlivé suroviny nebo ne.</p>
+        </div>
+        ${!mealDraft.customItems.length ? `
+        <p class="text-xs muted" style="margin:0 0 4px">Nebo napiš vše jedním řádkem (bez rozpisu surovin):</p>
+        <div class="row gap-2" style="margin-bottom:10px">
+          <input id="mealTitleInput" class="field grow" placeholder="např. Kupovaná bageta se šunkou" value="${escapeAttr(mealDraft.title)}" data-meal-field="title" />
+          <button class="icon-btn shrink0" data-action="dictate-into" data-target="mealTitleInput" title="Diktovat">🎙️</button>
         </div>
         <div class="row gap-2 wrapf" style="margin-bottom:6px">
           <div style="flex:1;min-width:80px"><label class="label">Kalorie</label>
