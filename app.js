@@ -4966,6 +4966,10 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // položce (stejný záznam ve vlastním úložišti, co appka už používá na stav
 // a checklist), takže druhá strana ho tam najde a může na něj poslat push
 // přes malou Netlify funkci — appka sama žádný push neposílá, jen o to požádá.
+// Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
+// poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
+// ukazuje starou verzi ze zastaralé cache prohlížeče.
+const SW_LOGIC_VERSION_DISPLAY = "v4-shopping-ai";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -8978,9 +8982,10 @@ function reminderRow(label, reminderCfg, actionPrefix, ownerId, subId){
 function renderSettingsView(){
   const el = document.getElementById("settingsView");
   el.innerHTML = `
-    <div class="row between" style="margin-bottom:12px">
+    <div class="row between" style="margin-bottom:4px">
       <p class="text-lg font-semi text-main" style="margin:0">⚙️ Nastavení</p>
     </div>
+    <p class="text-xs muted" style="margin:0 0 12px">Verze appky: ${SW_LOGIC_VERSION_DISPLAY} — pokud po nahrání nové appky vidíš pořád starou verzi tady, appka běží na staré verzi z cache (zkus appku úplně zavřít a vymazat jí úložiště v Nastavení telefonu).</p>
     <div class="card card-pad" style="margin-bottom:16px">
       <p class="text-sm font-semi" style="margin:0 0 4px;color:#334155">💾 Záloha dat</p>
       <p class="text-xs muted" style="margin:0 0 12px">Všechna tvá data žijí jen v tomhle telefonu/prohlížeči. Stáhni si zálohu, ať o ně nepřijdeš při výměně telefonu nebo smazání appky — a jde ji kdykoliv zpátky obnovit.</p>
@@ -11080,7 +11085,7 @@ function setupManifest(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v3";
+    const CACHE_NAME = "kalendar-cache-v4";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
@@ -11146,7 +11151,7 @@ function setupServiceWorker(){
   // s podporou push notifikací) nečekala, appka si sama pamatuje poslední
   // známou verzi a při změně VYNUTÍ okamžitou kontrolu a aktivaci nové verze,
   // místo aby spoléhala na to, že si toho prohlížeč sám včas všimne.
-  const SW_LOGIC_VERSION = "v3-push";
+  const SW_LOGIC_VERSION = SW_LOGIC_VERSION_DISPLAY;
   navigator.serviceWorker.register("./sw.js").then((reg) => {
     console.log("Service worker (sw.js) zaregistrován — plná instalovatelnost a offline režim.");
     const lastKnownVersion = localStorage.getItem("swLogicVersion");
