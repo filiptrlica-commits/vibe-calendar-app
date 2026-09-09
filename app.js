@@ -2524,8 +2524,10 @@ function toggleSubtask(taskId, subId){
   // dorovná seznam na kompletně hotový — ne po každé jednotlivé položce.
   // Jinak by u nákupního seznamu s deseti položkami přišlo deset upozornění
   // za sebou, což by jen otravovalo.
-  pushChecklistToShare(updated);
-  if(nowAllDone !== wasAllDone) syncSharedCompletionIfNeeded(updated, "done");
+  // Checklist a stav "hotovo" appka posílá JEDNÍM zápisem (ne dvěma
+  // souběžnými), ať mezi nimi nehrozí souběh, co by jeden z nich přepsal.
+  const statusChanged = nowAllDone !== wasAllDone;
+  pushChecklistToShare(updated, statusChanged ? (nowAllDone ? "completed" : "accepted") : null);
   if(nowAllDone && !wasAllDone) notifyOtherPartyOfChange(updated, updated.title, "🎉 Celý seznam je hotový!");
 }
 function allChecklistItemsDone(task){
@@ -4983,7 +4985,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v11-repeated-title-fix";
+const SW_LOGIC_VERSION_DISPLAY = "v12-race-fix";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -5212,12 +5214,21 @@ function taskShareLinkId(task){
 // ochranné okno (5 vteřin) tomu zabrání — po vlastním odeslání appka
 // chvíli nedůvěřuje staženým datům, ať vlastní čerstvou změnu nepřepíše.
 let lastLocalChecklistPushAt = {};
-async function pushChecklistToShare(task){
+async function pushChecklistToShare(task, extraStatus){
   const linkId = taskShareLinkId(task);
   if(!linkId) return;
   const checklist = (task.checklist||[]).map(c => ({ text:c.text, done:!!c.done }));
   lastLocalChecklistPushAt[task.id] = Date.now();
-  await updateShareStatusRecord(linkId, { checklist });
+  // DŮLEŽITÁ OPRAVA: appka dřív posílala checklist a stav "hotovo" jako
+  // DVĚ SAMOSTATNÁ, souběžná volání na server — každé si nezávisle
+  // přečetlo aktuální záznam, upravilo ho a zapsalo zpátky. Když se obě
+  // volání "srazila" (a to se u posledního odškrtnutí stávalo pravidelně,
+  // protože appka je spouštěla ve stejné chvíli), to POZDĘJI dokončené
+  // přepsalo tu DŘÍVE dokončenou změnu — appka tak mohla ztratit buď
+  // dokončený checklist, nebo stav "hotovo", podle toho, které volání
+  // vyhrálo. Teď appka odešle OBOJÍ v jediném zápisu, žádný souběh nehrozí.
+  const patch = extraStatus ? { checklist, status: extraStatus } : { checklist };
+  await updateShareStatusRecord(linkId, patch);
   // Znovu si "razítko" nastaví i PO dokončení odeslání — ne aby se okno
   // zkracovalo tím, jak dlouho odeslání trvalo, ale aby se počítalo od
   // chvíle, kdy appka měla jistotu, že se to skutečně zapsalo.
@@ -11132,7 +11143,7 @@ async function checkForAppUpdate(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v11";
+    const CACHE_NAME = "kalendar-cache-v12";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
