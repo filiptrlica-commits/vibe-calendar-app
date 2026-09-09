@@ -1178,6 +1178,11 @@ function confirmRestoreModalHTML(){
 let globalSearchQuery = "";
 let shoppingDaysAhead = 7;
 let pantryExpanded = false;
+// Appka si pamatuje výsledek posledního natažení jídel (i chybové hlášky
+// AI rozpoznání) v téhle proměnné, ne jen jako dočasnou úpravu obrazovky
+// — jinak by ji následné překreslení modalu (renderModals()) hned smazalo,
+// dřív než by si jí člověk vůbec všiml.
+let lastShoppingListDiagnostics = "";
 function openGlobalSearch(){
   globalSearchQuery = "";
   openModal("globalSearch");
@@ -1436,12 +1441,10 @@ async function generateShoppingListFromMeals(daysAhead){
     });
   });
 
-  const debugEl = document.getElementById("mealAiDiagnosticsRoot");
-  const debugHtml = `<details style="margin-top:4px"><summary class="text-xs muted" style="cursor:pointer">🔍 Diagnostika (klepni pro zobrazení) — nalezeno ${totalMealsScanned} naplánovaných jídel</summary><div style="font-size:10px;color:#64748b;margin-top:4px;white-space:pre-wrap">${escapeHTML(debugLog.join("\n") || "(v jídelníčku appka nenašla žádné naplánované, nesnězené jídlo v tomhle rozmezí dní)")}</div></details>`;
+  lastShoppingListDiagnostics = `<details style="margin-top:4px"><summary class="text-xs muted" style="cursor:pointer">🔍 Diagnostika (klepni pro zobrazení) — nalezeno ${totalMealsScanned} naplánovaných jídel</summary><div style="font-size:10px;color:#64748b;margin-top:4px;white-space:pre-wrap">${escapeHTML(debugLog.join("\n") || "(v jídelníčku appka nenašla žádné naplánované, nesnězené jídlo v tomhle rozmezí dní)")}</div></details>`;
 
   if(!newItems.length){
     showToast(skippedPantry.length ? `Vše potřebné už máš doma (${skippedPantry.join(", ")}) ✓` : "Žádné nové suroviny k přidání — buď nemáš naplánovaná jídla, nebo už je máš na seznamu.");
-    if(debugEl) debugEl.innerHTML = debugHtml;
     return;
   }
   state.shoppingList = [...state.shoppingList, ...newItems];
@@ -1449,7 +1452,6 @@ async function generateShoppingListFromMeals(daysAhead){
   const unresolvedCount = newItems.filter(i=>i.source==="meal-unresolved").length;
   const unresolvedPart = unresolvedCount ? ` · ${unresolvedCount}× jídlo čeká na AI rozpoznání (tlačítko níže)` : "";
   showToast(`Přidáno ${newItems.length} položek z naplánovaných jídel${unresolvedPart}${skippedPantry.length ? ` · ${skippedPantry.length}× přeskočeno, máš doma` : ''} ✓`);
-  if(debugEl) debugEl.innerHTML = debugHtml;
 }
 
 // TLAČÍTKO 2 z 2 — appka projde položky nákupního seznamu označené jako
@@ -1457,11 +1459,12 @@ async function generateShoppingListFromMeals(daysAhead){
 // jídel), ať jde přesně vidět, jestli a proč se rozpoznání nepovedlo.
 async function recognizeUnresolvedMealsAI(){
   const unresolved = state.shoppingList.filter(i => i.source === "meal-unresolved" && !i.checked);
-  const el = document.getElementById("mealAiDiagnosticsRoot");
   if(!unresolved.length){
-    if(el) el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">Žádná nerozpoznaná jídla v seznamu — nejdřív klepni na "Natáhnout jídla z jídelníčku" výše.</p>`;
+    lastShoppingListDiagnostics = `<p class="text-xs" style="margin:0;color:#dc2626">Žádná nerozpoznaná jídla v seznamu — nejdřív klepni na "Natáhnout jídla z jídelníčku" výše.</p>`;
+    renderModals();
     return;
   }
+  const el = document.getElementById("mealAiDiagnosticsRoot");
   if(el) el.innerHTML = `<p class="text-xs muted" style="margin:0">🧠 AI rozpoznává ${unresolved.length} jídlo/jídel…</p>`;
 
   const existingNames = new Set(state.shoppingList.filter(i=>!i.checked && i.source!=="meal-unresolved").map(i => (i.name||i.text).trim().toLowerCase()));
@@ -1549,17 +1552,15 @@ async function recognizeUnresolvedMealsAI(){
 
   state.shoppingList = state.shoppingList.filter(i => !resolvedIds.includes(i.id));
   saveState();
-  renderModals();
 
-  if(el){
-    if(addedCount > 0 && errors.length === 0){
-      el.innerHTML = `<p class="text-xs" style="margin:0;color:#059669">✅ Rozpoznáno ${addedCount} surovin z ${resolvedIds.length} jídel.</p>`;
-    } else if(addedCount > 0 && errors.length > 0){
-      el.innerHTML = `<p class="text-xs" style="margin:0;color:#d97706">⚠️ Rozpoznáno ${addedCount} surovin, ale u části selhalo:<br>${errors.map(e=>escapeHTML(e)).join("<br>")}</p>`;
-    } else {
-      el.innerHTML = `<p class="text-xs" style="margin:0;color:#dc2626">❌ AI rozpoznání se nepovedlo:<br>${errors.map(e=>escapeHTML(e)).join("<br>")}</p>`;
-    }
+  if(addedCount > 0 && errors.length === 0){
+    lastShoppingListDiagnostics = `<p class="text-xs" style="margin:0;color:#059669">✅ Rozpoznáno ${addedCount} surovin z ${resolvedIds.length} jídel.</p>`;
+  } else if(addedCount > 0 && errors.length > 0){
+    lastShoppingListDiagnostics = `<p class="text-xs" style="margin:0;color:#d97706">⚠️ Rozpoznáno ${addedCount} surovin, ale u části selhalo:<br>${errors.map(e=>escapeHTML(e)).join("<br>")}</p>`;
+  } else {
+    lastShoppingListDiagnostics = `<p class="text-xs" style="margin:0;color:#dc2626">❌ AI rozpoznání se nepovedlo:<br>${errors.map(e=>escapeHTML(e)).join("<br>")}</p>`;
   }
+  renderModals();
 }
 
 // ================= PANTRY / "MÁM DOMA" =================
@@ -1774,7 +1775,7 @@ function shoppingListModalHTML(){
         ${state.shoppingList.some(i=>i.source==="meal-unresolved" && !i.checked) ? `
           <button id="recognizeMealsAiBtn" class="btn btn-primary" style="justify-content:center;width:100%;margin-bottom:6px" data-action="recognize-unresolved-meals">🧠 AI: Rozpoznat suroviny u nerozpoznaných jídel (${state.shoppingList.filter(i=>i.source==="meal-unresolved" && !i.checked).length})</button>
         ` : ""}
-        <div id="mealAiDiagnosticsRoot" style="margin-bottom:12px"></div>
+        <div id="mealAiDiagnosticsRoot" style="margin-bottom:12px">${lastShoppingListDiagnostics}</div>
         <button class="chip" style="margin-bottom:12px" data-action="toggle-pantry-section">${pantryExpanded?'▲':'🏠'} Mám doma (${state.pantryStock.length})</button>
         ${pantryExpanded ? `
           <div style="background:#f0fdf4;border-radius:12px;padding:10px 12px;margin-bottom:12px">
@@ -4970,7 +4971,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v8-diagnostics";
+const SW_LOGIC_VERSION_DISPLAY = "v9-diag-fixed";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -11086,7 +11087,7 @@ function setupManifest(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v8";
+    const CACHE_NAME = "kalendar-cache-v9";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
