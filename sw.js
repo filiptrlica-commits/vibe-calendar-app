@@ -6,7 +6,7 @@
 //
 // CACHE_NAME se zvyšuje při každé větší aktualizaci — starý cache se při
 // aktivaci smaže, ať appka nikdy nezůstane "zaseknutá" na staré verzi.
-const CACHE_NAME = "kalendar-cache-v13";
+const CACHE_NAME = "kalendar-cache-v14";
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 });

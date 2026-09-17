@@ -5054,7 +5054,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v13-series-lightbox";
+const SW_LOGIC_VERSION_DISPLAY = "v14-lightbox-fix";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -6285,6 +6285,12 @@ function openImageLightbox(taskId, imgIndex){
   if(!url){ showToast("Obrázek nebyl nalezen."); return; }
   showImageLightboxFor(url, `obrazek-${imgIndex+1}.jpg`);
 }
+function openDrawingLightbox(taskId, imgIndex){
+  const t = state.tasks.find(x => x.id === taskId);
+  const url = t && t.drawings && t.drawings[imgIndex];
+  if(!url){ showToast("Kresba nebyla nalezena."); return; }
+  showImageLightboxFor(url, `kresba-${imgIndex+1}.png`);
+}
 // Appka umí zobrazit na celou obrazovku i obrázek, co je zrovna PŘILOŽENÝ
 // ve formuláři (ještě neuložený k žádnému úkolu) — dřív šlo takový obrázek
 // jen buď omylem smazat malým "✕", nebo appku poslepu uložit. Teď si ho
@@ -6305,16 +6311,76 @@ function showImageLightboxFor(url, filename){
   div.id = "imageLightboxRoot";
   div.dataset.imageUrl = url;
   div.dataset.imageName = filename;
-  div.setAttribute("data-action", "close-image-lightbox");
-  div.style.cssText = "position:fixed;inset:0;background:rgba(15,15,20,0.94);z-index:9999;display:flex;align-items:center;justify-content:center";
+  div.style.cssText = "position:fixed;inset:0;background:rgba(15,15,20,0.94);z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none";
   div.innerHTML = `
-    <div style="position:absolute;top:16px;right:16px;display:flex;gap:10px;z-index:1">
+    <div style="position:absolute;top:16px;right:16px;display:flex;gap:10px;z-index:2">
       <button data-action="download-lightbox-image" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:999px;width:42px;height:42px;font-size:18px">⬇️</button>
       <button data-action="close-image-lightbox" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:999px;width:42px;height:42px;font-size:18px">✕</button>
     </div>
-    <img src="${url}" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:4px" />
+    <p style="position:absolute;bottom:16px;left:0;right:0;text-align:center;color:rgba(255,255,255,0.6);font-size:11px;z-index:2">Přiblížení: dvojité klepnutí nebo dvěma prsty</p>
+    <img id="lightboxImg" src="${url}" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:4px;transform-origin:center center;touch-action:none;user-select:none" />
   `;
-  document.body.appendChild(div);
+  // DŮLEŽITÁ OPRAVA: appka poslouchá kliknutí jen uvnitř hlavního
+  // kontejneru appky (#app) — náhled se dřív vkládal přímo do
+  // document.body, MIMO tenhle kontejner, takže appka kliknutí na
+  // tlačítka "zavřít"/"stáhnout" vůbec nezachytila (vypadala funkčně,
+  // ale nic se nestalo). Appka teď náhled vloží správně DOVNITŘ.
+  const appRoot = document.getElementById("app");
+  (appRoot || document.body).appendChild(div);
+  setupLightboxZoomPan(document.getElementById("lightboxImg"));
+  // Klepnutí na TMAVÉ POZADÍ (ne na samotný obrázek, tam probíhá
+  // přiblížení/posun) náhled zavře — samostatný listener přímo na
+  // téhle vrstvě, ať se to nepletlo s appčiným běžným systémem kliknutí.
+  div.addEventListener("click", (e) => { if(e.target === div) closeImageLightbox(); });
+}
+// Skutečné přiblížení prstem — dva prsty (pinch), dvojité klepnutí
+// (přepne mezi 1× a 2.5×), a posun po přiblížení. Appka dřív ukazovala
+// jen statický obrázek bez možnosti se do něj podívat blíž.
+function setupLightboxZoomPan(img){
+  if(!img) return;
+  let scale = 1, originX = 0, originY = 0;
+  let pinchStartDist = 0, pinchStartScale = 1;
+  let panStartX = 0, panStartY = 0, panning = false;
+  let lastTapAt = 0;
+  const apply = () => { img.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; };
+  const resetZoom = () => { scale = 1; originX = 0; originY = 0; apply(); };
+  img.addEventListener("touchstart", (e) => {
+    if(e.touches.length === 2){
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchStartDist = Math.hypot(dx, dy) || 1;
+      pinchStartScale = scale;
+      panning = false;
+    } else if(e.touches.length === 1){
+      const now = Date.now();
+      if(now - lastTapAt < 300){
+        if(scale > 1) resetZoom();
+        else { scale = 2.5; apply(); }
+      }
+      lastTapAt = now;
+      if(scale > 1){
+        panStartX = e.touches[0].clientX - originX;
+        panStartY = e.touches[0].clientY - originY;
+        panning = true;
+      }
+    }
+  }, {passive:true});
+  img.addEventListener("touchmove", (e) => {
+    if(e.touches.length === 2 && pinchStartDist){
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      scale = Math.min(4, Math.max(1, pinchStartScale * (dist / pinchStartDist)));
+      apply();
+    } else if(e.touches.length === 1 && panning && scale > 1){
+      originX = e.touches[0].clientX - panStartX;
+      originY = e.touches[0].clientY - panStartY;
+      apply();
+    }
+  }, {passive:true});
+  img.addEventListener("touchend", (e) => {
+    if(e.touches.length === 0){ panning = false; pinchStartDist = 0; }
+  }, {passive:true});
 }
 function closeImageLightbox(){
   const el = document.getElementById("imageLightboxRoot");
@@ -7200,11 +7266,11 @@ function taskQuickViewModalHTML(taskId){
         ${t.content ? `<p class="text-sm" style="margin:0 0 14px;white-space:pre-wrap;word-break:break-word;color:#475569;line-height:1.5">${escapeHTML(t.content)}</p>` : ""}
         ${(t.images && t.images.length) ? `
           <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
-            ${t.images.map(src => `<img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;flex-shrink:0" />`).join("")}
+            ${t.images.map((src, idx) => `<button data-action="open-image-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block" /></button>`).join("")}
           </div>` : ""}
         ${t.drawings && t.drawings.length ? `
           <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
-            ${t.drawings.map(src => `<img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;flex-shrink:0;border:1px solid #e2e8f0" />`).join("")}
+            ${t.drawings.map((src, idx) => `<button data-action="open-drawing-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block;border:1px solid #e2e8f0" /></button>`).join("")}
           </div>` : ""}
         ${checklist.length ? `
           <label class="label">Checklist (${doneCount}/${checklist.length})</label>
@@ -10485,6 +10551,7 @@ function handleClickInner(e){
     case "remove-draft-file": removeDraftFile(id); break;
     case "download-task-file": downloadTaskFile(id, t.dataset.sub); break;
     case "open-image-lightbox": openImageLightbox(id, Number(t.dataset.sub)); break;
+    case "open-drawing-lightbox": openDrawingLightbox(id, Number(t.dataset.sub)); break;
     case "close-image-lightbox": closeImageLightbox(); break;
     case "download-lightbox-image": downloadLightboxImage(); break;
     case "toggle-dictation-title": toggleDictation("title"); break;
@@ -11298,7 +11365,7 @@ async function checkForAppUpdate(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v13";
+    const CACHE_NAME = "kalendar-cache-v14";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
