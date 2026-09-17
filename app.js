@@ -410,6 +410,16 @@ async function getBlobURL(id){
   blobUrlCache.set(id, url);
   return url;
 }
+// Appka teď nové fotky ukládá jako krátký odkaz do IndexedDB (blobId, viz
+// níže), ale starší úkoly (uložené před touhle opravou) mají fotku
+// uloženou přímo jako dlouhý datový text ("data:..."). Tahle funkce
+// appce řekne, jak zapsat <img> tag správně v OBOU případech, ať appka
+// nikdy nerozbije zobrazení starších fotek.
+function imgTagAttrsFor(ref){
+  if(!ref) return "";
+  if(ref.startsWith("data:")) return `src="${ref}"`;
+  return `data-blob-img="${ref}"`;
+}
 
 // ---------- Image resize (keeps localStorage small) ----------
 function resizeImageFile(file, maxDim = 900, quality = 0.82){
@@ -432,6 +442,53 @@ function resizeImageFile(file, maxDim = 900, quality = 0.82){
     img.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+// Appka dřív ukládala fotky jako obrovský text přímo v datech appky
+// (localStorage) — u úkolu opakovaného na víc dní se tak stejná fotka
+// uložila znovu pro KAŽDÝ den, což snadno vyčerpalo limit úložiště
+// prohlížeče (obvykle jen několik MB) a appka pak nemohla uložit nic
+// dalšího, včetně těch fotek samotných. Appka teď fotky ukládá jako
+// efektivní "blob" do IndexedDB (má mnohem větší limit, stejně jako appka
+// už dělá u přiložených souborů) a v datech appky si pamatuje jen krátký
+// odkaz na něj — i sto fotek zabere zlomek místa oproti dřívějšímu stavu.
+function resizeImageFileToBlob(file, maxDim = 900, quality = 0.82){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > maxDim || height > maxDim){
+        if(width > height){ height = Math.round(height * (maxDim/width)); width = maxDim; }
+        else { width = Math.round(width * (maxDim/height)); height = maxDim; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => { if(blob) resolve(blob); else reject(new Error("toBlob selhalo")); }, "image/jpeg", quality);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+// Appka teď obrázky ukládá jako odkazy (blobId) do IndexedDB, ne jako
+// hotová data napřímo — proto je potřeba odkaz nejdřív "rozbalit" na
+// skutečnou zobrazitelnou adresu. Appka to dělá zpětně po vykreslení
+// (najde všechny čekající <img data-blob-img>, dotáhne jejich obrázek a
+// doplní), ať samotné vykreslení zůstane rychlé a appka to nemusí
+// všude přepisovat na asynchronní.
+async function resolveBlobImages(root){
+  const scope = root || document;
+  const nodes = scope.querySelectorAll ? scope.querySelectorAll("[data-blob-img]") : [];
+  for(const node of nodes){
+    const blobId = node.getAttribute("data-blob-img");
+    if(!blobId) continue;
+    try{
+      const url = await getBlobURL(blobId);
+      if(url) node.src = url;
+    }catch(e){ /* obrázek se nepodařilo najít — appka ho nechá prázdný */ }
+  }
 }
 
 // ---------- Seed / default data ----------
@@ -2344,17 +2401,27 @@ function addItem(){
 
   if(draft.editingId){
     const prev = state.tasks.find(t => t.id === draft.editingId);
-    state.tasks = state.tasks.map(t => t.id === draft.editingId ? {
-      ...t,
+    // DŮLEŽITÁ OPRAVA: appka dřív upravila jen TENHLE JEDEN den opakující
+    // se řady — zbytek řady (ostatní dny) zůstal se starým obsahem
+    // (starým textem, starými obrázky…). Appka teď stejnou změnu (mimo
+    // konkrétní datum, "hotovo" a sdílení, co logicky patří jen k
+    // jednomu dni) propíše do VŠECH dnů stejné řady najednou.
+    const sharedPatch = {
       listId: draft.formListId, categoryId: draft.formCategoryId,
       title: draft.formTitle.trim(), content: draft.formContent.trim(),
-      date: draft.formDate, priority: priorityNum, type: draft.formType,
+      priority: priorityNum, type: draft.formType,
       image: draft.formImages[0] || null, images: draft.formImages.map(i=>i),
       drawing: draft.formDrawings[0] || null, drawings: draft.formDrawings.map(d=>d),
       audioId: draft.formAudioIds[0] || null, audioIds: draft.formAudioIds.map(a=>a), files: draft.formFiles,
       checklist: draft.formChecklist, friendIds: draft.formFriendIds,
       reminder, reminderBaseTime: draft.reminderBaseTime,
-    } : t);
+    };
+    const groupId = prev && prev.recurrenceGroupId;
+    state.tasks = state.tasks.map(t => {
+      if(t.id === draft.editingId) return {...t, ...sharedPatch, date: draft.formDate};
+      if(groupId && t.recurrenceGroupId === groupId) return {...t, ...sharedPatch};
+      return t;
+    });
     // Clean up IndexedDB blobs that were replaced or removed while editing.
     if(prev){
       (prev.audioIds || (prev.audioId ? [prev.audioId] : [])).forEach(oldId => {
@@ -2365,7 +2432,8 @@ function addItem(){
       if(prevSoundId && prevSoundId !== nextSoundId) idbDelete(prevSoundId).catch(()=>{});
     }
     saveState(); scheduleReminders();
-    showToast("Změny uloženy ✓");
+    const seriesCount = groupId ? state.tasks.filter(t => t.recurrenceGroupId === groupId).length : 1;
+    showToast(seriesCount > 1 ? `Změny uloženy do celé řady (${seriesCount}× termínů) ✓` : "Změny uloženy ✓");
     formCollapsed = true;
     resetDraft();
     renderAll();
@@ -4005,9 +4073,10 @@ async function handleImageUpload(fileList){
   if(!fileList || !fileList.length) return;
   const files = Array.from(fileList);
   try{
-    const dataUrls = await Promise.all(files.map(f => resizeImageFile(f, 900, 0.82)));
-    draft.formImages = [...draft.formImages, ...dataUrls];
-    showToast(dataUrls.length>1 ? `Přidáno ${dataUrls.length} fotek k úkolu ✓` : "Fotka přidána k úkolu ✓");
+    const blobs = await Promise.all(files.map(f => resizeImageFileToBlob(f, 900, 0.82)));
+    const blobIds = await Promise.all(blobs.map(b => idbSet(b)));
+    draft.formImages = [...draft.formImages, ...blobIds];
+    showToast(blobIds.length>1 ? `Přidáno ${blobIds.length} fotek k úkolu ✓` : "Fotka přidána k úkolu ✓");
     renderAttachmentsPreview();
   }catch(e){ showToast("Nahrání fotky se nezdařilo."); }
 }
@@ -4985,7 +5054,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v12-race-fix";
+const SW_LOGIC_VERSION_DISPLAY = "v13-series-lightbox";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -6194,6 +6263,69 @@ async function downloadTaskFile(taskId, fileId){
   const a = document.createElement("a");
   a.href = url; a.download = file.name; a.click();
 }
+// Appka umí stáhnout i soubor, co je zrovna přiložený ve formuláři, ještě
+// před uložením úkolu — dřív šlo jen malým "✕" smazat, bez možnosti se
+// nejdřív podívat, co to vlastně je.
+async function downloadDraftFile(fileId){
+  const file = (draft.formFiles||[]).find(f => f.id === fileId);
+  if(!file){ showToast("Soubor nebyl nalezen."); return; }
+  const url = await getBlobURL(file.blobId);
+  if(!url){ showToast("Soubor se nepodařilo načíst."); return; }
+  const a = document.createElement("a");
+  a.href = url; a.download = file.name; a.click();
+}
+// Prohlížeč obrázku na celou obrazovku — appka dřív ukazovala jen malý
+// náhled prvního obrázku a k žádnému nešlo obrázek otevřít, zavřít
+// křížkem, ani stáhnout. Appka teď vytvoří samostatnou vrstvu přes celou
+// obrazovku (ne přes běžný systém modalů appky, ať zůstane jednoduchá a
+// nezávislá na tom, co je zrovna otevřené).
+function openImageLightbox(taskId, imgIndex){
+  const t = state.tasks.find(x => x.id === taskId);
+  const url = t && t.images && t.images[imgIndex];
+  if(!url){ showToast("Obrázek nebyl nalezen."); return; }
+  showImageLightboxFor(url, `obrazek-${imgIndex+1}.jpg`);
+}
+// Appka umí zobrazit na celou obrazovku i obrázek, co je zrovna PŘILOŽENÝ
+// ve formuláři (ještě neuložený k žádnému úkolu) — dřív šlo takový obrázek
+// jen buď omylem smazat malým "✕", nebo appku poslepu uložit. Teď si ho
+// můžeš nejdřív v klidu prohlédnout.
+function openDraftImageLightbox(idx){
+  const url = draft.formImages[idx];
+  if(!url){ showToast("Obrázek nebyl nalezen."); return; }
+  showImageLightboxFor(url, `obrazek-${idx+1}.jpg`);
+}
+function openDraftDrawingLightbox(idx){
+  const url = draft.formDrawings[idx];
+  if(!url){ showToast("Kresba nebyla nalezena."); return; }
+  showImageLightboxFor(url, `kresba-${idx+1}.png`);
+}
+function showImageLightboxFor(url, filename){
+  closeImageLightbox();
+  const div = document.createElement("div");
+  div.id = "imageLightboxRoot";
+  div.dataset.imageUrl = url;
+  div.dataset.imageName = filename;
+  div.setAttribute("data-action", "close-image-lightbox");
+  div.style.cssText = "position:fixed;inset:0;background:rgba(15,15,20,0.94);z-index:9999;display:flex;align-items:center;justify-content:center";
+  div.innerHTML = `
+    <div style="position:absolute;top:16px;right:16px;display:flex;gap:10px;z-index:1">
+      <button data-action="download-lightbox-image" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:999px;width:42px;height:42px;font-size:18px">⬇️</button>
+      <button data-action="close-image-lightbox" style="background:rgba(255,255,255,0.18);color:#fff;border:none;border-radius:999px;width:42px;height:42px;font-size:18px">✕</button>
+    </div>
+    <img src="${url}" style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:4px" />
+  `;
+  document.body.appendChild(div);
+}
+function closeImageLightbox(){
+  const el = document.getElementById("imageLightboxRoot");
+  if(el) el.remove();
+}
+function downloadLightboxImage(){
+  const root = document.getElementById("imageLightboxRoot");
+  if(!root) return;
+  const a = document.createElement("a");
+  a.href = root.dataset.imageUrl; a.download = root.dataset.imageName; a.click();
+}
 function renderAttachmentsButtons(){
   const el = document.getElementById("attachmentButtons");
   if(!el) return;
@@ -6210,16 +6342,26 @@ async function renderAttachmentsPreview(){
   if(!el) return;
   let html = "";
   draft.formImages.forEach((img, idx) => {
-    html += `<div class="rel"><img src="${img}" class="thumb-sm" /><button data-action="remove-draft-image" data-id="${idx}" style="position:absolute;top:-6px;right:-6px;background:#1e293b;color:#fff;border-radius:999px;width:20px;height:20px;font-size:11px">✕</button></div>`;
+    html += `<div class="rel">
+      <button data-action="open-draft-image" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img src="${img}" class="thumb-sm" /></button>
+      <button data-action="remove-draft-image" data-id="${idx}" style="position:absolute;top:-8px;right:-8px;background:#1e293b;color:#fff;border:2px solid #fff;border-radius:999px;width:24px;height:24px;font-size:12px">✕</button>
+    </div>`;
   });
   draft.formDrawings.forEach((drawing, idx) => {
-    html += `<div class="rel"><img src="${drawing}" class="thumb-sm" style="border:1px solid #e2e8f0" /><button data-action="remove-draft-drawing" data-id="${idx}" style="position:absolute;top:-6px;right:-6px;background:#1e293b;color:#fff;border-radius:999px;width:20px;height:20px;font-size:11px">✕</button></div>`;
+    html += `<div class="rel">
+      <button data-action="open-draft-drawing" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img src="${drawing}" class="thumb-sm" style="border:1px solid #e2e8f0" /></button>
+      <button data-action="remove-draft-drawing" data-id="${idx}" style="position:absolute;top:-8px;right:-8px;background:#1e293b;color:#fff;border:2px solid #fff;border-radius:999px;width:24px;height:24px;font-size:12px">✕</button>
+    </div>`;
   });
   draft.formAudioIds.forEach((audioId, idx) => {
     html += `<div class="row gap-1" style="background:#f8fafc;border-radius:14px;padding:8px 10px"><span>🔊</span><span class="text-xs muted">nahrávka ${idx+1}</span><button data-action="remove-draft-audio" data-id="${idx}" style="background:#1e293b;color:#fff;border-radius:999px;width:16px;height:16px;font-size:9px;margin-left:4px">✕</button></div>`;
   });
   (draft.formFiles||[]).forEach(f => {
-    html += `<div class="row gap-1" style="background:#f8fafc;border-radius:14px;padding:8px 10px"><span>📎</span><span class="text-xs muted truncate" style="max-width:100px">${escapeHTML(f.name)}</span><button data-action="remove-draft-file" data-id="${f.id}" style="background:#1e293b;color:#fff;border-radius:999px;width:16px;height:16px;font-size:9px;margin-left:4px">✕</button></div>`;
+    html += `<div class="row gap-1" style="background:#f8fafc;border-radius:14px;padding:8px 10px">
+      <span>📎</span><span class="text-xs muted truncate" style="max-width:100px">${escapeHTML(f.name)}</span>
+      <button data-action="download-draft-file" data-id="${f.id}" style="background:#e2e8f0;color:#334155;border-radius:999px;width:20px;height:20px;font-size:11px;margin-left:4px">⬇️</button>
+      <button data-action="remove-draft-file" data-id="${f.id}" style="background:#1e293b;color:#fff;border-radius:999px;width:20px;height:20px;font-size:11px;margin-left:2px">✕</button>
+    </div>`;
   });
   el.innerHTML = html;
 }
@@ -6409,6 +6551,13 @@ function taskCardHTML(task, lane, ws){
               <button class="icon-btn-sm" style="background:#f1f5f9" data-action="add-subtask" data-id="${task.id}">➕</button>
             </div>
           </div>
+          ${(task.images && task.images.length) ? `
+            <div class="row gap-2 wrapf" style="margin-top:8px">
+              ${task.images.map((img, idx) => `
+                <button data-action="open-image-lightbox" data-id="${task.id}" data-sub="${idx}" style="padding:0;border:none;border-radius:10px;overflow:hidden;width:64px;height:64px">
+                  <img src="${img}" style="width:100%;height:100%;object-fit:cover;display:block" />
+                </button>`).join("")}
+            </div>` : ""}
           ${(task.files && task.files.length) ? `
             <div class="col gap-1" style="margin-top:8px">
               ${task.files.map(f => `
@@ -10329,9 +10478,15 @@ function handleClickInner(e){
       renderAttachmentsPreview();
       break;
     }
+    case "open-draft-image": openDraftImageLightbox(Number(id)); break;
+    case "open-draft-drawing": openDraftDrawingLightbox(Number(id)); break;
     case "remove-draft-image": removeDraftImage(Number(id)); break;
+    case "download-draft-file": downloadDraftFile(id); break;
     case "remove-draft-file": removeDraftFile(id); break;
     case "download-task-file": downloadTaskFile(id, t.dataset.sub); break;
+    case "open-image-lightbox": openImageLightbox(id, Number(t.dataset.sub)); break;
+    case "close-image-lightbox": closeImageLightbox(); break;
+    case "download-lightbox-image": downloadLightboxImage(); break;
     case "toggle-dictation-title": toggleDictation("title"); break;
     case "toggle-dictation-content": toggleDictation("content"); break;
     case "toggle-organized-dictation": toggleOrganizedNoteDictation(); break;
@@ -11143,7 +11298,7 @@ async function checkForAppUpdate(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v12";
+    const CACHE_NAME = "kalendar-cache-v13";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
