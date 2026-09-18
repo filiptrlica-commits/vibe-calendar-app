@@ -4667,7 +4667,7 @@ function mealPhotoModalHTML(){
           <h3 style="margin:0;font-size:18px;color:#334155">📷 Vyfotit jídlo</h3>
           <button class="icon-btn-sm" data-action="close-modal">✕</button>
         </div>
-        ${s.imageDataUrl ? `<img src="${s.imageDataUrl}" style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:12px" />` : `
+        ${s.imageDataUrl ? `<img ${imgTagAttrsFor(s.imageDataUrl)} style="width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:12px" />` : `
           <div class="row gap-2" style="margin-bottom:12px">
             <label class="card row gap-2 grow" style="padding:20px 10px;justify-content:center;cursor:pointer;color:#0284c7;font-weight:600;text-align:center">
               📷 Vyfotit
@@ -5054,7 +5054,7 @@ function syncSharedCompletionIfNeeded(item, doneField){
 // Appka si nese vlastní "číslo verze" — vidíš ho v Nastavení. Pomáhá to
 // poznat, jestli telefon skutečně běží na nejnovější appce, nebo jestli
 // ukazuje starou verzi ze zastaralé cache prohlížeče.
-const SW_LOGIC_VERSION_DISPLAY = "v14-lightbox-fix";
+const SW_LOGIC_VERSION_DISPLAY = "v15-blob-images-fix";
 const VAPID_PUBLIC_KEY = "BFZITgjeycfCTMBrytmuWQXQYKnaOpKBUT3nG6KByP8qFdBc0M6AdIhYf1qopvgmX5MAGVj9koF4mCdBjGARgMY";
 function urlBase64ToUint8Array(base64String){
   const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -6279,31 +6279,48 @@ async function downloadDraftFile(fileId){
 // křížkem, ani stáhnout. Appka teď vytvoří samostatnou vrstvu přes celou
 // obrazovku (ne přes běžný systém modalů appky, ať zůstane jednoduchá a
 // nezávislá na tom, co je zrovna otevřené).
-function openImageLightbox(taskId, imgIndex){
+async function openImageLightbox(taskId, imgIndex){
   const t = state.tasks.find(x => x.id === taskId);
-  const url = t && t.images && t.images[imgIndex];
-  if(!url){ showToast("Obrázek nebyl nalezen."); return; }
+  const ref = t && t.images && t.images[imgIndex];
+  if(!ref){ showToast("Obrázek nebyl nalezen."); return; }
+  const url = await resolveImageRef(ref);
+  if(!url){ showToast("Obrázek se nepodařilo načíst."); return; }
   showImageLightboxFor(url, `obrazek-${imgIndex+1}.jpg`);
 }
-function openDrawingLightbox(taskId, imgIndex){
+async function openDrawingLightbox(taskId, imgIndex){
   const t = state.tasks.find(x => x.id === taskId);
-  const url = t && t.drawings && t.drawings[imgIndex];
-  if(!url){ showToast("Kresba nebyla nalezena."); return; }
+  const ref = t && t.drawings && t.drawings[imgIndex];
+  if(!ref){ showToast("Kresba nebyla nalezena."); return; }
+  const url = await resolveImageRef(ref);
+  if(!url){ showToast("Kresbu se nepodařilo načíst."); return; }
   showImageLightboxFor(url, `kresba-${imgIndex+1}.png`);
 }
 // Appka umí zobrazit na celou obrazovku i obrázek, co je zrovna PŘILOŽENÝ
 // ve formuláři (ještě neuložený k žádnému úkolu) — dřív šlo takový obrázek
 // jen buď omylem smazat malým "✕", nebo appku poslepu uložit. Teď si ho
 // můžeš nejdřív v klidu prohlédnout.
-function openDraftImageLightbox(idx){
-  const url = draft.formImages[idx];
-  if(!url){ showToast("Obrázek nebyl nalezen."); return; }
+async function openDraftImageLightbox(idx){
+  const ref = draft.formImages[idx];
+  if(!ref){ showToast("Obrázek nebyl nalezen."); return; }
+  const url = await resolveImageRef(ref);
+  if(!url){ showToast("Obrázek se nepodařilo načíst."); return; }
   showImageLightboxFor(url, `obrazek-${idx+1}.jpg`);
 }
-function openDraftDrawingLightbox(idx){
-  const url = draft.formDrawings[idx];
-  if(!url){ showToast("Kresba nebyla nalezena."); return; }
+async function openDraftDrawingLightbox(idx){
+  const ref = draft.formDrawings[idx];
+  if(!ref){ showToast("Kresba nebyla nalezena."); return; }
+  const url = await resolveImageRef(ref);
+  if(!url){ showToast("Kresbu se nepodařilo načíst."); return; }
   showImageLightboxFor(url, `kresba-${idx+1}.png`);
+}
+// Sjednocuje oba formáty, jak appka umí uložit obrázek — buď jako přímá
+// data ("data:...", starší úkoly) nebo jako krátký odkaz do IndexedDB
+// (novější úkoly). Appka si podle toho sama vybere správný způsob, jak
+// obrázek dostat na skutečnou zobrazitelnou adresu.
+async function resolveImageRef(ref){
+  if(!ref) return null;
+  if(ref.startsWith("data:")) return ref;
+  return await getBlobURL(ref);
 }
 function showImageLightboxFor(url, filename){
   closeImageLightbox();
@@ -6409,13 +6426,13 @@ async function renderAttachmentsPreview(){
   let html = "";
   draft.formImages.forEach((img, idx) => {
     html += `<div class="rel">
-      <button data-action="open-draft-image" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img src="${img}" class="thumb-sm" /></button>
+      <button data-action="open-draft-image" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img ${imgTagAttrsFor(img)} class="thumb-sm" /></button>
       <button data-action="remove-draft-image" data-id="${idx}" style="position:absolute;top:-8px;right:-8px;background:#1e293b;color:#fff;border:2px solid #fff;border-radius:999px;width:24px;height:24px;font-size:12px">✕</button>
     </div>`;
   });
   draft.formDrawings.forEach((drawing, idx) => {
     html += `<div class="rel">
-      <button data-action="open-draft-drawing" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img src="${drawing}" class="thumb-sm" style="border:1px solid #e2e8f0" /></button>
+      <button data-action="open-draft-drawing" data-id="${idx}" style="padding:0;border:none;border-radius:8px;overflow:hidden;display:block"><img ${imgTagAttrsFor(drawing)} class="thumb-sm" style="border:1px solid #e2e8f0" /></button>
       <button data-action="remove-draft-drawing" data-id="${idx}" style="position:absolute;top:-8px;right:-8px;background:#1e293b;color:#fff;border:2px solid #fff;border-radius:999px;width:24px;height:24px;font-size:12px">✕</button>
     </div>`;
   });
@@ -6430,6 +6447,7 @@ async function renderAttachmentsPreview(){
     </div>`;
   });
   el.innerHTML = html;
+  resolveBlobImages(el);
 }
 
 function renderDictationButtons(){
@@ -6559,6 +6577,7 @@ function renderLanes(){
       </div>`;
   }).join("");
   document.getElementById("lanesContainer").innerHTML = html;
+  resolveBlobImages(document.getElementById("lanesContainer"));
 }
 
 function taskCardHTML(task, lane, ws){
@@ -6579,7 +6598,10 @@ function taskCardHTML(task, lane, ws){
       ${completedByOther ? `<div style="padding:7px 16px 0"><span class="chip" style="background:var(--success);color:#fff;font-size:10.5px;font-weight:700;padding:3px 9px">✅ Dokončil/a ${escapeHTML(task.sharedAccepterName || "kamarád/ka")}</span></div>` : ""}
       <div class="row gap-3" style="padding:12px 16px;padding-bottom:${taskFriends.length?'6px':'12px'}">
         <button class="shrink0" data-action="toggle-done" data-id="${task.id}" style="width:22px;height:22px;border-radius:5px;border:1.5px solid ${task.done?'var(--accent)':'var(--line)'};background:${task.done?'var(--accent)':'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px">${task.done?'✓':''}</button>
-        ${thumb ? `<img src="${thumb}" class="thumb" />` : (task.categoryId ? `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>` : "")}
+        ${thumb ? `<span class="rel shrink0">
+          <img ${imgTagAttrsFor(thumb)} class="thumb" />
+          ${(task.images && task.images.length > 1) ? `<span style="position:absolute;bottom:-3px;right:-3px;background:var(--ink);color:#fff;font-size:9px;font-weight:700;border-radius:999px;min-width:16px;height:16px;padding:0 3px;display:flex;align-items:center;justify-content:center;line-height:1">+${task.images.length-1}</span>` : ""}
+        </span>` : (task.categoryId ? `<span class="shrink0" style="font-size:20px">${cat.emoji}</span>` : "")}
         <div class="grow" data-action="quick-view-task" data-id="${task.id}" style="cursor:pointer">
           <p class="text-sm font-med ${task.done?'strike':''} text-main" style="margin:0;white-space:normal;word-break:break-word">${escapeHTML(task.title)}</p>
           <p class="text-xs muted" style="margin:2px 0 0">
@@ -6621,7 +6643,7 @@ function taskCardHTML(task, lane, ws){
             <div class="row gap-2 wrapf" style="margin-top:8px">
               ${task.images.map((img, idx) => `
                 <button data-action="open-image-lightbox" data-id="${task.id}" data-sub="${idx}" style="padding:0;border:none;border-radius:10px;overflow:hidden;width:64px;height:64px">
-                  <img src="${img}" style="width:100%;height:100%;object-fit:cover;display:block" />
+                  <img ${imgTagAttrsFor(img)} style="width:100%;height:100%;object-fit:cover;display:block" />
                 </button>`).join("")}
             </div>` : ""}
           ${(task.files && task.files.length) ? `
@@ -6650,7 +6672,7 @@ function renderNotes(){
           ${notes.map(n => {
             const cat = catById(n.categoryId); const thumb = n.image || n.drawing;
             return `<div class="${cardClass()} row gap-2" style="padding:12px 14px;align-items:flex-start">
-              ${thumb ? `<img src="${thumb}" class="thumb" />` : (n.categoryId ? `<span style="font-size:17px">${cat.emoji}</span>` : "")}
+              ${thumb ? `<img ${imgTagAttrsFor(thumb)} class="thumb" />` : (n.categoryId ? `<span style="font-size:17px">${cat.emoji}</span>` : "")}
               <div class="grow">
                 <span class="text-sm font-med text-main" style="display:block">${escapeHTML(n.title)}</span>
                 ${n.content ? `<span class="text-xs muted" style="display:block;margin-top:2px">${escapeHTML(n.content.slice(0,140))}</span>` : ""}
@@ -6663,6 +6685,7 @@ function renderNotes(){
         </div>`}
     </div>
   `;
+  resolveBlobImages(document.getElementById("notesContainer"));
 }
 
 // ================= RECIPES VIEW =================
@@ -6692,7 +6715,7 @@ function renderRecipesView(){
         <div class="col gap-2">
           ${filtered.map(r => `
             <button class="card row gap-3" style="padding:10px 14px;width:100%;text-align:left" data-action="open-recipe" data-id="${r.id}">
-              ${r.coverImage ? `<img src="${r.coverImage}" style="width:48px;height:48px;border-radius:12px;object-fit:cover;flex-shrink:0" />` : `<span style="width:48px;height:48px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.emoji}</span>`}
+              ${r.coverImage ? `<img ${imgTagAttrsFor(r.coverImage)} style="width:48px;height:48px;border-radius:12px;object-fit:cover;flex-shrink:0" />` : `<span style="width:48px;height:48px;border-radius:12px;background:#fff7ed;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">${r.emoji}</span>`}
               <span class="text-sm font-med text-main grow truncate">${escapeHTML(r.title)}</span>
             </button>
           `).join("")}
@@ -6700,6 +6723,7 @@ function renderRecipesView(){
       `}
     `}
   `;
+  resolveBlobImages(el);
   if(openRecipe) renderRecipeDetail();
 }
 function recipeCategoriesModalHTML(){
@@ -6735,7 +6759,7 @@ function renderRecipeDetail(){
     <div class="card" style="margin-bottom:14px;overflow:hidden">
       ${r.coverImage ? `
         <div class="rel">
-          <img src="${r.coverImage}" alt="${escapeAttr(r.title)}" style="width:100%;max-height:280px;object-fit:contain;display:block;background:#0f172a" />
+          <img ${imgTagAttrsFor(r.coverImage)} alt="${escapeAttr(r.title)}" style="width:100%;max-height:280px;object-fit:contain;display:block;background:#0f172a" />
           <button class="icon-btn-sm" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9)" data-action="remove-recipe-cover" data-id="${r.id}">🗑️</button>
         </div>
       ` : `
@@ -6775,7 +6799,7 @@ function renderRecipeDetail(){
         <div class="row gap-2 scrollx" style="padding-bottom:2px;margin-bottom:4px">
           ${(r.gallery||[]).map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:64px;height:64px;border-radius:12px;object-fit:cover" />
+              <img ${imgTagAttrsFor(src)} style="width:64px;height:64px;border-radius:12px;object-fit:cover" />
               <button data-action="remove-recipe-gallery-photo" data-id="${r.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>
           `).join("")}
@@ -6897,6 +6921,7 @@ function renderRecipeDetail(){
     </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px" data-action="save-recipe" data-id="${r.id}">💾 Uložit</button>
   `;
+  resolveBlobImages(el);
   updateDictateButtons();
 }
 
@@ -6951,6 +6976,7 @@ function renderModals(){
   else if(name === "recipeCategories") html = recipeCategoriesModalHTML();
   else if(name === "cooking") html = cookingModalHTML();
   root.innerHTML = html;
+  resolveBlobImages(root);
   if(name === "draw") initDrawCanvas();
 }
 
@@ -7266,11 +7292,11 @@ function taskQuickViewModalHTML(taskId){
         ${t.content ? `<p class="text-sm" style="margin:0 0 14px;white-space:pre-wrap;word-break:break-word;color:#475569;line-height:1.5">${escapeHTML(t.content)}</p>` : ""}
         ${(t.images && t.images.length) ? `
           <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
-            ${t.images.map((src, idx) => `<button data-action="open-image-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block" /></button>`).join("")}
+            ${t.images.map((src, idx) => `<button data-action="open-image-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img ${imgTagAttrsFor(src)} style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block" /></button>`).join("")}
           </div>` : ""}
         ${t.drawings && t.drawings.length ? `
           <div class="row gap-2 scrollx" style="margin-bottom:14px;padding-bottom:2px">
-            ${t.drawings.map((src, idx) => `<button data-action="open-drawing-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img src="${src}" style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block;border:1px solid #e2e8f0" /></button>`).join("")}
+            ${t.drawings.map((src, idx) => `<button data-action="open-drawing-lightbox" data-id="${t.id}" data-sub="${idx}" style="padding:0;border:none;flex-shrink:0"><img ${imgTagAttrsFor(src)} style="width:88px;height:88px;border-radius:12px;object-fit:cover;display:block;border:1px solid #e2e8f0" /></button>`).join("")}
           </div>` : ""}
         ${checklist.length ? `
           <label class="label">Checklist (${doneCount}/${checklist.length})</label>
@@ -8047,7 +8073,7 @@ function renderNotesView(){
             const doneCount = (n.checklist||[]).filter(i=>i.done).length;
             return `
             <button class="card row gap-3" style="padding:12px 14px;align-items:flex-start;width:100%;text-align:left;border-left:3px solid ${priorityMeta(n.priority||5).dot}" data-action="open-note-detail" data-id="${n.id}">
-              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:19px">📝</span>`}
+              ${thumb ? `<img ${imgTagAttrsFor(thumb)} class="thumb" />` : `<span style="font-size:19px">📝</span>`}
               <div class="grow">
                 <p class="text-sm font-med text-main" style="margin:0">${escapeHTML(n.title)}</p>
                 ${n.content ? `<p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(n.content.slice(0,140))}</p>` : ""}
@@ -8060,6 +8086,7 @@ function renderNotesView(){
       `}
     `}
   `;
+  resolveBlobImages(el);
   if(openNote) renderNoteDetail();
 }
 function renderNoteDetail(){
@@ -8110,18 +8137,18 @@ function renderNoteDetail(){
         <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
           ${n.images.map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
+              <img ${imgTagAttrsFor(src)} style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
               <button data-action="remove-note-image" data-id="${n.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>`).join("")}
-        </div>` : (n.image ? `<div class="rel" style="margin-bottom:10px"><img src="${n.image}" style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#0f172a" /><button data-action="remove-note-image" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+        </div>` : (n.image ? `<div class="rel" style="margin-bottom:10px"><img ${imgTagAttrsFor(n.image)} style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#0f172a" /><button data-action="remove-note-image" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
       ${(n.drawings && n.drawings.length) ? `
         <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
           ${n.drawings.map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <img ${imgTagAttrsFor(src)} style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
               <button data-action="remove-note-drawing" data-id="${n.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>`).join("")}
-        </div>` : (n.drawing ? `<div class="rel" style="margin-bottom:10px"><img src="${n.drawing}" style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-note-drawing" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+        </div>` : (n.drawing ? `<div class="rel" style="margin-bottom:10px"><img ${imgTagAttrsFor(n.drawing)} style="width:100%;max-height:260px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-note-drawing" data-id="${n.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
       ${(n.audioIds && n.audioIds.length) ? `
         <div class="col gap-2" style="margin-bottom:10px">
           ${n.audioIds.map((aid, idx) => `<div class="row gap-2"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${aid}">${playingAudioId===aid?'⏸':'🔊'} Nahrávka ${idx+1}</button><button class="icon-btn-sm" data-action="remove-note-audio" data-id="${n.id}" data-sub="${idx}">🗑️</button></div>`).join("")}
@@ -8159,6 +8186,7 @@ function renderNoteDetail(){
       <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:14px" data-action="save-note" data-id="${n.id}">💾 Uložit</button>
     </div>
   `;
+  resolveBlobImages(el);
   updateDictateButtons();
   autoGrowAllTextareas(el);
 }
@@ -8335,7 +8363,7 @@ function renderDocumentsView(){
             const doneCount = (d.checklist||[]).filter(i=>i.done).length;
             return `
             <button class="card row gap-3" style="padding:12px 14px;align-items:flex-start;width:100%;text-align:left" data-action="open-document-detail" data-id="${d.id}">
-              ${thumb ? `<img src="${thumb}" class="thumb" />` : `<span style="font-size:19px">📁</span>`}
+              ${thumb ? `<img ${imgTagAttrsFor(thumb)} class="thumb" />` : `<span style="font-size:19px">📁</span>`}
               <div class="grow">
                 <p class="text-sm font-med text-main" style="margin:0">${escapeHTML(d.title)}</p>
                 ${d.content ? `<p class="text-xs muted" style="margin:2px 0 0">${escapeHTML(d.content.slice(0,120))}</p>` : ""}
@@ -8348,6 +8376,7 @@ function renderDocumentsView(){
       `}
     `}
   `;
+  resolveBlobImages(el);
   if(openDoc) renderDocumentDetail();
 }
 function renderDocumentDetail(){
@@ -8400,7 +8429,7 @@ function renderDocumentDetail(){
         <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
           ${d.images.map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
+              <img ${imgTagAttrsFor(src)} style="width:76px;height:76px;border-radius:12px;object-fit:cover" />
               <button data-action="remove-document-image" data-id="${d.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>`).join("")}
         </div>` : ""}
@@ -8408,10 +8437,10 @@ function renderDocumentDetail(){
         <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
           ${d.drawings.map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <img ${imgTagAttrsFor(src)} style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
               <button data-action="remove-document-drawing" data-id="${d.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>`).join("")}
-        </div>` : (d.drawing ? `<div class="rel" style="margin-bottom:10px"><img src="${d.drawing}" style="width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-document-drawing" data-id="${d.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
+        </div>` : (d.drawing ? `<div class="rel" style="margin-bottom:10px"><img ${imgTagAttrsFor(d.drawing)} style="width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #e2e8f0" /><button data-action="remove-document-drawing" data-id="${d.id}" data-sub="0" style="position:absolute;top:8px;right:8px;background:rgba(255,255,255,0.9);border-radius:999px;width:26px;height:26px">🗑️</button></div>` : "")}
       ${(d.audioIds && d.audioIds.length) ? `
         <div class="col gap-2" style="margin-bottom:10px">
           ${d.audioIds.map((aid, idx) => `<div class="row gap-2"><button class="btn btn-soft grow" data-action="play-task-audio" data-id="${aid}">${playingAudioId===aid?'⏸':'🔊'} Nahrávka ${idx+1}</button><button class="icon-btn-sm" data-action="remove-document-audio" data-id="${d.id}" data-sub="${idx}">🗑️</button></div>`).join("")}
@@ -8452,6 +8481,7 @@ function renderDocumentDetail(){
     </div>
   `;
   updateDictateButtons();
+  resolveBlobImages(el);
   autoGrowAllTextareas(el);
 }
 
@@ -9447,7 +9477,7 @@ function renderWorkoutDetail(){
         <div class="row gap-2 scrollx" style="margin-bottom:10px;padding-bottom:2px">
           ${w.drawings.map((src, idx) => `
             <div class="rel shrink0">
-              <img src="${src}" style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
+              <img ${imgTagAttrsFor(src)} style="width:76px;height:76px;border-radius:12px;object-fit:cover;background:#fff;border:1px solid #e2e8f0" />
               <button data-action="remove-workout-drawing" data-id="${w.id}" data-sub="${idx}" style="position:absolute;top:-4px;right:-4px;background:#1e293b;color:#fff;border-radius:999px;width:18px;height:18px;font-size:10px">✕</button>
             </div>`).join("")}
         </div>` : ""}
@@ -11365,7 +11395,7 @@ async function checkForAppUpdate(){
 function setupServiceWorker(){
   if(!("serviceWorker" in navigator)) return;
   const swCode = `
-    const CACHE_NAME = "kalendar-cache-v14";
+    const CACHE_NAME = "kalendar-cache-v15";
     self.addEventListener("install", (event) => {
       self.skipWaiting();
     });
